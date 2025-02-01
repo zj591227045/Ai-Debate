@@ -174,6 +174,57 @@
    - 用户参与接口
    - 实时反馈系统
 
+6. **AI大模型管理模块**
+   - 模型供应商管理
+     * 供应商配置
+       - OpenAI配置
+       - Anthropic配置
+       - 本地模型配置
+     * 模型参数管理
+       - 参数模板定义
+       - 默认值配置
+       - 参数验证规则
+     * API密钥管理
+       - 密钥存储加密
+       - 密钥有效期管理
+       - 密钥轮换机制
+   
+   - 统一调用接口
+     * 请求格式标准化
+     * 响应解析统一
+     * 错误处理封装
+     * 重试机制实现
+   
+   - 监控与优化
+     * 调用统计
+     * 性能分析
+     * 成本控制
+     * 缓存策略
+
+7. **AI助手配置系统**
+   - 调用模式配置
+     * Dify工作流模式
+       - 服务器URL配置
+       - 工作流API KEY管理
+       - 工作流参数设置
+     * 直接API调用模式
+       - 模型供应商选择
+       - 模型参数配置
+       - API密钥关联
+   
+   - 角色系统集成
+     * AI选手角色绑定
+       - 提示词模板
+       - 上下文管理
+     * AI裁判角色绑定
+       - 评分标准关联
+       - 反馈模板设置
+   
+   - 调用模式切换
+     * 无缝切换机制
+     * 配置迁移工具
+     * 历史记录保持
+
 ### 3.2 数据模型
 
 #### 3.2.1 辩论赛配置
@@ -185,7 +236,7 @@ interface DebateConfig {
     description: string;
     background?: string;
     type: 'structured' | 'free';  // 辩论类型
-  };
+    };
   rules: {
     debateFormat: 'structured' | 'free';  // 辩论形式
     basicRules: {
@@ -211,7 +262,7 @@ interface DebateConfig {
       tiebreaker: {           // 同分处理规则
         criteria: ('averageScore' | 'totalScore' | 'innovation' | 'logic')[];
         random: boolean;      // 是否在所有条件相同时随机选择
-      };
+  };
     };
     validationRules: {         
       minUniqueWords: number;       
@@ -255,7 +306,7 @@ interface SpeechValidation {
     message: string;
   }[];
 }
-
+  
 // 更新：发言记录接口
 interface Speech {
   id: string;
@@ -277,12 +328,12 @@ interface PlayerProfile {
   avatar: {
     type: 'upload' | 'url';
     value: string;
-  };
+      };
   personality: {
     description: string;
     tags: string[];
     debateStyle?: string;
-  };
+    };
   modelConfig: {
     provider: 'openai' | 'anthropic' | 'gemini' | 'custom';
     modelName: string;
@@ -322,7 +373,7 @@ interface PlayerProfile {
   createdAt: Date;
   updatedAt: Date;
 }
-
+    
 // 更新：备份配置接口
 interface BackupConfig {
   format: 'zip';                  // 固定使用zip格式
@@ -335,9 +386,9 @@ interface BackupConfig {
     configFileName: string;       // 配置文件名 (default: 'player_config.json')
     assetsDir: string;           // 资源文件目录 (default: 'assets')
     metaFileName: string;        // 元数据文件名 (default: 'backup_meta.json')
-  };
+    };
 }
-
+    
 // 新增：批量备份文件结构接口
 interface BulkBackupArchive {
   meta: {
@@ -417,7 +468,7 @@ interface BackupOperations {
     type: 'auto' | 'manual';
     meta: BackupArchive['meta'];
   }[]>;
-
+  
   validateBackup: (zipPath: string) => Promise<{
     isValid: boolean;
     errors: string[];
@@ -427,7 +478,7 @@ interface BackupOperations {
       hasAvatar: boolean;
       hasCustomImages: boolean;
       totalFiles: number;
-    };
+      };
   }>;
 
   previewBackup: (zipPath: string) => Promise<{
@@ -559,7 +610,7 @@ interface RoundResult {
     finalRank: number;
   }[];
 }
-
+    
 // 更新：辩论结果接口
 interface DebateResult {
   debateId: string;
@@ -583,14 +634,14 @@ interface DebateResult {
     score: number;
     winningRound: number;
     eliminationSurvived: number; // 新增：存活轮数
-  };
+      };
   judgeComments: {
     summary: string;
     highlights: {
       playerId: string;
       comment: string;
     }[];
-  };
+    };
   eliminationHistory?: {
     [round: number]: {
       eliminated: {
@@ -2802,3 +2853,303 @@ interface OfflineSupport {
 2. 基于浏览器存储的数据管理
 3. 完整的错误处理机制
 4. 全面的性能优化策略
+```
+
+#### 3.2.4 AI模型配置
+```typescript
+// 模型供应商配置
+interface ModelProvider {
+  id: string;
+  name: string;
+  type: 'openai' | 'anthropic' | 'local' | 'custom';
+  endpoint: string;
+  models: {
+    id: string;
+    name: string;
+    capabilities: string[];
+    maxTokens: number;
+    pricing: {
+      input: number;
+      output: number;
+      currency: string;
+    };
+  }[];
+  auth: {
+    type: 'api_key' | 'oauth' | 'custom';
+    credentials: Record<string, string>;
+  };
+}
+
+// AI助手配置
+interface AIAssistantConfig {
+  id: string;
+  name: string;
+  role: 'player' | 'judge';
+  callMode: 'dify' | 'direct';
+  
+  // Dify工作流配置
+  difyConfig?: {
+    serverUrl: string;
+    apiKey: string;
+    workflowId: string;
+    parameters: Record<string, any>;
+  };
+  
+  // 直接API调用配置
+  directConfig?: {
+    providerId: string;
+    modelId: string;
+    parameters: {
+      temperature: number;
+      maxTokens: number;
+      topP: number;
+      frequencyPenalty: number;
+      presencePenalty: number;
+    };
+  };
+  
+  // 角色绑定
+  roleBinding: {
+    characterId?: string;    // AI选手角色ID
+    judgeProfileId?: string; // AI裁判配置ID
+  };
+  
+  // 系统提示词
+  systemPrompts: {
+    initial: string;
+    contextual: string[];
+    evaluation?: string;     // 仅用于裁判角色
+  };
+  
+  // 历史记录
+  history: {
+    timestamp: Date;
+    mode: 'dify' | 'direct';
+    config: Record<string, any>;
+  }[];
+}
+
+// 监控数据
+interface ModelUsageStats {
+  providerId: string;
+  modelId: string;
+  period: {
+    start: Date;
+    end: Date;
+  };
+  usage: {
+    requests: number;
+    tokensInput: number;
+    tokensOutput: number;
+    cost: number;
+    errors: {
+      type: string;
+      count: number;
+    }[];
+  };
+  performance: {
+    avgLatency: number;
+    p95Latency: number;
+    errorRate: number;
+  };
+}
+```
+
+### 3.3 核心流程定义
+
+#### 3.3.1 内心OS流程实现
+```typescript
+interface InnerOSImplementation {
+  // 人设整合
+  personalityIntegration: {
+    // 性格特征处理
+    traitProcessing: {
+      // 性格特征转换为提示词
+      traitToPrompt: (traits: AIPlayerProfile['personality']['traits']) => string;
+      // 性格特征影响权重计算
+      calculateTraitWeights: (traits: AIPlayerProfile['personality']['traits']) => {
+        confidenceWeight: number;
+        cautiousnessWeight: number;
+        aggressivenessWeight: number;
+        adaptabilityWeight: number;
+      };
+    };
+    
+    // 背景知识处理
+    backgroundProcessing: {
+      // 专业知识整合
+      expertiseIntegration: (expertise: string[]) => string;
+      // 经历关联分析
+      experienceAnalysis: (experience: string[], currentContext: any) => string;
+      // 信念价值观整合
+      beliefValueIntegration: (beliefs: string[], values: string[]) => string;
+    };
+    
+    // 行为准则处理
+    behaviorProcessing: {
+      // 规则转换为约束条件
+      rulesToConstraints: (rules: AIPlayerProfile['behaviorRules']) => string[];
+      // 互动规则影响计算
+      calculateInteractionInfluence: (rules: AIPlayerProfile['behaviorRules']['interactionRules']) => string;
+    };
+  };
+
+  // 上下文处理
+  contextProcessing: {
+    // 历史发言分析
+    historicalAnalysis: {
+      // 关键论点提取
+      extractKeyPoints: (speeches: Speech[]) => string[];
+      // 论点关联分析
+      analyzeArgumentRelations: (keyPoints: string[]) => Map<string, string[]>;
+      // 立场一致性检查
+      checkStanceConsistency: (speeches: Speech[], currentStance: string) => boolean;
+    };
+    
+    // 当前局势分析
+    situationAnalysis: {
+      // 优势劣势分析
+      analyzeStrengthWeakness: (currentState: any) => {
+        strengths: string[];
+        weaknesses: string[];
+        opportunities: string[];
+        threats: string[];
+      };
+      // 策略建议生成
+      generateStrategyAdvice: (analysis: any) => string[];
+    };
+  };
+
+  // 思维生成
+  thoughtGeneration: {
+    // 提示词组装
+    promptAssembly: {
+      // 基础提示词生成
+      generateBasePrompt: (player: AIPlayerProfile) => string;
+      // 性格特征提示词
+      generateTraitPrompt: (traits: any) => string;
+      // 背景知识提示词
+      generateBackgroundPrompt: (background: any) => string;
+      // 行为规则提示词
+      generateBehaviorPrompt: (rules: any) => string;
+    };
+    
+    // 思维结构化
+    thoughtStructuring: {
+      // 分析部分
+      analysis: {
+        situation: string;
+        opponents: string;
+        strategy: string;
+      };
+      // 计划部分
+      planning: {
+        nextMove: string;
+        backup: string;
+        longTerm: string;
+      };
+      // 情感部分
+      emotional: {
+        confidence: number;
+        concern: string[];
+        motivation: string;
+      };
+    };
+  };
+}
+
+#### 3.3.2 发言流程实现
+```typescript
+interface SpeechImplementation {
+  // 人设整合
+  personalityIntegration: {
+    // 表达风格处理
+    styleProcessing: {
+      // 辩论风格应用
+      applyDebateStyle: (style: AIPlayerProfile['personality']['debateStyle']) => {
+        argumentStructure: string;
+        toneSettings: any;
+        emphasisPoints: string[];
+      };
+      // 语言风格调整
+      adjustLanguageStyle: (style: string, content: string) => string;
+      // 回应方式选择
+      selectResponseStyle: (style: string, context: any) => string;
+    };
+    
+    // 论证方式处理
+    argumentationProcessing: {
+      // 论证类型选择
+      selectArgumentTypes: (preferences: string[], context: any) => string[];
+      // 论证强度调整
+      adjustArgumentStrength: (modifiers: any, content: string) => string;
+      // 论证有效性验证
+      validateArgumentation: (content: string, rules: any) => boolean;
+    };
+  };
+
+  // 发言生成
+  speechGeneration: {
+    // 结构组织
+    structureOrganization: {
+      // 开场设计
+      designOpening: (context: any, style: any) => string;
+      // 论点展开
+      developArguments: (points: string[], style: any) => string[];
+      // 结论构建
+      buildConclusion: (arguments: string[], style: any) => string;
+    };
+    
+    // 内容优化
+    contentOptimization: {
+      // 语言润色
+      polishLanguage: (content: string, style: any) => string;
+      // 逻辑优化
+      optimizeLogic: (content: string) => string;
+      // 情感调节
+      adjustEmotionalTone: (content: string, level: number) => string;
+    };
+    
+    // 规则遵守
+    ruleCompliance: {
+      // 字数控制
+      controlLength: (content: string, limits: any) => string;
+      // 引用规范
+      formatQuotations: (content: string, references: any) => string;
+      // 禁忌检查
+      checkTaboos: (content: string, taboos: string[]) => boolean;
+    };
+  };
+
+  // 质量控制
+  qualityControl: {
+    // 一致性检查
+    consistencyCheck: {
+      // 立场一致性
+      checkStanceConsistency: (content: string, stance: string) => boolean;
+      // 论点一致性
+      checkArgumentConsistency: (content: string, history: any) => boolean;
+      // 风格一致性
+      checkStyleConsistency: (content: string, style: any) => boolean;
+    };
+    
+    // 有效性验证
+    validityCheck: {
+      // 论证有效性
+      validateArgumentation: (content: string) => boolean;
+      // 反驳有效性
+      validateRebuttal: (content: string, target: string) => boolean;
+      // 结论有效性
+      validateConclusion: (content: string, arguments: string[]) => boolean;
+    };
+  };
+}
+```
+
+这些实现确保了：
+1. 人设和背景信息在内心OS和发言生成中得到充分利用
+2. 所有影响都通过结构化的方式实现，便于调试和优化
+3. 提供了完整的质量控制机制，确保输出符合预期
+4. 支持灵活的配置和调整，适应不同场景需求
+
+// ... existing code ...

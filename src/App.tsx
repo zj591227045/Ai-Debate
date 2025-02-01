@@ -2,8 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Global, css } from '@emotion/react';
 import { ThemeProvider } from './styles/ThemeContext';
+import GameStart from './pages/GameStart';
+import GameConfig from './pages/GameConfig';
 import DebateRoom from './pages/DebateRoom';
-import DebateTest from './pages/DebateTest';
 
 const globalStyles = css`
   body {
@@ -28,8 +29,9 @@ function App() {
       <Global styles={globalStyles} />
       <Router>
         <Routes>
-          <Route path="/" element={<DebateRoom />} />
-          <Route path="/test" element={<DebateTest />} />
+          <Route path="/" element={<GameStart />} />
+          <Route path="/game-config" element={<GameConfig />} />
+          <Route path="/debate-room" element={<DebateRoom />} />
         </Routes>
       </Router>
     </ThemeProvider>

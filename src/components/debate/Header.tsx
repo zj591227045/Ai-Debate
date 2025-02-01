@@ -1,73 +1,162 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { useTheme } from '../../styles/ThemeContext';
 
 export interface HeaderProps {
   topic: string;
+  topicDescription?: string;
   currentRound: number;
   totalRounds: number;
-  timeLeft: number;
+  rules?: string[];
+  onRulesExpandChange?: (expanded: boolean) => void;
 }
 
 const HeaderContainer = styled.div`
+  padding: ${props => props.theme.spacing.md};
+  background-color: ${props => props.theme.colors.background.secondary};
+  border-radius: ${props => props.theme.radius.lg};
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: ${props => props.theme.shadows.sm};
+  overflow: hidden;
+`;
+
+const TopSection = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: ${props => `${props.theme.spacing.sm} ${props.theme.spacing.md}`};
-  height: 100%;
+  gap: ${props => props.theme.spacing.md};
+  padding-bottom: ${props => props.theme.spacing.md};
+  flex-shrink: 0;
 `;
 
-const TopicSection = styled.div`
+const TopicHeader = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: ${props => props.theme.spacing.sm};
   flex: 1;
 `;
 
-const TopicTitle = styled.h1`
-  margin: 0;
-  font-size: ${props => props.theme.typography.fontSize.lg};
+const TopicLabel = styled.span`
   color: ${props => props.theme.colors.text.primary};
+  font-size: ${props => props.theme.typography.fontSize.md};
   font-weight: ${props => props.theme.typography.fontWeight.bold};
+  white-space: nowrap;
 `;
 
-const RoundSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${props => props.theme.spacing.md};
-  margin: 0 ${props => props.theme.spacing.xl};
+const TopicTitle = styled.h1`
+  color: ${props => props.theme.colors.text.primary};
+  font-size: ${props => props.theme.typography.fontSize.lg};
+  font-weight: ${props => props.theme.typography.fontWeight.bold};
+  margin: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const RoundInfo = styled.div`
   display: flex;
-  flex-direction: column;
   align-items: center;
+  gap: ${props => props.theme.spacing.sm};
+  padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.md};
+  background-color: ${props => props.theme.colors.background.accent};
+  border-radius: ${props => props.theme.radius.pill};
+  white-space: nowrap;
 `;
 
 const RoundLabel = styled.span`
-  font-size: ${props => props.theme.typography.fontSize.sm};
   color: ${props => props.theme.colors.text.secondary};
+  font-size: ${props => props.theme.typography.fontSize.sm};
 `;
 
-const RoundNumber = styled.span`
-  font-size: ${props => props.theme.typography.fontSize.lg};
-  color: ${props => props.theme.colors.primary};
+const RoundValue = styled.span`
+  color: ${props => props.theme.colors.text.primary};
   font-weight: ${props => props.theme.typography.fontWeight.bold};
 `;
 
-const TimerSection = styled.div`
+const RulesSection = styled.div<{ isExpanded: boolean }>`
+  border-top: 1px solid ${props => props.theme.colors.border};
+  transition: all ${props => props.theme.transitions.normal};
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: ${props => props.isExpanded ? '0' : '40px'};
+  height: ${props => props.isExpanded ? '150%' : '40px'};
+  overflow: hidden;
+`;
+
+const RulesHeader = styled.div`
+  display: flex;
   align-items: center;
-  min-width: 100px;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: ${props => props.theme.spacing.md} 0;
+  background-color: ${props => props.theme.colors.background.secondary};
+  flex-shrink: 0;
+  z-index: 1;
 `;
 
-const TimerLabel = styled.span`
-  font-size: ${props => props.theme.typography.fontSize.sm};
+const RulesTitle = styled.div`
   color: ${props => props.theme.colors.text.secondary};
+  font-size: ${props => props.theme.typography.fontSize.sm};
+  font-weight: ${props => props.theme.typography.fontWeight.bold};
 `;
 
-const TimerDisplay = styled.div<{ isWarning: boolean }>`
-  font-size: ${props => props.theme.typography.fontSize.lg};
-  font-weight: ${props => props.theme.typography.fontWeight.bold};
-  color: ${props => props.isWarning ? props.theme.colors.warning : props.theme.colors.text.primary};
+const RulesToggle = styled.button`
+  background: none;
+  border: none;
+  color: ${props => props.theme.colors.text.secondary};
+  cursor: pointer;
+  padding: ${props => props.theme.spacing.xs};
+  transition: transform ${props => props.theme.transitions.fast};
+  
+  &:hover {
+    color: ${props => props.theme.colors.text.primary};
+  }
+`;
+
+const RulesContent = styled.div<{ isExpanded: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.spacing.xs};
+  padding: ${props => props.theme.spacing.xs};
+  overflow-y: auto;
+  opacity: ${props => props.isExpanded ? 1 : 0};
+  max-height: ${props => props.isExpanded ? '150%' : '0'};
+  height: ${props => props.isExpanded ? '150%' : '0'};
+  transition: all ${props => props.theme.transitions.normal};
+  flex: 1;
+`;
+
+const TopicDescription = styled.p`
+  color: ${props => props.theme.colors.text.secondary};
+  font-size: ${props => props.theme.typography.fontSize.sm};
+  line-height: 1.1;
+  margin: 0;
+  margin-bottom: ${props => props.theme.spacing.xs};
+  padding: 0 ${props => props.theme.spacing.xs};
+`;
+
+const RulesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: ${props => props.theme.typography.fontSize.sm};
+  padding: 0 ${props => props.theme.spacing.xs};
+`;
+
+const RuleItem = styled.div`
+  color: ${props => props.theme.colors.text.primary};
+  font-size: ${props => props.theme.typography.fontSize.sm};
+  line-height: 1.1;
+  padding: 4px ${props => props.theme.spacing.xs};
+  background-color: ${props => props.theme.colors.background.default}40;
+  border-radius: ${props => props.theme.radius.sm};
+
+  &:hover {
+    background-color: ${props => props.theme.colors.background.default}80;
+  }
 `;
 
 const ThemeToggle = styled.button`
@@ -94,48 +183,57 @@ const ThemeToggle = styled.button`
   }
 `;
 
-const formatTime = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
-
 export const Header: React.FC<HeaderProps> = ({
   topic,
+  topicDescription,
   currentRound,
   totalRounds,
-  timeLeft,
+  rules = [],
+  onRulesExpandChange
 }) => {
   const { theme, isDark, toggleTheme } = useTheme();
-  const isWarning = timeLeft <= 30; // 剩余30秒时显示警告颜色
+  const [isRulesExpanded, setIsRulesExpanded] = useState(true);
+
+  const handleRulesToggle = () => {
+    const newState = !isRulesExpanded;
+    setIsRulesExpanded(newState);
+    onRulesExpandChange?.(newState);
+  };
 
   return (
     <HeaderContainer>
-      <TopicSection>
-        <TopicTitle>{topic}</TopicTitle>
-      </TopicSection>
-
-      <RoundSection>
+      <TopSection>
+        <TopicHeader>
+          <TopicLabel>辩论主题：</TopicLabel>
+          <TopicTitle>{topic}</TopicTitle>
+        </TopicHeader>
         <RoundInfo>
           <RoundLabel>当前轮次</RoundLabel>
-          <RoundNumber>
-            {currentRound} / {totalRounds}
-          </RoundNumber>
+          <RoundValue>{currentRound} / {totalRounds}</RoundValue>
         </RoundInfo>
-      </RoundSection>
-
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <TimerSection>
-          <TimerLabel>剩余时间</TimerLabel>
-          <TimerDisplay isWarning={isWarning}>
-            {formatTime(timeLeft)}
-          </TimerDisplay>
-        </TimerSection>
-
         <ThemeToggle onClick={toggleTheme} aria-label="切换主题">
           {isDark ? '🌞' : '🌙'}
         </ThemeToggle>
-      </div>
+      </TopSection>
+
+      <RulesSection isExpanded={isRulesExpanded}>
+        <RulesHeader onClick={handleRulesToggle}>
+          <RulesTitle>辩论规则与说明</RulesTitle>
+          <RulesToggle>
+            {isRulesExpanded ? '收起 ▼' : '展开 ▶'}
+          </RulesToggle>
+        </RulesHeader>
+        <RulesContent isExpanded={isRulesExpanded}>
+          {topicDescription && (
+            <TopicDescription>{topicDescription}</TopicDescription>
+          )}
+          <RulesList>
+            {rules.map((rule, index) => (
+              <RuleItem key={index}>{rule}</RuleItem>
+            ))}
+          </RulesList>
+        </RulesContent>
+      </RulesSection>
     </HeaderContainer>
   );
 };

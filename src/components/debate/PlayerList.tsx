@@ -5,6 +5,8 @@ import { useTheme } from '@emotion/react';
 
 interface PlayerListProps {
   players: Player[];
+  currentSpeaker?: string;
+  onPlayerClick?: (playerId: string) => void;
 }
 
 const Container = styled.div`
@@ -204,12 +206,22 @@ const getRoleText = (role: Player['role']): string => {
   }
 };
 
-export const PlayerList: React.FC<PlayerListProps> = ({ players }) => {
+export const PlayerList: React.FC<PlayerListProps> = ({ 
+  players,
+  currentSpeaker,
+  onPlayerClick
+}) => {
   return (
     <Container>
       {players.map(player => {
+        const isActive = player.id === currentSpeaker;
         return (
-          <PlayerCard key={player.id} isActive={player.isActive} role={player.role}>
+          <PlayerCard 
+            key={player.id} 
+            isActive={isActive} 
+            role={player.role}
+            onClick={() => onPlayerClick?.(player.id)}
+          >
             <PlayerInfo>
               <AvatarContainer>
                 <Avatar src={player.avatar} alt={player.name} />
@@ -220,8 +232,8 @@ export const PlayerList: React.FC<PlayerListProps> = ({ players }) => {
                     <PlayerName>{player.name}</PlayerName>
                     <PlayerRole role={player.role}>{getRoleText(player.role)}</PlayerRole>
                   </PlayerNameRole>
-                  <PlayerStatus isActive={player.isActive}>
-                    {player.isActive ? '当前发言' : '等待中'}
+                  <PlayerStatus isActive={isActive}>
+                    {isActive ? '当前发言' : '等待中'}
                   </PlayerStatus>
                 </PlayerHeader>
                 

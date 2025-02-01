@@ -6,51 +6,60 @@ interface DebateRoomLayoutProps {
   players: React.ReactNode;
   main: React.ReactNode;
   control: React.ReactNode;
+  isRulesExpanded?: boolean;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ isRulesExpanded?: boolean }>`
   display: grid;
   grid-template-areas:
     "header header"
     "players main"
     "control control";
   grid-template-columns: minmax(300px, auto) 1fr;
-  grid-template-rows: 60px 1fr 80px;
-  height: 100vh;
+  grid-template-rows: ${props => props.isRulesExpanded ? '180px' : '120px'} 1fr auto;
+  height: 100%;
+  gap: ${props => props.theme.spacing.md};
+  padding: ${props => props.theme.spacing.md};
   background-color: ${props => props.theme.colors.background.default};
+  transition: all ${props => props.theme.transitions.normal};
 `;
 
 const HeaderSection = styled.header`
   grid-area: header;
   background-color: ${props => props.theme.colors.white};
-  border-bottom: 1px solid ${props => props.theme.colors.border};
+  border-radius: ${props => props.theme.radius.lg};
   box-shadow: ${props => props.theme.shadows.sm};
   z-index: 10;
-  padding: 0 ${props => props.theme.spacing.md};
+  overflow: hidden;
+  min-height: 0;
 `;
 
 const PlayersSection = styled.aside`
   grid-area: players;
   background-color: ${props => props.theme.colors.white};
-  border-right: 1px solid ${props => props.theme.colors.border};
-  overflow-y: auto;
-  width: 300px;
+  border-radius: ${props => props.theme.radius.lg};
+  overflow: hidden;
   min-width: 300px;
   max-width: 400px;
-  height: calc(100vh - 140px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const MainSection = styled.main`
   grid-area: main;
   background-color: ${props => props.theme.colors.white};
-  overflow-y: auto;
-  padding: ${props => props.theme.spacing.md};
+  border-radius: ${props => props.theme.radius.lg};
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const ControlSection = styled.footer`
   grid-area: control;
   background-color: ${props => props.theme.colors.white};
-  border-top: 1px solid ${props => props.theme.colors.border};
+  border-radius: ${props => props.theme.radius.lg};
   display: flex;
   align-items: center;
   padding: ${props => props.theme.spacing.md};
@@ -96,7 +105,8 @@ export const DebateRoomLayout: React.FC<DebateRoomLayoutProps> = ({
   header,
   players,
   main,
-  control
+  control,
+  isRulesExpanded = true
 }) => {
   const [playerListWidth, setPlayerListWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
@@ -123,7 +133,7 @@ export const DebateRoomLayout: React.FC<DebateRoomLayoutProps> = ({
   }, []);
 
   return (
-    <ResponsiveContainer>
+    <ResponsiveContainer isRulesExpanded={isRulesExpanded}>
       <HeaderSection>{header}</HeaderSection>
       <PlayersSection>
         {players}

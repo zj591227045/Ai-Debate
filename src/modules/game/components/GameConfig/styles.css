@@ -1,0 +1,92 @@
+.game-config {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.game-config-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.game-config-header h1 {
+  margin: 0;
+  font-size: 28px;
+  color: #333;
+}
+
+.game-config-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 1px;
+}
+
+.tab-button {
+  padding: 12px 24px;
+  border: none;
+  background: none;
+  font-size: 16px;
+  color: #666;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+  color: #1890ff;
+}
+
+.tab-button.active {
+  color: #1890ff;
+}
+
+.tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #1890ff;
+}
+
+.game-config-content {
+  min-height: 400px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .game-config {
+    padding: 16px;
+  }
+
+  .game-config-header h1 {
+    font-size: 24px;
+  }
+
+  .game-config-tabs {
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+
+  .tab-button {
+    padding: 10px 16px;
+    text-align: center;
+    border-radius: 4px;
+  }
+
+  .tab-button.active {
+    background-color: #f0f5ff;
+  }
+
+  .tab-button.active::after {
+    display: none;
+  }
+} 

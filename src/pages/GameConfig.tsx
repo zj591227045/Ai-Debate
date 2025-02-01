@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
 import { useRoleAssignment, Player, DebateRole } from '../hooks/useRoleAssignment';
+import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
+import { ModelProvider } from '../modules/model/context/ModelContext';
+import ModelList from '../modules/model/components/ModelList';
 
 const Container = styled.div`
   display: flex;
@@ -43,6 +46,30 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   }
 `;
 
+const Tabs = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing.md};
+  margin-bottom: ${props => props.theme.spacing.lg};
+`;
+
+const Tab = styled.button<{ active: boolean }>`
+  padding: ${props => props.theme.spacing.md};
+  background-color: ${props => 
+    props.active ? props.theme.colors.primary : props.theme.colors.background.secondary
+  };
+  color: ${props => 
+    props.active ? props.theme.colors.white : props.theme.colors.text.primary
+  };
+  border: none;
+  border-radius: ${props => props.theme.radius.md};
+  cursor: pointer;
+  transition: all ${props => props.theme.transitions.fast};
+
+  &:hover {
+    opacity: 0.9;
+  }
+`;
+
 // 默认的初始AI玩家
 const defaultInitialPlayers: Player[] = [
   { id: '1', name: 'AI选手1', role: 'unassigned' as DebateRole, isAI: true },
@@ -61,9 +88,11 @@ const defaultConfig = {
   autoAssign: false,
 };
 
-export const GameConfig: React.FC = () => {
+const GameConfigContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'roles' | 'characters' | 'models'>('roles');
+  const { state: characterState } = useCharacter();
 
   // 使用上次的配置或默认配置
   const getInitialPlayers = () => {
@@ -110,6 +139,17 @@ export const GameConfig: React.FC = () => {
       return;
     }
 
+    // 检查是否每个AI选手都有对应的角色配置
+    const aiPlayersWithoutCharacter = players.filter(
+      p => p.isAI && !characterState.characters.some(c => c.name === p.name)
+    );
+
+    if (aiPlayersWithoutCharacter.length > 0) {
+      alert(`以下AI选手尚未配置角色：\n${aiPlayersWithoutCharacter.map(p => p.name).join('\n')}`);
+      setActiveTab('characters');
+      return;
+    }
+
     // 添加调试信息
     console.log('GameConfig - 传递给辩论室的玩家配置:', {
       players,
@@ -140,6 +180,35 @@ export const GameConfig: React.FC = () => {
     });
   };
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'roles':
+        return (
+          <RoleAssignmentPanel
+            players={players}
+            config={config}
+            onAssignRole={assignRole}
+            onAutoAssign={autoAssignRoles}
+            onReset={resetRoles}
+            onTakeoverPlayer={handleTakeoverPlayer}
+            onRemovePlayer={removePlayer}
+            onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
+            onStartDebate={handleStartDebate}
+          />
+        );
+      case 'characters':
+        return <CharacterList />;
+      case 'models':
+        return (
+          <ModelProvider>
+            <ModelList />
+          </ModelProvider>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <Container>
       <Header>
@@ -154,18 +223,39 @@ export const GameConfig: React.FC = () => {
         </div>
       </Header>
 
-      <RoleAssignmentPanel
-        players={players}
-        config={config}
-        onAssignRole={assignRole}
-        onAutoAssign={autoAssignRoles}
-        onReset={resetRoles}
-        onTakeoverPlayer={handleTakeoverPlayer}
-        onRemovePlayer={removePlayer}
-        onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
-        onStartDebate={handleStartDebate}
-      />
+      <Tabs>
+        <Tab
+          active={activeTab === 'roles'}
+          onClick={() => setActiveTab('roles')}
+        >
+          角色分配
+        </Tab>
+        <Tab
+          active={activeTab === 'characters'}
+          onClick={() => setActiveTab('characters')}
+        >
+          AI角色配置
+        </Tab>
+        <Tab
+          active={activeTab === 'models'}
+          onClick={() => setActiveTab('models')}
+        >
+          模型管理
+        </Tab>
+      </Tabs>
+
+      <div className="game-config-content">
+        {renderContent()}
+      </div>
     </Container>
+  );
+};
+
+export const GameConfig: React.FC = () => {
+  return (
+    <CharacterProvider>
+      <GameConfigContent />
+    </CharacterProvider>
   );
 };
 

@@ -1,0 +1,213 @@
+.model-list-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.model-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.model-list-header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.model-list-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+.model-config-card {
+  background: white;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.3s ease;
+}
+
+.model-config-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.model-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.model-config-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.provider-tag {
+  background-color: #f0f5ff;
+  color: #1890ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.model-config-info {
+  margin-bottom: 16px;
+}
+
+.model-config-detail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.model-config-detail:last-child {
+  border-bottom: none;
+}
+
+.model-config-detail .label {
+  color: #666;
+  font-size: 14px;
+}
+
+.model-config-detail .value {
+  color: #333;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.model-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.model-form-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.model-form-modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  background-color: #fafafa;
+  border-radius: 8px;
+  color: #666;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #40a9ff;
+}
+
+.btn-secondary {
+  background-color: white;
+  color: #1890ff;
+  border: 1px solid #1890ff;
+}
+
+.btn-secondary:hover {
+  background-color: #f0f5ff;
+}
+
+.btn-secondary:disabled {
+  color: #d9d9d9;
+  border-color: #d9d9d9;
+  cursor: not-allowed;
+  background-color: #f5f5f5;
+}
+
+.btn-danger {
+  background-color: white;
+  color: #ff4d4f;
+  border: 1px solid #ff4d4f;
+}
+
+.btn-danger:hover {
+  background-color: #fff1f0;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .model-list-container {
+    padding: 16px;
+  }
+
+  .model-list-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .model-list-actions {
+    flex-wrap: wrap;
+  }
+
+  .model-list-actions button {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .model-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .model-form-modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+
+  .model-config-actions {
+    flex-wrap: wrap;
+  }
+
+  .model-config-actions button {
+    flex: 1;
+  }
+} 

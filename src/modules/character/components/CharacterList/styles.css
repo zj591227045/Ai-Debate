@@ -1,7 +1,12 @@
+.character-management {
+  padding: 24px;
+}
+
 .character-list {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  min-height: 400px;
 }
 
 .character-list-header {
@@ -100,23 +105,85 @@
 
 .character-actions {
   display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.character-actions .ant-btn {
+  flex: 1;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
-  margin-top: auto;
+  gap: 4px;
+  border-radius: 6px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.btn-danger {
-  background-color: white;
+.character-actions .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.character-actions .ant-btn:active {
+  transform: translateY(0);
+}
+
+.character-actions .ant-btn-dangerous {
+  background: transparent;
+  border-color: #ff4d4f;
   color: #ff4d4f;
-  border: 1px solid #ff4d4f;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s ease;
 }
 
-.btn-danger:hover {
-  background-color: #fff1f0;
+.character-actions .ant-btn-dangerous:hover {
+  background: #fff1f0;
+  border-color: #ff7875;
+  color: #ff7875;
+}
+
+/* 暗色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .character-actions {
+    border-top-color: #303030;
+  }
+
+  .character-actions .ant-btn {
+    background: transparent;
+    border-color: #434343;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .character-actions .ant-btn:hover {
+    border-color: #177ddc;
+    color: #177ddc;
+  }
+
+  .character-actions .ant-btn-dangerous {
+    border-color: #a61d24;
+    color: #ff4d4f;
+  }
+
+  .character-actions .ant-btn-dangerous:hover {
+    background: rgba(255, 77, 79, 0.1);
+    border-color: #ff4d4f;
+    color: #ff4d4f;
+  }
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .character-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .character-actions .ant-btn {
+    width: 100%;
+  }
 }
 
 .empty-state {
@@ -167,5 +234,40 @@
   .character-form-modal-content {
     width: 95%;
     margin: 10px;
+  }
+}
+
+/* 删除确认对话框样式 */
+.delete-confirm-modal .ant-modal-confirm-btns {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.delete-confirm-modal .ant-modal-confirm-btns button {
+  margin-left: 0 !important;
+  min-width: 80px;
+}
+
+.delete-confirm-modal .ant-modal-confirm-title {
+  font-weight: 500;
+  font-size: 16px;
+  color: #333;
+}
+
+.delete-confirm-modal .ant-modal-confirm-content {
+  margin-top: 16px;
+  color: #666;
+}
+
+/* 暗色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .delete-confirm-modal .ant-modal-confirm-title {
+    color: #fff;
+  }
+  
+  .delete-confirm-modal .ant-modal-confirm-content {
+    color: #999;
   }
 } 

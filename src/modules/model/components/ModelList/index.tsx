@@ -178,14 +178,16 @@ export default function ModelList() {
 
       <div className="model-grid">
         {state.models.map((model) => {
-          const provider = state.providers.find(p => p.id === model.provider);
+          const providerName = model.provider === 'ollama' ? 'Ollama' : 
+                             model.provider === 'deepseek' ? 'DeepSeek' : 
+                             model.provider;
           const status = testStatus[model.id];
           
           return (
-            <div key={model.id} className="model-config-card">
-              <div className="model-config-header">
+            <div key={model.id} className="model-card">
+              <div className="model-card-header">
                 <h3>{model.name}</h3>
-                <span className="provider-tag">{provider?.name}</span>
+                <span className="provider-tag">{providerName}</span>
               </div>
 
               <div className="model-config-info">

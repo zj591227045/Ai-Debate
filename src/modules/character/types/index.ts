@@ -21,8 +21,20 @@ export interface CharacterConfig {
     customDescription?: string;
   };
   
-  // 关联的模型ID
-  modelId: string;
+  // 调用配置
+  callConfig: {
+    type: 'dify' | 'direct';
+    dify?: {
+      serverUrl: string;
+      apiKey: string;
+    };
+    direct?: {
+      modelId: string;
+    };
+  };
+  
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 // 模型配置
@@ -61,6 +73,7 @@ export interface CharacterTemplate {
   name: string;
   description: string;
   persona: CharacterConfig['persona'];
+  callConfig: CharacterConfig['callConfig'];
 }
 
 // 性格特征选项
@@ -98,4 +111,7 @@ export type Personality = typeof personalityOptions[number];
 export type SpeakingStyle = typeof speakingStyleOptions[number];
 export type Background = typeof backgroundOptions[number];
 export type Value = typeof valueOptions[number];
-export type ArgumentationStyle = typeof argumentationStyleOptions[number]; 
+export type ArgumentationStyle = typeof argumentationStyleOptions[number];
+
+export * from './character';
+export * from './template'; 

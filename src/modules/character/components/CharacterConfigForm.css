@@ -1,0 +1,77 @@
+.character-config-form {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.character-config-form .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.character-config-form .ant-form-item {
+  margin-bottom: 24px;
+}
+
+.character-config-form .ant-upload-list {
+  margin-top: 12px;
+}
+
+.character-config-form .ant-card {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03),
+              0 1px 6px -1px rgba(0, 0, 0, 0.02),
+              0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+.character-config-form .ant-select {
+  width: 100%;
+}
+
+.character-config-form .ant-space {
+  width: 100%;
+}
+
+.character-config-form .ant-form-item-label {
+  font-weight: 500;
+}
+
+.character-config-form .ant-tabs-tab {
+  padding: 12px 24px;
+}
+
+.character-config-form .ant-tabs-tab.ant-tabs-tab-active {
+  font-weight: 500;
+}
+
+.character-config-form .ant-divider {
+  margin: 32px 0 24px;
+}
+
+.character-config-form .ant-btn {
+  height: 40px;
+  padding: 6.4px 20px;
+  font-size: 16px;
+}
+
+.character-config-form .ant-upload-list-item {
+  margin-top: 8px;
+}
+
+.character-config-form .ant-form-item-extra {
+  margin-top: 4px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .character-config-form {
+    padding: 16px;
+  }
+
+  .character-config-form .ant-tabs-tab {
+    padding: 8px 16px;
+  }
+
+  .character-config-form .ant-form-item {
+    margin-bottom: 16px;
+  }
+} 

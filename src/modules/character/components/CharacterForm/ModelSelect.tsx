@@ -1,6 +1,7 @@
 import React from 'react';
 import { CharacterConfig } from '../../types';
 import { useModel } from '../../../model/context/ModelContext';
+import './styles.css';
 
 interface ModelSelectProps {
   data: Partial<CharacterConfig>;
@@ -9,55 +10,55 @@ interface ModelSelectProps {
 
 export default function ModelSelect({ data, onChange }: ModelSelectProps) {
   const { state } = useModel();
+  const { models } = state;
 
   const handleModelChange = (modelId: string) => {
     onChange({
       ...data,
-      modelId,
+      callConfig: {
+        type: 'direct',
+        direct: {
+          modelId
+        }
+      }
     });
+  };
+
+  const getProviderName = (modelId: string) => {
+    const model = models.find(m => m.id === modelId);
+    return model?.provider || 'Unknown Provider';
   };
 
   return (
     <div className="model-select">
-      <div className="form-group">
-        <label>选择模型配置</label>
-        <div className="model-list">
-          {state.models.map((model) => {
-            const provider = state.providers.find(p => p.id === model.provider);
-            return (
-              <div
-                key={model.id}
-                className={`model-card ${data.modelId === model.id ? 'active' : ''}`}
-                onClick={() => handleModelChange(model.id)}
-              >
-                <div className="model-card-header">
-                  <h3>{model.name}</h3>
-                  <span className="provider-tag">{provider?.name}</span>
-                </div>
-                <div className="model-info">
-                  <div className="model-detail">
-                    <span className="label">模型:</span>
-                    <span className="value">{model.model}</span>
-                  </div>
-                  <div className="model-detail">
-                    <span className="label">Temperature:</span>
-                    <span className="value">{model.parameters.temperature}</span>
-                  </div>
-                  <div className="model-detail">
-                    <span className="label">Top P:</span>
-                    <span className="value">{model.parameters.topP}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      <div className="model-list">
+        {models.map((model: { id: string; name: string }) => {
+          const providerName = getProviderName(model.id);
+          const isSelected = data.callConfig?.type === 'direct' && 
+                           data.callConfig.direct?.modelId === model.id;
 
-          {state.models.length === 0 && (
-            <div className="empty-state">
-              <p>暂无可用的模型配置，请先在模型管理中添加配置</p>
+          return (
+            <div
+              key={model.id}
+              className={`model-item ${isSelected ? 'selected' : ''}`}
+              onClick={() => handleModelChange(model.id)}
+            >
+              <div className="model-info">
+                <div className="model-name">{model.name}</div>
+                <div className="model-provider">{providerName}</div>
+              </div>
+              {isSelected && (
+                <div className="selected-indicator">✓</div>
+              )}
             </div>
-          )}
-        </div>
+          );
+        })}
+
+        {models.length === 0 && (
+          <div className="empty-state">
+            <p>暂无可用的模型配置，请先在模型管理中添加配置</p>
+          </div>
+        )}
       </div>
     </div>
   );

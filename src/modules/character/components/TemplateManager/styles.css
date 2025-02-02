@@ -1,0 +1,55 @@
+.template-manager {
+  padding: 24px;
+}
+
+.template-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.template-manager-header h2 {
+  margin: 0;
+}
+
+.template-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.template-stats {
+  color: #666;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.template-actions .ant-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .template-manager {
+    padding: 16px;
+  }
+  
+  .template-manager-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .template-actions-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

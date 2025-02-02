@@ -1,10 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import { Global, css } from '@emotion/react';
 import { ThemeProvider } from './styles/ThemeContext';
-import GameStart from './pages/GameStart';
-import GameConfig from './pages/GameConfig';
-import DebateRoom from './pages/DebateRoom';
+import { ModelProvider } from './modules/model/context/ModelContext';
+import AppRoutes from './routes';
+import './App.css';
 
 const globalStyles = css`
   body {
@@ -25,16 +25,16 @@ const globalStyles = css`
 
 function App() {
   return (
-    <ThemeProvider>
-      <Global styles={globalStyles} />
-      <Router>
-        <Routes>
-          <Route path="/" element={<GameStart />} />
-          <Route path="/game-config" element={<GameConfig />} />
-          <Route path="/debate-room" element={<DebateRoom />} />
-        </Routes>
-      </Router>
-    </ThemeProvider>
+    <BrowserRouter>
+      <ModelProvider>
+        <ThemeProvider>
+          <Global styles={globalStyles} />
+          <div className="app">
+            <AppRoutes />
+          </div>
+        </ThemeProvider>
+      </ModelProvider>
+    </BrowserRouter>
   );
 }
 

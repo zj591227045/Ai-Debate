@@ -1,67 +1,63 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { ModelConfig, ProviderConfig, DEFAULT_PROVIDERS } from '../types';
+import { ModelConfig } from '../types';
+import { ModelConfigService } from '../../storage/services/ModelConfigService';
 
 interface ModelState {
   models: ModelConfig[];
-  providers: ProviderConfig[];
+  isLoading: boolean;
+  error: string | null;
 }
 
 type ModelAction =
-  | { type: 'SET_MODELS'; payload: ModelConfig[] }
+  | { type: 'LOAD_MODELS_START' }
+  | { type: 'LOAD_MODELS_SUCCESS'; payload: ModelConfig[] }
+  | { type: 'LOAD_MODELS_ERROR'; payload: string }
   | { type: 'ADD_MODEL'; payload: ModelConfig }
   | { type: 'UPDATE_MODEL'; payload: ModelConfig }
   | { type: 'DELETE_MODEL'; payload: string }
-  | { type: 'UPDATE_PROVIDER'; payload: ProviderConfig }
-  | { type: 'SET_PROVIDERS'; payload: ProviderConfig[] };
+  | { type: 'TOGGLE_MODEL'; payload: { id: string; isEnabled: boolean } };
 
 const initialState: ModelState = {
   models: [],
-  providers: DEFAULT_PROVIDERS,
+  isLoading: false,
+  error: null,
 };
 
 const ModelContext = createContext<{
   state: ModelState;
   dispatch: React.Dispatch<ModelAction>;
-}>({
-  state: initialState,
-  dispatch: () => null,
-});
+} | undefined>(undefined);
 
 function modelReducer(state: ModelState, action: ModelAction): ModelState {
   switch (action.type) {
-    case 'SET_MODELS':
-      return {
-        ...state,
-        models: action.payload,
-      };
+    case 'LOAD_MODELS_START':
+      return { ...state, isLoading: true, error: null };
+    case 'LOAD_MODELS_SUCCESS':
+      return { ...state, models: action.payload, isLoading: false };
+    case 'LOAD_MODELS_ERROR':
+      return { ...state, error: action.payload, isLoading: false };
     case 'ADD_MODEL':
-      return {
-        ...state,
-        models: [...state.models, action.payload],
-      };
+      return { ...state, models: [...state.models, action.payload] };
     case 'UPDATE_MODEL':
       return {
         ...state,
-        models: state.models.map((model) =>
+        models: state.models.map(model =>
           model.id === action.payload.id ? action.payload : model
         ),
       };
     case 'DELETE_MODEL':
       return {
         ...state,
-        models: state.models.filter((model) => model.id !== action.payload),
+        models: state.models.filter(model => model.id !== action.payload),
       };
-    case 'UPDATE_PROVIDER':
+    case 'TOGGLE_MODEL':
       return {
         ...state,
-        providers: state.providers.map((provider) =>
-          provider.id === action.payload.id ? action.payload : provider
+        models: state.models.map(model =>
+          model.id === action.payload.id
+            ? { ...model, isEnabled: action.payload.isEnabled }
+            : model
         ),
-      };
-    case 'SET_PROVIDERS':
-      return {
-        ...state,
-        providers: action.payload,
       };
     default:
       return state;
@@ -70,35 +66,41 @@ function modelReducer(state: ModelState, action: ModelAction): ModelState {
 
 export function ModelProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(modelReducer, initialState);
+  const modelService = new ModelConfigService();
 
-  // 从本地存储加载数据
+  // 初始加载
   useEffect(() => {
-    const loadFromStorage = () => {
+    async function loadModels() {
+      dispatch({ type: 'LOAD_MODELS_START' });
       try {
-        const storedData = localStorage.getItem('modelConfig');
-        if (storedData) {
-          const parsedData = JSON.parse(storedData);
-          dispatch({ type: 'SET_MODELS', payload: parsedData.models });
-          if (parsedData.providers) {
-            dispatch({ type: 'SET_PROVIDERS', payload: parsedData.providers });
-          }
-        }
+        const models = await modelService.getAll();
+        dispatch({ type: 'LOAD_MODELS_SUCCESS', payload: models });
       } catch (error) {
-        console.error('加载模型配置失败:', error);
+        dispatch({
+          type: 'LOAD_MODELS_ERROR',
+          payload: (error as Error).message,
+        });
       }
-    };
-
-    loadFromStorage();
+    }
+    loadModels();
   }, []);
 
-  // 保存数据到本地存储
+  // 数据变更时保存
   useEffect(() => {
-    try {
-      localStorage.setItem('modelConfig', JSON.stringify(state));
-    } catch (error) {
-      console.error('保存模型配置失败:', error);
+    async function saveModels() {
+      try {
+        // 只在有数据时保存，避免覆盖初始加载
+        if (state.models.length > 0) {
+          await Promise.all(
+            state.models.map(model => modelService.update(model.id, model))
+          );
+        }
+      } catch (error) {
+        console.error('保存模型配置失败:', error);
+      }
     }
-  }, [state]);
+    saveModels();
+  }, [state.models]);
 
   return (
     <ModelContext.Provider value={{ state, dispatch }}>
@@ -109,10 +111,8 @@ export function ModelProvider({ children }: { children: React.ReactNode }) {
 
 export function useModel() {
   const context = useContext(ModelContext);
-  if (!context) {
-    throw new Error('useModel必须在ModelProvider内部使用');
+  if (context === undefined) {
+    throw new Error('useModel must be used within a ModelProvider');
   }
   return context;
-}
-
-export { ModelContext }; 
+} 

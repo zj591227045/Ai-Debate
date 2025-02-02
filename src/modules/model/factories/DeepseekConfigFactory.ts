@@ -21,6 +21,9 @@ export class DeepseekConfigFactory {
         organizationId: '',
         baseUrl: 'https://api.deepseek.com',
       },
+      isEnabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
   }
 
@@ -51,7 +54,10 @@ export class DeepseekConfigFactory {
       },
       providerSpecific: {
         deepseek: deepseekOptions
-      }
+      },
+      isEnabled: partial.isEnabled ?? true,
+      createdAt: partial.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
     };
   }
 

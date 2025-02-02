@@ -21,6 +21,9 @@ export class OllamaConfigFactory {
         organizationId: '',
         baseUrl: 'http://localhost:11434',
       },
+      isEnabled: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
   }
 
@@ -51,7 +54,10 @@ export class OllamaConfigFactory {
       },
       providerSpecific: {
         ollama: ollamaOptions
-      }
+      },
+      isEnabled: partial.isEnabled ?? true,
+      createdAt: partial.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
     };
   }
 

@@ -1,0 +1,54 @@
+.template-description {
+  color: #666;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.template-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-tag {
+  background: #f0f5ff;
+  color: #1890ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .template-description {
+    color: #999;
+  }
+
+  .template-tag {
+    background: #111d2c;
+    color: #177ddc;
+  }
+
+  .ant-card {
+    background: #1f1f1f;
+    border-color: #303030;
+  }
+
+  .ant-card-head {
+    border-bottom-color: #303030;
+  }
+
+  .ant-card-head-title {
+    color: #fff;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .ant-list-grid .ant-list-item {
+    padding: 8px !important;
+  }
+} 

@@ -1,0 +1,77 @@
+.balance-checker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance-check-button {
+  padding: 6px 12px;
+  background-color: #f0f0f0;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.balance-check-button:hover:not(:disabled) {
+  background-color: #e6e6e6;
+  border-color: #ccc;
+}
+
+.balance-check-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.balance-error {
+  color: #ff4d4f;
+  font-size: 14px;
+}
+
+.balance-info {
+  padding: 8px 12px;
+  background-color: #f6f6f6;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.balance-amount {
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.balance-detail {
+  color: #666;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* API Key 输入框样式 */
+.api-key-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.api-key-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: monospace;
+  background-color: #fff;
+  transition: all 0.3s;
+}
+
+.api-key-input:focus {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  outline: none;
+}
+
+.api-key-input:hover {
+  border-color: #40a9ff;
+} 

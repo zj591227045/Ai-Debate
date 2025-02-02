@@ -318,5 +318,15 @@ export class VolcengineProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    // 火山引擎目前提供固定的模型列表
+    return [
+      'skylark-lite',
+      'skylark-plus',
+      'skylark-pro',
+      'skylark-max'
+    ];
+  }
 }
 

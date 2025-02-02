@@ -287,4 +287,17 @@ export class LocalAIProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.config.baseURL}/models`);
+      if (!response.ok) {
+        throw await this.handleResponseError(response);
+      }
+      const data = await response.json();
+      return data.map((model: { id: string }) => model.id);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
 } 

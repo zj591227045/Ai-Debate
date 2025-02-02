@@ -337,4 +337,18 @@ export class BaiduProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    // 百度目前提供固定的模型列表
+    return [
+      'ERNIE-Bot-4',
+      'ERNIE-Bot-8K',
+      'ERNIE-Bot',
+      'ERNIE-Bot-turbo',
+      'BLOOMZ-7B',
+      'Llama-2-7b-chat',
+      'Llama-2-13b-chat',
+      'Llama-2-70b-chat'
+    ];
+  }
 } 

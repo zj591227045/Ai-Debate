@@ -328,4 +328,23 @@ export class OpenAIProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw await this.handleResponseError(response);
+      }
+
+      const data = await response.json();
+      return data.data.map((model: { id: string }) => model.id);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
 } 

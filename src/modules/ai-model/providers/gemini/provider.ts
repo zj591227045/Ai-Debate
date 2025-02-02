@@ -317,4 +317,12 @@ export class GeminiProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    // Gemini目前提供固定的模型列表
+    return [
+      'gemini-pro',
+      'gemini-pro-vision'
+    ];
+  }
 } 

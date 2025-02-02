@@ -404,4 +404,13 @@ export class XunfeiProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    // 讯飞目前提供固定的模型列表
+    return [
+      'spark-v2.0',
+      'spark-v3.0',
+      'spark-v3.5'
+    ];
+  }
 } 

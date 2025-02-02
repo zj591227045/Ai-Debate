@@ -6,33 +6,20 @@ import '../ModelTestDialog/styles.css';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  reasoning_content?: string;
 }
 
-interface ModelTestDialogProps {
+interface OllamaTestDialogProps {
   model: ModelConfig;
   onClose: () => void;
 }
 
-export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps) {
+export function OllamaTestDialog({ model, onClose }: OllamaTestDialogProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentResponse, setCurrentResponse] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    console.log('接收到的模型配置:', {
-      provider: model.provider,
-      model: model.model,
-      parameters: model.parameters,
-      auth: {
-        ...model.auth,
-        apiKey: '***'
-      }
-    });
-  }, [model]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -54,45 +41,20 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
     setCurrentResponse(null);
 
     try {
-      const providerSpecific: any = {};
-      
-      if (model.provider === 'ollama') {
-        providerSpecific.ollama = {
-          baseUrl: model.auth.baseUrl || 'http://localhost:11434',
-          model: model.model,
-        };
-      } else if (model.provider === 'deepseek') {
-        providerSpecific.deepseek = {
-          model: model.model,
-          options: {
-            temperature: model.parameters.temperature,
-            top_p: model.parameters.topP,
-            max_tokens: model.parameters.maxTokens,
+      const provider = await providerFactory.createProvider('ollama', {
+        endpoint: model.auth.baseUrl || 'http://localhost:11434',
+        apiKey: '',  // Ollama 不需要 API key
+        organizationId: '',  // Ollama 不需要 organization ID
+        providerSpecific: {
+          ollama: {
+            model: model.model,  // 使用配置中指定的模型名称
+            options: {
+              temperature: model.parameters.temperature,
+              top_p: model.parameters.topP,
+              num_predict: model.parameters.maxTokens,
+            }
           }
-        };
-        console.log('Deepseek 配置:', {
-          provider: model.provider,
-          model: model.model,
-          providerSpecific
-        });
-      } else {
-        providerSpecific[model.provider] = {
-          ...model.providerSpecific?.[model.provider],
-          model: model.model,
-        };
-      }
-
-      console.log('创建 provider 前的配置:', {
-        provider: model.provider,
-        endpoint: model.auth.baseUrl,
-        providerSpecific
-      });
-
-      const provider = await providerFactory.createProvider(model.provider, {
-        endpoint: model.auth.baseUrl || '',
-        apiKey: model.auth.apiKey || '',
-        organizationId: model.auth.organizationId || '',
-        providerSpecific
+        }
       });
 
       // 使用流式输出
@@ -102,28 +64,13 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
       );
 
       let responseContent = '';
-      let reasoningContent = '';
 
       for await (const chunk of stream) {
-        // 如果是 deepseek-reasoner 模型，处理思考过程
-        if (model.provider === 'deepseek' && model.model === 'deepseek-reasoner') {
-          if ((chunk as any).delta?.content) {
-            responseContent += (chunk as any).delta.content;
-          }
-          if ((chunk as any).delta?.reasoning_content) {
-            reasoningContent += (chunk as any).delta.reasoning_content;
-          }
-        } else {
-          if (chunk.content) {
-            responseContent += chunk.content;
-          }
-        }
-
-        if (responseContent || reasoningContent) {
+        if (chunk.content) {
+          responseContent += chunk.content;
           setCurrentResponse({
             role: 'assistant',
-            content: responseContent,
-            ...(reasoningContent && { reasoning_content: reasoningContent })
+            content: responseContent
           });
         }
       }
@@ -132,8 +79,7 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
       if (responseContent) {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: responseContent,
-          ...(reasoningContent && { reasoning_content: reasoningContent })
+          content: responseContent
         }]);
       }
     } catch (error) {
@@ -150,15 +96,7 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
       key={index}
       className={`message ${message.role === 'user' ? 'user' : 'assistant'}`}
     >
-      <div className="message-content">
-        {message.reasoning_content && (
-          <div className="reasoning-content">
-            <div className="reasoning-header">思考过程：</div>
-            {message.reasoning_content}
-          </div>
-        )}
-        {message.content}
-      </div>
+      <div className="message-content">{message.content}</div>
     </div>
   );
 

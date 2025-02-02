@@ -14,6 +14,7 @@ import {
   DeepseekStreamResponse,
   DeepseekError,
   DeepseekRequestParams,
+  DeepseekProviderSpecific,
 } from './types';
 
 type ErrorType = ModelError['type'];
@@ -33,14 +34,29 @@ export class DeepseekProvider implements ModelProvider {
   }
 
   async initialize(config: ApiConfig): Promise<void> {
+    // 先检查 providerSpecific 是否存在
+    if (!config.providerSpecific?.deepseek) {
+      throw new Error('缺少 Deepseek 配置');
+    }
+
+    // 安全地转换类型
+    const deepseekConfig = config.providerSpecific.deepseek as unknown as DeepseekProviderSpecific;
+    
+    // 验证必要的配置
+    if (!deepseekConfig.model) {
+      throw new Error('缺少 Deepseek 模型配置');
+    }
+
     this.config = {
       apiKey: config.apiKey,
       organization: config.organizationId,
       baseURL: config.endpoint || this.baseURL,
-      defaultModel: 'deepseek-67b-chat',
+      defaultModel: deepseekConfig.model,
       timeout: config.timeout || 30000,
       maxRetries: config.maxRetries || 3,
     };
+
+    console.log('Deepseek provider 初始化完成，使用模型:', deepseekConfig.model);
   }
 
   getCapabilities(): ModelCapabilities {
@@ -183,20 +199,19 @@ export class DeepseekProvider implements ModelProvider {
     parameters?: ModelParameters,
     stream: boolean = false
   ): DeepseekRequestParams {
+    const model = this.config.defaultModel;
+    console.log('Deepseek prepareRequestParams - 使用的模型:', model);
+
     return {
-      model: this.config.defaultModel,
+      model,
       messages: messages.map(msg => ({
         role: msg.role,
         content: msg.content,
-        ...(msg.name && { name: msg.name }),
       })),
       temperature: parameters?.temperature,
       top_p: parameters?.topP,
       max_tokens: parameters?.maxTokens,
       stream,
-      presence_penalty: parameters?.presencePenalty,
-      frequency_penalty: parameters?.frequencyPenalty,
-      stop: parameters?.stop,
     };
   }
 
@@ -286,5 +301,14 @@ export class DeepseekProvider implements ModelProvider {
       default:
         return 'unknown';
     }
+  }
+
+  async listModels(): Promise<string[]> {
+    // Deepseek目前提供固定的模型列表
+    return [
+      'deepseek-chat',
+      'deepseek-coder',
+      'deepseek-math'
+    ];
   }
 }

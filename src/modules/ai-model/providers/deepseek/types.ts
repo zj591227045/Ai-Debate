@@ -15,6 +15,7 @@ export interface DeepseekResponse {
     message: {
       role: string;
       content: string;
+      reasoning_content?: string;
       function_call?: {
         name: string;
         arguments: string;
@@ -40,6 +41,7 @@ export interface DeepseekStreamResponse {
     delta: {
       role?: string;
       content?: string;
+      reasoning_content?: string;
       function_call?: {
         name?: string;
         arguments?: string;
@@ -65,29 +67,21 @@ export interface DeepseekConfig {
   organization?: string;
   baseURL: string;
   defaultModel: string;
-  timeout?: number;
-  maxRetries?: number;
+  timeout: number;
+  maxRetries: number;
 }
 
 // Deepseek请求参数
 export interface DeepseekRequestParams {
   model: string;
-  messages: Message[];
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
   temperature?: number;
   top_p?: number;
-  n?: number;
-  stream?: boolean;
-  stop?: string | string[];
   max_tokens?: number;
-  presence_penalty?: number;
-  frequency_penalty?: number;
-  functions?: {
-    name: string;
-    description?: string;
-    parameters: Record<string, any>;
-  }[];
-  function_call?: 'auto' | 'none' | { name: string };
-  user?: string;
+  stream?: boolean;
 }
 
 // Deepseek模型信息
@@ -99,4 +93,13 @@ export interface DeepseekModelInfo {
   permission: any[];
   root: string;
   parent: string | null;
+}
+
+export interface DeepseekProviderSpecific {
+  model: string;
+  options?: {
+    temperature?: number;
+    top_p?: number;
+    max_tokens?: number;
+  };
 } 

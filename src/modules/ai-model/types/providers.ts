@@ -30,6 +30,9 @@ export interface ModelProvider {
   
   // 验证API密钥
   validateApiKey(): Promise<boolean>;
+
+  // 获取可用模型列表
+  listModels(): Promise<string[]>;
 }
 
 // 供应商工厂接口

@@ -277,4 +277,38 @@ export class HuggingFaceProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const response = await fetch('https://huggingface.co/api/models?filter=text-generation', {
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw await this.handleResponseError(response);
+      }
+
+      const data = await response.json();
+      return data.map((model: { id: string }) => model.id);
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  private async handleResponseError(response: Response): Promise<Error & ModelError> {
+    try {
+      const error = await response.json() as HuggingFaceError;
+      return this.createError(
+        error.error_type || 'unknown',
+        error.error
+      );
+    } catch {
+      return this.createError(
+        'unknown',
+        `HTTP错误 ${response.status}: ${response.statusText}`
+      );
+    }
+  }
 } 

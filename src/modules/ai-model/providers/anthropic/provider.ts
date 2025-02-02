@@ -279,4 +279,15 @@ export class AnthropicProvider implements ModelProvider {
         return 'unknown';
     }
   }
+
+  async listModels(): Promise<string[]> {
+    // Anthropic目前提供固定的模型列表
+    return [
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-2.1',
+      'claude-2.0',
+      'claude-instant-1.2'
+    ];
+  }
 } 

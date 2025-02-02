@@ -20,6 +20,7 @@ import {
   OllamaStreamResponse,
   OllamaError,
   OllamaRequestParams,
+  OllamaProviderSpecific,
 } from './types';
 
 export class OllamaProvider implements ModelProvider {
@@ -36,16 +37,37 @@ export class OllamaProvider implements ModelProvider {
   }
 
   async initialize(config: ApiConfig): Promise<void> {
-    if (!config.providerSpecific?.ollama?.model) {
-      throw new Error('Model name is required for Ollama');
+    const ollamaConfig = config.providerSpecific?.ollama as OllamaProviderSpecific;
+    if (!ollamaConfig?.model) {
+      throw new Error('缺少Ollama配置或模型名称');
     }
 
+    const baseURL = ollamaConfig.baseUrl || config.endpoint || 'http://localhost:11434';
+    
+    // 先验证服务器连接
+    try {
+      const response = await fetch(`${baseURL}/api/tags`);
+      if (!response.ok) {
+        throw new Error(`HTTP错误 ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      if (!Array.isArray(data.models)) {
+        throw new Error('获取模型列表失败：返回格式错误');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        throw new Error(`无法连接到Ollama服务器(${baseURL}): 连接被拒绝`);
+      }
+      throw new Error(`无法连接到Ollama服务器(${baseURL}): ${(error as Error).message}`);
+    }
+
+    // 服务器连接验证成功后，设置配置
     this.config = {
-      baseURL: config.endpoint || 'http://localhost:11434',
-      defaultModel: config.providerSpecific.ollama.model,
+      baseURL,
+      defaultModel: ollamaConfig.model,
       timeout: config.timeout || 30000,
       maxRetries: config.maxRetries || 3,
-      options: config.providerSpecific.ollama.options,
+      options: ollamaConfig.options,
     };
 
     this.initialized = true;
@@ -75,7 +97,7 @@ export class OllamaProvider implements ModelProvider {
 
     try {
       const requestParams = this.prepareRequestParameters(messages, parameters);
-      const response = await fetch(`${this.config.baseURL}/api/generate`, {
+      const response = await fetch(`${this.config.baseURL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,7 +133,7 @@ export class OllamaProvider implements ModelProvider {
 
     try {
       const requestParams = this.prepareRequestParameters(messages, parameters, true);
-      const response = await fetch(`${this.config.baseURL}/api/generate`, {
+      const response = await fetch(`${this.config.baseURL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -129,18 +151,41 @@ export class OllamaProvider implements ModelProvider {
         throw new Error('Failed to get response reader');
       }
 
+      let buffer = '';
+      const decoder = new TextDecoder();
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = new TextDecoder().decode(value);
-        const streamResponse = JSON.parse(chunk) as OllamaStreamResponse;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-        const modelResponse = this.convertStreamResponse(streamResponse);
-        this.rateLimiter.recordRequest(1); // 每个token记录一次
-        yield modelResponse;
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+          try {
+            const streamResponse = JSON.parse(line) as OllamaStreamResponse;
+            const modelResponse = this.convertStreamResponse(streamResponse);
+            this.rateLimiter.recordRequest(1);
+            yield modelResponse;
 
-        if (streamResponse.done) break;
+            if (streamResponse.done) return;
+          } catch (e) {
+            console.warn('Failed to parse stream response:', e);
+          }
+        }
+      }
+
+      if (buffer) {
+        try {
+          const streamResponse = JSON.parse(buffer) as OllamaStreamResponse;
+          const modelResponse = this.convertStreamResponse(streamResponse);
+          this.rateLimiter.recordRequest(1);
+          yield modelResponse;
+        } catch (e) {
+          console.warn('Failed to parse final buffer:', e);
+        }
       }
     } catch (error) {
       throw this.handleError(error);
@@ -152,12 +197,13 @@ export class OllamaProvider implements ModelProvider {
     parameters?: ModelParameters,
     stream: boolean = false
   ): OllamaRequestParams {
-    const lastMessage = messages[messages.length - 1];
     return {
       model: this.config.defaultModel,
-      prompt: lastMessage.content,
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
       stream,
-      context: this.config.context,
       options: {
         temperature: parameters?.temperature,
         top_p: parameters?.topP,
@@ -171,14 +217,14 @@ export class OllamaProvider implements ModelProvider {
 
   private convertResponse(response: OllamaResponse): ModelResponse {
     return {
-      content: response.response,
+      content: response.message?.content || response.response || '',
       usage: {
-        promptTokens: response.prompt_tokens || 0,
-        completionTokens: response.completion_tokens || 0,
-        totalTokens: (response.prompt_tokens || 0) + (response.completion_tokens || 0),
+        promptTokens: response.prompt_eval_count || 0,
+        completionTokens: response.eval_count || 0,
+        totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0),
       },
       metadata: {
-        model: this.config.defaultModel,
+        model: response.model || this.config.defaultModel,
         finishReason: response.done ? 'stop' : 'length',
       },
     };
@@ -186,14 +232,14 @@ export class OllamaProvider implements ModelProvider {
 
   private convertStreamResponse(response: OllamaStreamResponse): ModelResponse {
     return {
-      content: response.response,
+      content: response.message?.content || response.response || '',
       usage: {
-        promptTokens: 0,
-        completionTokens: 1,
-        totalTokens: 1,
+        promptTokens: response.prompt_eval_count || 0,
+        completionTokens: response.eval_count || 0,
+        totalTokens: (response.prompt_eval_count || 0) + (response.eval_count || 0),
       },
       metadata: {
-        model: this.config.defaultModel,
+        model: response.model || this.config.defaultModel,
         finishReason: response.done ? 'stop' : 'length',
       },
     };
@@ -203,45 +249,32 @@ export class OllamaProvider implements ModelProvider {
     return this.tokenCounter.countTextTokens(text);
   }
 
-  async validateApiKey(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.config.baseURL}/api/version`);
-      return response.ok;
-    } catch {
-      return false;
+  async listModels(): Promise<string[]> {
+    if (!this.initialized) {
+      throw new Error('Provider not initialized');
     }
-  }
 
-  private async handleResponseError(response: Response): Promise<Error & ModelError> {
     try {
-      const error = await response.json() as OllamaError;
-      return this.createError(
-        error.code || 'unknown',
-        error.error
-      );
-    } catch {
-      return this.createError(
-        'unknown',
-        `HTTP错误 ${response.status}: ${response.statusText}`
-      );
-    }
-  }
-
-  private handleError(error: unknown): Error & ModelError {
-    if (error instanceof Error) {
-      if ('type' in error && typeof (error as any).type === 'string') {
-        const modelError = error as Error & ModelError;
-        if (!modelError.code) {
-          modelError.code = modelError.type;
-        }
-        if (modelError.retryable === undefined) {
-          modelError.retryable = modelError.type === 'rate_limit' || modelError.type === 'server';
-        }
-        return modelError;
+      const response = await fetch(`${this.config.baseURL}/api/tags`);
+      if (!response.ok) {
+        throw await this.handleResponseError(response);
       }
-      return this.createError('unknown', error.message);
+      const data = await response.json();
+      if (!Array.isArray(data.models)) {
+        throw this.createError('server', '获取模型列表失败：返回格式错误');
+      }
+      return data.models.map((model: { name: string }) => model.name);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Failed to fetch')) {
+        throw this.createError('server', `无法连接到Ollama服务器：${this.config.baseURL}`);
+      }
+      throw this.handleError(error);
     }
-    return this.createError('unknown', String(error));
+  }
+
+  async validateApiKey(): Promise<boolean> {
+    // Ollama 不需要 API 密钥验证
+    return true;
   }
 
   private createError(type: string, message: string): Error & ModelError {
@@ -267,6 +300,65 @@ export class OllamaProvider implements ModelProvider {
         return 'timeout';
       default:
         return 'unknown';
+    }
+  }
+
+  private handleError(error: unknown): Error & ModelError {
+    if (error instanceof Error) {
+      if ('type' in error && typeof (error as any).type === 'string') {
+        const modelError = error as Error & ModelError;
+        if (!modelError.code) {
+          modelError.code = modelError.type;
+        }
+        if (modelError.retryable === undefined) {
+          modelError.retryable = modelError.type === 'rate_limit' || modelError.type === 'server';
+        }
+        return modelError;
+      }
+      return this.createError('unknown', error.message);
+    }
+    return this.createError('unknown', String(error));
+  }
+
+  private async handleResponseError(response: Response): Promise<Error & ModelError> {
+    try {
+      const error = await response.json() as OllamaError;
+      let errorType = 'unknown';
+      
+      // 根据HTTP状态码和错误类型确定错误类型
+      if (response.status === 404) {
+        errorType = 'not_found';
+      } else if (response.status === 401 || response.status === 403) {
+        errorType = 'auth';
+      } else if (response.status === 429) {
+        errorType = 'rate_limit';
+      } else if (response.status >= 500) {
+        errorType = 'server';
+      } else if (error.type) {
+        errorType = error.type;
+      }
+
+      return this.createError(
+        errorType,
+        error.error || `HTTP错误 ${response.status}: ${response.statusText}`
+      );
+    } catch {
+      // 如果无法解析JSON响应，则根据HTTP状态码创建错误
+      let errorType = 'unknown';
+      if (response.status === 404) {
+        errorType = 'not_found';
+      } else if (response.status === 401 || response.status === 403) {
+        errorType = 'auth';
+      } else if (response.status === 429) {
+        errorType = 'rate_limit';
+      } else if (response.status >= 500) {
+        errorType = 'server';
+      }
+
+      return this.createError(
+        errorType,
+        `HTTP错误 ${response.status}: ${response.statusText}`
+      );
     }
   }
 } 

@@ -1,29 +1,20 @@
-export interface ParameterRange {
-  min: number;
-  max: number;
-  default: number;
-  step: number;
-}
+import type { ModelParameters, AIModelConfig, ApiConfig } from '../ai-model/types/model';
 
-export interface ModelParameters {
-  temperature: number;
-  topP: number;
-  maxTokens: number;
-}
+export type { ModelParameters };
 
-export interface AuthConfig {
-  apiKey: string;
+export interface AuthConfig extends Omit<ApiConfig, 'providerSpecific' | 'apiKey'> {
+  baseUrl: string;
+  apiKey?: string;
   organizationId?: string;
-  baseUrl?: string;
 }
 
-export interface ModelConfig {
+export interface ModelConfig extends Omit<AIModelConfig, 'auth'> {
   id: string;
   name: string;
-  provider: string;
-  model: string;
-  parameters: ModelParameters;
   auth: AuthConfig;
+  providerSpecific?: {
+    [key: string]: any;
+  };
 }
 
 export type PartialModelConfig = {
@@ -33,6 +24,38 @@ export type PartialModelConfig = {
   model?: string;
   parameters?: Partial<ModelParameters>;
   auth?: Partial<AuthConfig>;
+  providerSpecific?: {
+    [key: string]: any;
+  };
+};
+
+export const DEFAULT_PARAMETER_RANGES = {
+  temperature: {
+    min: 0,
+    max: 2,
+    step: 0.1,
+    default: 0.7,
+  },
+  topP: {
+    min: 0,
+    max: 1,
+    step: 0.1,
+    default: 0.9,
+  },
+  maxTokens: {
+    min: 100,
+    max: 4000,
+    step: 100,
+    default: 2000,
+  },
+};
+
+export interface ModelProvider {
+  id: string;
+  name: string;
+  models: string[];
+  defaultBaseUrl?: string;
+  requiresApiKey: boolean;
 }
 
 export interface ProviderConfig {
@@ -42,27 +65,6 @@ export interface ProviderConfig {
   defaultBaseUrl?: string;
   requiresOrganization?: boolean;
 }
-
-export const DEFAULT_PARAMETER_RANGES = {
-  temperature: {
-    min: 0,
-    max: 2,
-    default: 0.7,
-    step: 0.1,
-  },
-  topP: {
-    min: 0,
-    max: 1,
-    default: 0.9,
-    step: 0.1,
-  },
-  maxTokens: {
-    min: 100,
-    max: 4000,
-    default: 2000,
-    step: 100,
-  },
-} as const;
 
 export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   {
@@ -88,8 +90,8 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   {
     id: 'deepseek',
     name: 'Deepseek',
-    models: ['deepseek-chat', 'deepseek-coder'],
-    defaultBaseUrl: 'https://api.deepseek.com/v1',
+    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
+    defaultBaseUrl: 'https://api.deepseek.com',
   },
   {
     id: 'xfyun',

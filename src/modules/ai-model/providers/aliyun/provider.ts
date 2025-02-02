@@ -16,7 +16,7 @@ import {
   AliyunRequestParams,
   AliyunAuthParams,
 } from './types';
-import * as crypto from 'crypto';
+import { crypto } from '../../../../polyfills';
 
 export class AliyunProvider implements ModelProvider {
   private config!: AliyunConfig;
@@ -346,5 +346,18 @@ export class AliyunProvider implements ModelProvider {
       default:
         return 'unknown';
     }
+  }
+
+  async listModels(): Promise<string[]> {
+    // 阿里云目前不支持动态获取模型列表，返回固定支持的模型列表
+    return [
+      'qwen-turbo',
+      'qwen-plus',
+      'qwen-max',
+      'qwen-max-longcontext',
+      'baichuan-7b-v1',
+      'chatglm-6b-v2',
+      'llama2-7b-chat-v2'
+    ];
   }
 } 

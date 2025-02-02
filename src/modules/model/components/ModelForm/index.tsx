@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
-import { ModelConfig, PartialModelConfig, DEFAULT_PARAMETER_RANGES } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { ModelConfig, PartialModelConfig, DEFAULT_PARAMETER_RANGES, AuthConfig, ModelProvider } from '../../types';
 import { useModel } from '../../context/ModelContext';
 import { testModelConfig } from '../../utils/modelValidation';
 import ModelTestDialog from '../ModelTestDialog';
+import { OllamaTestDialog } from '../providers/OllamaTestDialog';
 import { v4 as uuidv4 } from 'uuid';
 import './styles.css';
+import { ModelProvider as NewModelProvider } from '../../../ai-model/types/providers';
+import { AIModelProviderFactory } from '../../../ai-model/services/provider-factory';
+import { OllamaConfigForm } from '../providers/OllamaConfigForm';
+import { OllamaConfigFactory } from '../../factories/OllamaConfigFactory';
+import { DeepseekConfigForm } from '../providers/DeepseekConfigForm';
 
 interface ModelFormProps {
   model?: ModelConfig;
@@ -41,6 +47,79 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
   const [formData, setFormData] = useState<PartialModelConfig>(createInitialState(model));
   const [isTesting, setIsTesting] = useState(false);
   const [showTestDialog, setShowTestDialog] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const providerFactory = new AIModelProviderFactory();
+
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provider = state.providers.find(p => p.id === e.target.value);
+    setFormData((prev: PartialModelConfig) => ({
+      ...prev,
+      provider: e.target.value,
+      model: '',
+      auth: {
+        apiKey: '',
+        organizationId: '',
+        baseUrl: provider?.defaultBaseUrl || '',
+      },
+    }));
+    // 当切换提供商时，重置模型列表并触发刷新
+    setAvailableModels([]);
+    if (e.target.value) {
+      refreshModelList();
+    }
+  };
+
+  const refreshModelList = async () => {
+    if (!formData.provider) return;
+
+    setIsLoadingModels(true);
+    try {
+      const provider = state.providers.find(p => p.id === formData.provider);
+      if (!provider) return;
+
+      let models: string[] = [];
+      if (formData.provider === 'ollama') {
+        const response = await fetch(`${formData.auth?.baseUrl || provider.defaultBaseUrl}/api/tags`);
+        if (!response.ok) {
+          throw new Error(`获取模型列表失败: ${response.statusText}`);
+        }
+        const data = await response.json();
+        models = data.models.map((model: any) => model.name);
+      } else if (formData.provider === 'deepseek') {
+        const response = await fetch(`${formData.auth?.baseUrl || provider.defaultBaseUrl}/models`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${formData.auth?.apiKey}`,
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`获取模型列表失败: ${response.statusText}`);
+        }
+        const data = await response.json();
+        models = data.data.map((model: any) => model.id);
+      } else {
+        models = provider.models;
+      }
+      setAvailableModels(models);
+    } catch (error) {
+      console.error('获取模型列表失败:', error);
+      // 如果获取失败，使用默认列表
+      const provider = state.providers.find(p => p.id === formData.provider);
+      if (provider) {
+        setAvailableModels(provider.models);
+      }
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  // 当 API 密钥改变时，自动刷新模型列表
+  useEffect(() => {
+    if (formData.provider === 'deepseek' && formData.auth?.apiKey) {
+      refreshModelList();
+    }
+  }, [formData.provider, formData.auth?.apiKey]);
 
   const handleInputChange = (field: keyof ModelConfig, value: any) => {
     setFormData((prev: PartialModelConfig) => ({
@@ -49,7 +128,7 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
     }));
   };
 
-  const handleAuthChange = (field: keyof ModelConfig['auth'], value: string) => {
+  const handleAuthChange = (field: keyof AuthConfig, value: string) => {
     setFormData((prev: PartialModelConfig) => ({
       ...prev,
       auth: {
@@ -72,17 +151,11 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
     }));
   };
 
-  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const provider = state.providers.find(p => p.id === e.target.value);
-    setFormData((prev: PartialModelConfig) => ({
-      ...prev,
-      provider: e.target.value,
-      model: '',
-      auth: {
-        ...prev.auth,
-        baseUrl: provider?.defaultBaseUrl || '',
-      },
-    }));
+  const getAvailableModels = () => {
+    if (formData.provider === 'ollama') {
+      return availableModels;
+    }
+    return selectedProvider?.models || [];
   };
 
   const handleTestConnection = async () => {
@@ -91,7 +164,7 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
       return;
     }
 
-    if (!formData.auth?.apiKey) {
+    if (formData.provider !== 'ollama' && !formData.auth?.apiKey) {
       alert('请输入API密钥');
       return;
     }
@@ -106,10 +179,14 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
         topP: formData.parameters?.topP ?? defaultParameters.topP,
         maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
       },
-      auth: {
-        apiKey: formData.auth.apiKey,
-        organizationId: formData.auth.organizationId || '',
-        baseUrl: formData.auth.baseUrl || '',
+      auth: formData.provider === 'ollama' ? {
+        apiKey: '',
+        organizationId: '',
+        baseUrl: formData.auth?.baseUrl || '',
+      } : {
+        apiKey: formData.auth!.apiKey,
+        organizationId: formData.auth!.organizationId || '',
+        baseUrl: formData.auth!.baseUrl || '',
       },
     };
 
@@ -128,30 +205,79 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
     }
   };
 
+  const renderProviderSpecificConfig = () => {
+    switch (formData.provider) {
+      case 'ollama':
+        return (
+          <OllamaConfigForm
+            formData={formData}
+            onBaseUrlChange={(value) => handleAuthChange('baseUrl', value)}
+            onModelChange={(value) => handleInputChange('model', value)}
+            onParameterChange={handleParameterChange}
+            availableModels={availableModels}
+            isLoadingModels={isLoadingModels}
+            onRefreshModels={refreshModelList}
+            onTest={handleTestConnection}
+          />
+        );
+      case 'deepseek':
+        return (
+          <DeepseekConfigForm
+            formData={formData}
+            onBaseUrlChange={(value) => handleAuthChange('baseUrl', value)}
+            onApiKeyChange={(value) => handleAuthChange('apiKey', value)}
+            onModelChange={(value) => handleInputChange('model', value)}
+            onParameterChange={handleParameterChange}
+            availableModels={availableModels}
+            isLoadingModels={isLoadingModels}
+            onRefreshModels={refreshModelList}
+            onTest={handleTestConnection}
+          />
+        );
+      // 其他供应商的配置组件...
+      default:
+        return null;
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.provider || !formData.model || !formData.auth?.apiKey) {
+    if (!formData.name || !formData.provider || !formData.model) {
       alert('请填写所有必填字段');
       return;
     }
 
-    const completeModel: ModelConfig = {
-      id: formData.id || uuidv4(),
-      name: formData.name,
-      provider: formData.provider,
-      model: formData.model,
-      parameters: {
-        temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
-        topP: formData.parameters?.topP ?? defaultParameters.topP,
-        maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-      },
-      auth: {
-        apiKey: formData.auth.apiKey,
-        organizationId: formData.auth.organizationId || '',
-        baseUrl: formData.auth.baseUrl || '',
-      },
-    };
+    // 对于非Ollama提供商，需要验证API密钥
+    if (formData.provider !== 'ollama' && !formData.auth?.apiKey) {
+      alert('请填写API密钥');
+      return;
+    }
+
+    let completeModel: ModelConfig;
+    switch (formData.provider) {
+      case 'ollama':
+        completeModel = OllamaConfigFactory.createConfig(formData);
+        break;
+      // 其他供应商的配置工厂...
+      default:
+        completeModel = {
+          id: formData.id || uuidv4(),
+          name: formData.name,
+          provider: formData.provider,
+          model: formData.model,
+          parameters: {
+            temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
+            topP: formData.parameters?.topP ?? defaultParameters.topP,
+            maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
+          },
+          auth: {
+            apiKey: formData.auth?.apiKey || '',
+            organizationId: formData.auth?.organizationId || '',
+            baseUrl: formData.auth?.baseUrl || '',
+          },
+        };
+    }
 
     if (model) {
       dispatch({ type: 'UPDATE_MODEL', payload: completeModel });
@@ -195,124 +321,7 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
           </select>
         </div>
 
-        {formData.provider && (
-          <div className="form-group">
-            <label htmlFor="model">模型</label>
-            <div className="model-select-group">
-              <select
-                id="model"
-                value={formData.model || ''}
-                onChange={(e) => handleInputChange('model', e.target.value)}
-                required
-              >
-                <option value="">请选择模型</option>
-                {selectedProvider?.models.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleTestConnection}
-                disabled={isTesting || !formData.provider || !formData.model || !formData.auth?.apiKey}
-              >
-                {isTesting ? '测试中...' : '测试连接'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="form-group">
-          <label htmlFor="apiKey">API密钥</label>
-          <input
-            type="password"
-            id="apiKey"
-            value={formData.auth?.apiKey || ''}
-            onChange={(e) => handleAuthChange('apiKey', e.target.value)}
-            placeholder="请输入API密钥"
-            required
-          />
-        </div>
-
-        {selectedProvider?.requiresOrganization && (
-          <div className="form-group">
-            <label htmlFor="organizationId">组织ID</label>
-            <input
-              type="text"
-              id="organizationId"
-              value={formData.auth?.organizationId || ''}
-              onChange={(e) => handleAuthChange('organizationId', e.target.value)}
-              placeholder="请输入组织ID（可选）"
-            />
-          </div>
-        )}
-
-        <div className="form-group">
-          <label htmlFor="baseUrl">服务地址</label>
-          <input
-            type="text"
-            id="baseUrl"
-            value={formData.auth?.baseUrl || ''}
-            onChange={(e) => handleAuthChange('baseUrl', e.target.value)}
-            placeholder={`请输入服务地址（默认：${selectedProvider?.defaultBaseUrl || ''}）`}
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="temperature">Temperature</label>
-          <div className="parameter-input">
-            <input
-              type="range"
-              id="temperature"
-              min={DEFAULT_PARAMETER_RANGES.temperature.min}
-              max={DEFAULT_PARAMETER_RANGES.temperature.max}
-              step={DEFAULT_PARAMETER_RANGES.temperature.step}
-              value={formData.parameters?.temperature ?? defaultParameters.temperature}
-              onChange={handleParameterChange('temperature')}
-            />
-            <span className="parameter-value">
-              {formData.parameters?.temperature ?? defaultParameters.temperature}
-            </span>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="topP">Top P</label>
-          <div className="parameter-input">
-            <input
-              type="range"
-              id="topP"
-              min={DEFAULT_PARAMETER_RANGES.topP.min}
-              max={DEFAULT_PARAMETER_RANGES.topP.max}
-              step={DEFAULT_PARAMETER_RANGES.topP.step}
-              value={formData.parameters?.topP ?? defaultParameters.topP}
-              onChange={handleParameterChange('topP')}
-            />
-            <span className="parameter-value">
-              {formData.parameters?.topP ?? defaultParameters.topP}
-            </span>
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="maxTokens">最大Token数</label>
-          <div className="parameter-input">
-            <input
-              type="range"
-              id="maxTokens"
-              min={DEFAULT_PARAMETER_RANGES.maxTokens.min}
-              max={DEFAULT_PARAMETER_RANGES.maxTokens.max}
-              step={DEFAULT_PARAMETER_RANGES.maxTokens.step}
-              value={formData.parameters?.maxTokens ?? defaultParameters.maxTokens}
-              onChange={handleParameterChange('maxTokens')}
-            />
-            <span className="parameter-value">
-              {formData.parameters?.maxTokens ?? defaultParameters.maxTokens}
-            </span>
-          </div>
-        </div>
+        {formData.provider && renderProviderSpecificConfig()}
 
         <div className="form-actions">
           <button type="submit" className="btn-primary">
@@ -329,10 +338,17 @@ export default function ModelForm({ model, onSubmit, onCancel }: ModelFormProps)
       {showTestDialog && (
         <>
           <div className="dialog-overlay" onClick={() => setShowTestDialog(false)} />
-          <ModelTestDialog
-            model={formData as ModelConfig}
-            onClose={() => setShowTestDialog(false)}
-          />
+          {formData.provider === 'ollama' ? (
+            <OllamaTestDialog
+              model={formData as ModelConfig}
+              onClose={() => setShowTestDialog(false)}
+            />
+          ) : (
+            <ModelTestDialog
+              model={formData as ModelConfig}
+              onClose={() => setShowTestDialog(false)}
+            />
+          )}
         </>
       )}
     </>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { baseEntitySchema } from './base.schema';
+import { baseEntitySchema, BaseEntity } from './base.schema';
 
 // 模型参数验证模式
 export const modelParametersSchema = z.object({
@@ -33,8 +33,7 @@ export const modelConfigSchema = baseEntitySchema.extend({
 });
 
 // 供应商配置验证模式
-export const providerConfigSchema = z.object({
-  id: z.string(),
+export const providerConfigSchema = baseEntitySchema.extend({
   name: z.string(),
   models: z.array(z.string()),
   defaultBaseUrl: z.string().url().optional(),

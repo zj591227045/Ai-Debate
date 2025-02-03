@@ -38,7 +38,7 @@ export default function GameConfig() {
           className={`tab-button ${activeTab === 'roles' ? 'active' : ''}`}
           onClick={() => setActiveTab('roles')}
         >
-          角色分配
+          开局配置
         </button>
         <button
           className={`tab-button ${activeTab === 'characters' ? 'active' : ''}`}

@@ -1,10 +1,32 @@
+import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { StorageManager } from '../StorageManager';
+import { BaseEntity } from '../validation/schemas/base.schema';
+import { StorageError, StorageErrorCode } from '../types/error';
 
-export abstract class BaseStorageService<T extends { id: string }> {
+export abstract class BaseStorageService<T extends BaseEntity> {
   protected abstract storageKey: string;
   protected abstract schema: z.ZodType<T>;
   protected storage = StorageManager.getInstance();
+
+  protected generateId(): string {
+    return uuidv4();
+  }
+
+  protected async validate(data: T): Promise<void> {
+    try {
+      await this.schema.parseAsync(data);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new StorageError(
+          error.errors[0].message,
+          StorageErrorCode.VALIDATION_ERROR,
+          error.errors[0].path.join('.')
+        );
+      }
+      throw error;
+    }
+  }
 
   // 获取所有记录
   async getAll(): Promise<T[]> {
@@ -33,34 +55,29 @@ export abstract class BaseStorageService<T extends { id: string }> {
 
   // 创建新记录
   async create(data: T): Promise<void> {
+    await this.validate(data);
     console.log(`[${this.storageKey}] 创建新记录:`, data);
     const items = await this.getAll();
-    const validationResult = this.schema.safeParse(data);
-    if (!validationResult.success) {
-      console.error(`[${this.storageKey}] 数据验证失败:`, validationResult.error);
-      throw new Error('Invalid data format');
-    }
-    items.push(validationResult.data);
+    items.push(data);
     await this.storage.set(this.storageKey, items);
     console.log(`[${this.storageKey}] 创建成功`);
   }
 
   // 更新记录
   async update(id: string, data: Partial<T>): Promise<void> {
+    const existing = await this.getById(id);
+    if (!existing) {
+      throw new StorageError(
+        '记录不存在',
+        StorageErrorCode.NOT_FOUND_ERROR
+      );
+    }
+    await this.validate({ ...existing, ...data });
     console.log(`[${this.storageKey}] 更新记录, id:`, id, '数据:', data);
     const items = await this.getAll();
     const index = items.findIndex(item => item.id === id);
-    if (index === -1) {
-      console.error(`[${this.storageKey}] 记录不存在:`, id);
-      throw new Error('Item not found');
-    }
     const updatedItem = { ...items[index], ...data };
-    const validationResult = this.schema.safeParse(updatedItem);
-    if (!validationResult.success) {
-      console.error(`[${this.storageKey}] 更新数据验证失败:`, validationResult.error);
-      throw new Error('Invalid data format');
-    }
-    items[index] = validationResult.data;
+    items[index] = updatedItem;
     await this.storage.set(this.storageKey, items);
     console.log(`[${this.storageKey}] 更新成功`);
   }

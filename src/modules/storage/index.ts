@@ -1,29 +1,29 @@
-// 导出类型和配置
-export * from './types';
-export * from './config/storage.config';
+// 导出类型
+export * from './types/debate';
+
+// 导出验证模式
+export * from './schemas/debate';
 
 // 导入服务类
-import { LocalStorageService, IndexedDBService, BackupService } from './services';
-import { CharacterConfigService } from './services/CharacterConfigService';
+import { DebateConfigService } from './services/DebateConfigService';
+import { TopicTemplateService } from './services/TopicTemplateService';
+import { RulesConfigService } from './services/RulesConfigService';
 
 // 创建服务实例
-const localStorageService = new LocalStorageService();
-const indexedDBService = new IndexedDBService();
-const backupService = new BackupService(localStorageService, indexedDBService);
-const characterConfigService = new CharacterConfigService();
+const debateConfigService = new DebateConfigService();
+const topicTemplateService = new TopicTemplateService();
+const rulesConfigService = new RulesConfigService();
 
 // 导出服务实例
 export const storage = {
-  local: localStorageService,
-  indexedDB: indexedDBService,
-  backup: backupService,
-  character: characterConfigService,
+  debate: debateConfigService,
+  topic: topicTemplateService,
+  rules: rulesConfigService,
 };
 
 // 导出服务类型（用于类型声明）
 export type { 
-  LocalStorageService, 
-  IndexedDBService, 
-  BackupService,
-  CharacterConfigService,
+  DebateConfigService,
+  TopicTemplateService,
+  RulesConfigService,
 }; 

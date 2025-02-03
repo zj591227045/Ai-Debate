@@ -78,33 +78,32 @@ export interface CharacterTemplate {
 
 // 性格特征选项
 export const personalityOptions = [
-  '严谨', '幽默', '激进', '保守', '理性', 
-  '感性', '务实', '理想主义', '创新', '传统'
-] as const;
+  '严谨', '幽默', '激进', '保守', '理性', '感性', '务实',
+  '理想主义', '创新', '传统'
+] as string[];
 
 // 说话风格选项
 export const speakingStyleOptions = [
-  '学术派', '平民化', '专业', '通俗', '正式', 
-  '轻松', '严肃', '幽默', '简洁', '详细'
-] as const;
+  '平民化', '学术派', '专业化', '通俗易懂', '严肃正式', '轻松活泼'
+] as string[];
 
 // 专业背景选项
 export const backgroundOptions = [
-  '法律', '经济', '科技', '人文', '医学', 
-  '教育', '艺术', '政治', '环境', '社会学'
-] as const;
+  '法律', '经济', '科技', '医学', '教育', '艺术', '哲学',
+  '社会学', '心理学', '环境科学'
+] as string[];
 
 // 价值观选项
 export const valueOptions = [
-  '功利主义', '人文主义', '环保主义', '科技进步', 
-  '传统价值', '创新精神', '社会公平', '个人自由'
-] as const;
+  '功利主义', '人文主义', '环保主义', '科技进步', '传统价值',
+  '创新精神', '社会公平', '个人自由'
+] as string[];
 
 // 论证风格选项
 export const argumentationStyleOptions = [
-  '数据驱动', '案例引用', '类比论证', '逻辑推理', 
-  '经验总结', '权威引用', '实验论证', '历史分析'
-] as const;
+  '数据驱动', '案例引用', '类比论证', '逻辑推理', '经验总结',
+  '权威引用', '实验论证', '历史分析'
+] as string[];
 
 // 类型
 export type Personality = typeof personalityOptions[number];

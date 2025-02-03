@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
-import { useRoleAssignment, Player, DebateRole } from '../hooks/useRoleAssignment';
+import { useRoleAssignment } from '../hooks/useRoleAssignment';
+import { Player, DebateRole } from '../types/player';
 import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
 import { ModelProvider } from '../modules/model/context/ModelContext';
 import ModelList from '../modules/model/components/ModelList';
+import { TopicRuleConfig } from '../components/debate/TopicRuleConfig';
+import TemplateActions from '../components/debate/TemplateActions';
 
 const Container = styled.div`
   display: flex;
@@ -20,6 +23,12 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: ${props => props.theme.spacing.lg};
+`;
+
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing.md};
 `;
 
 const Title = styled.h1`
@@ -48,8 +57,15 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
 
 const Tabs = styled.div`
   display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: ${props => props.theme.spacing.md};
   margin-bottom: ${props => props.theme.spacing.lg};
+`;
+
+const TabGroup = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing.md};
 `;
 
 const Tab = styled.button<{ active: boolean }>`
@@ -173,10 +189,28 @@ const GameConfigContent: React.FC = () => {
     addPlayer(`AI选手${playerNumber}`, true);
   };
 
-  const handleTakeoverPlayer = (playerId: string, playerName: string) => {
+  const handleTakeoverPlayer = (playerId: string, playerName: string, isTakeover: boolean) => {
     updatePlayer(playerId, {
       name: playerName,
-      isAI: false,
+      isAI: !isTakeover,
+      // 如果是取消接管，清除角色配置
+      characterId: !isTakeover ? undefined : undefined,
+    });
+  };
+
+  const handleLoadTemplate = (templateId: string) => {
+    console.log('加载模板:', templateId);
+    // TODO: 实现模板加载逻辑
+  };
+
+  const handleSaveTemplate = () => {
+    console.log('保存为模板');
+    // TODO: 实现模板保存逻辑
+  };
+
+  const handleSelectCharacter = (playerId: string, characterId: string) => {
+    updatePlayer(playerId, {
+      characterId,
     });
   };
 
@@ -184,17 +218,21 @@ const GameConfigContent: React.FC = () => {
     switch (activeTab) {
       case 'roles':
         return (
-          <RoleAssignmentPanel
-            players={players}
-            config={config}
-            onAssignRole={assignRole}
-            onAutoAssign={autoAssignRoles}
-            onReset={resetRoles}
-            onTakeoverPlayer={handleTakeoverPlayer}
-            onRemovePlayer={removePlayer}
-            onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
-            onStartDebate={handleStartDebate}
-          />
+          <>
+            <TopicRuleConfig />
+            <RoleAssignmentPanel
+              players={players}
+              config={config}
+              onAssignRole={assignRole}
+              onAutoAssign={autoAssignRoles}
+              onReset={resetRoles}
+              onTakeoverPlayer={handleTakeoverPlayer}
+              onRemovePlayer={removePlayer}
+              onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
+              onStartDebate={handleStartDebate}
+              onSelectCharacter={handleSelectCharacter}
+            />
+          </>
         );
       case 'characters':
         return <CharacterList />;
@@ -213,35 +251,43 @@ const GameConfigContent: React.FC = () => {
     <Container>
       <Header>
         <Title>游戏配置</Title>
-        <div>
+        <HeaderRight>
           <Button variant="secondary" onClick={handleBack}>
             返回
           </Button>
           <Button variant="primary" onClick={handleStartDebate}>
-            开始辩论
+            开始游戏
           </Button>
-        </div>
+        </HeaderRight>
       </Header>
 
       <Tabs>
-        <Tab
-          active={activeTab === 'roles'}
-          onClick={() => setActiveTab('roles')}
-        >
-          角色分配
-        </Tab>
-        <Tab
-          active={activeTab === 'characters'}
-          onClick={() => setActiveTab('characters')}
-        >
-          AI角色配置
-        </Tab>
-        <Tab
-          active={activeTab === 'models'}
-          onClick={() => setActiveTab('models')}
-        >
-          模型管理
-        </Tab>
+        <TabGroup>
+          <Tab
+            active={activeTab === 'roles'}
+            onClick={() => setActiveTab('roles')}
+          >
+            开局配置
+          </Tab>
+          <Tab
+            active={activeTab === 'characters'}
+            onClick={() => setActiveTab('characters')}
+          >
+            AI角色配置
+          </Tab>
+          <Tab
+            active={activeTab === 'models'}
+            onClick={() => setActiveTab('models')}
+          >
+            模型管理
+          </Tab>
+        </TabGroup>
+        {activeTab === 'roles' && (
+          <TemplateActions
+            onLoadTemplate={handleLoadTemplate}
+            onSaveTemplate={handleSaveTemplate}
+          />
+        )}
       </Tabs>
 
       <div className="game-config-content">

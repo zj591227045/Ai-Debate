@@ -90,99 +90,84 @@ interface CharacterConfigOptions {
 ### 2. 游戏规则 (GameRules)
 
 ```typescript
-interface GameRules {
-  // 基本信息
-  id: string;                // 规则集ID
-  name: string;              // 规则集名称
-  description?: string;      // 规则说明
-  
-  // 辩论主题
-  topic: {
-    title: string;          // 辩题
-    description: string;    // 主题说明
-    background?: string;    // 背景资料（可选）
-  };
-
-  // 辩论规则
-  rules: {
-    // 基础规则
-    format: 'structured' | 'free';  // 辩论形式：结构化/自由
-    speechRules: {
-      maxLength: number;    // 发言最大字数（默认500）
-      minLength: number;    // 发言最小字数
-      allowEmpty: boolean;  // 是否允许空发言
-      allowRepeat: boolean; // 是否允许重复发言
-    };
-    
-    // 高级规则
-    advancedRules: {
-      allowQuoting: boolean;      // 是否允许引用他人观点
-      requireResponse: boolean;    // 是否必须回应前一个观点
-      allowStanceChange: boolean;  // 是否允许改变立场
-      requireEvidence: boolean;    // 是否要求提供论据
-      argumentTypes: string[];     // 允许的论证类型
-    };
-  };
-
-  // 评分规则
-  scoring: {
-    dimensions: {
-      logic: {              // 逻辑性
-        weight: number;     // 权重 (0-100)
-        criteria: string[]; // 评分标准
-      };
-      naturalness: {        // 人类自然度
-        weight: number;     // 权重 (0-100)
-        criteria: string[]; // 评分标准
-      };
-      compliance: {         // 规则遵守度
-        weight: number;     // 权重 (0-100)
-        criteria: string[]; // 评分标准
-      };
-      consistency: {        // 立场一致性
-        weight: number;     // 权重 (0-100)
-        criteria: string[]; // 评分标准
-      };
-      responsiveness: {     // 反应能力
-        weight: number;     // 权重 (0-100)
-        criteria: string[]; // 评分标准
-      };
-    };
-    bonusPoints: {          // 额外加分项
-      innovation: number;   // 创新性
-      persuasiveness: number; // 说服力
-      clarity: number;      // 表达清晰度
-    };
-  };
-
-  // 元数据
-  createdAt: number;        // 创建时间
-  updatedAt: number;        // 更新时间
-  isDefault?: boolean;      // 是否为默认规则集
-  version: string;          // 规则版本号
+// 主题配置
+interface TopicConfig extends BaseEntity {
+  title: string;          // 辩题
+  background: string;     // 主题背景
 }
 
-// 论证类型选项
-type ArgumentationType = 
-  | 'factual'      // 事实论证
-  | 'logical'      // 逻辑推理
-  | 'example'      // 举例论证
-  | 'statistical'  // 统计数据
-  | 'expert'       // 专家引用
-  | 'comparative'  // 对比论证
-  | 'causal'       // 因果论证
-  | 'hypothetical' // 假设论证
-;
+// 规则配置
+interface RuleConfig extends BaseEntity {
+  format: 'structured' | 'free';  // 辩论形式：正反方/自由
+  description: string;            // 规则说明
+  advancedRules: {
+    maxLength: number;            // 最大字数
+    minLength: number;           // 最小字数
+    allowQuoting: boolean;       // 允许引用
+    requireResponse: boolean;    // 要求回应
+    allowStanceChange: boolean;  // 允许立场转换
+    requireEvidence: boolean;    // 要求证据支持
+  }
+}
+
+// 配置模板
+interface ConfigTemplate extends BaseEntity {
+  name: string;
+  topic: TopicConfig;
+  rules: RuleConfig;
+}
+
+// 主题-规则关联
+interface TopicRuleAssociation extends BaseEntity {
+  topicId: string;
+  ruleId: string;
+  isDefault: boolean;        // 是否为该主题的默认规则
+  typeValidation: {
+    isTypeMatched: boolean;  // 类型是否匹配
+    matchDetails: {
+      topicType: 'policy' | 'value' | 'fact';
+      ruleFormat: 'structured' | 'free';
+    }
+  }
+}
+
+// 评分规则
+interface ScoringRules {
+  dimensions: {
+    logic: {              // 逻辑性
+      weight: number;     // 权重 (0-100)
+      criteria: string[]; // 评分标准
+    };
+    naturalness: {        // 人类自然度
+      weight: number;     // 权重 (0-100)
+      criteria: string[]; // 评分标准
+    };
+    compliance: {         // 规则遵守度
+      weight: number;     // 权重 (0-100)
+      criteria: string[]; // 评分标准
+    };
+    consistency: {        // 立场一致性
+      weight: number;     // 权重 (0-100)
+      criteria: string[]; // 评分标准
+    };
+    responsiveness: {     // 反应能力
+      weight: number;     // 权重 (0-100)
+      criteria: string[]; // 评分标准
+    };
+  };
+  bonusPoints: {          // 额外加分项
+    innovation: number;   // 创新性
+    persuasiveness: number; // 说服力
+    clarity: number;      // 表达清晰度
+  };
+}
 
 // 评分标准模板
-interface ScoringTemplate {
-  id: string;
+interface ScoringTemplate extends BaseEntity {
   name: string;
   description: string;
-  dimensions: GameRules['scoring']['dimensions'];
-  bonusPoints: GameRules['scoring']['bonusPoints'];
-  createdAt: number;
-  updatedAt: number;
+  dimensions: ScoringRules['dimensions'];
+  bonusPoints: ScoringRules['bonusPoints'];
 }
 ```
 
@@ -315,6 +300,260 @@ type PartialModelConfig = {
     [key: string]: any;
   };
 };
+```
+
+### 4. 评分系统 (ScoringSystem)
+
+```typescript
+// 评分配置
+interface ScoringConfig extends BaseEntity {
+  // 基础信息
+  name: string;
+  description: string;
+  
+  // 评分规则
+  scoringRule: string;
+  
+  // 维度配置
+  dimensionScores: {
+    logic: {
+      weight: number;     // 权重（35）
+      criteria: string[]; // 评分标准
+    };
+    humanness: {
+      weight: number;     // 权重（30）
+      criteria: string[]; // 评分标准
+    };
+    compliance: {
+      weight: number;     // 权重（35）
+      criteria: string[]; // 评分标准
+    };
+  };
+  
+  // 自定义评分规则
+  customScoreRules: Array<{
+    id: string;
+    name: string;
+    score: number;
+    criteria: string[];
+  }>;
+}
+
+// 评分结果存储
+interface ScoringRecord extends BaseEntity {
+  // 关联信息
+  debateId: string;      // 辩论ID
+  roundId: string;       // 轮次ID
+  speakerId: string;     // 发言者ID
+  judgeId: string;       // 评判ID
+  
+  // 评分详情
+  dimensionScores: {
+    logic: number;
+    humanness: number;
+    compliance: number;
+  };
+  
+  // 自定义评分
+  customScores: Array<{
+    ruleId: string;
+    score: number;
+  }>;
+  
+  // 总分和反馈
+  totalScore: number;
+  feedback: string;
+  
+  // 元数据
+  timestamp: number;
+  version: number;
+}
+
+// 评分模板
+interface ScoringTemplate extends BaseEntity {
+  name: string;
+  description: string;
+  config: ScoringConfig;
+  isDefault: boolean;
+  category: string;
+  tags: string[];
+}
+
+// 存储结构
+interface ScoringStorage {
+  // 配置存储
+  configs: {
+    [configId: string]: ScoringConfig;
+  };
+  
+  // 结果存储
+  records: {
+    [recordId: string]: ScoringRecord;
+  };
+  
+  // 模板存储
+  templates: {
+    [templateId: string]: ScoringTemplate;
+  };
+  
+  // 索引
+  indices: {
+    byDebate: {
+      [debateId: string]: string[]; // recordIds
+    };
+    byJudge: {
+      [judgeId: string]: string[]; // recordIds
+    };
+    byTemplate: {
+      [templateId: string]: string[]; // configIds
+    };
+  };
+}
+
+// 数据同步配置
+interface SyncConfig {
+  // 同步策略
+  strategy: 'realtime' | 'batch' | 'manual';
+  
+  // 批量同步配置
+  batchSync?: {
+    interval: number;     // 同步间隔（毫秒）
+    threshold: number;    // 触发同步的记录数阈值
+  };
+  
+  // 冲突解决策略
+  conflictResolution: 'server' | 'client' | 'manual';
+  
+  // 版本控制
+  versionControl: {
+    enabled: boolean;
+    maxVersions: number;
+  };
+}
+```
+
+### 角色配置存储更新
+```typescript
+interface CharacterStorage {
+  // 角色状态存储
+  characterState: {
+    selectedCharacters: {
+      [playerId: string]: string;  // playerId -> characterId
+    };
+    takenOverCharacters: {
+      [characterId: string]: {
+        playerId: string;
+        playerName: string;
+        timestamp: number;
+      };
+    };
+  };
+
+  // 角色选择配置
+  selectionConfig: {
+    maxPlayersPerRole: number;
+    allowCharacterSwitch: boolean;
+    allowCancelSelection: boolean;
+  };
+
+  // 角色显示配置
+  displayConfig: {
+    showAvatar: boolean;
+    showDescription: boolean;
+    showModelInfo: boolean;
+  };
+}
+
+// 角色选择验证
+const characterSelectionSchema = z.object({
+  selectedCharacters: z.record(z.string(), z.string()),
+  takenOverCharacters: z.record(z.string(), z.object({
+    playerId: z.string(),
+    playerName: z.string(),
+    timestamp: z.number()
+  })),
+  maxPlayersPerRole: z.number().min(1).max(10),
+  allowCharacterSwitch: z.boolean(),
+  allowCancelSelection: z.boolean()
+});
+```
+
+### AI裁判系统存储更新
+```typescript
+interface JudgeStorage {
+  // 评分配置存储
+  scoringConfig: {
+    dimensions: {
+      logic: {
+        weight: number;
+        criteria: string[];
+        levels: Array<{
+          score: [number, number];
+          description: string;
+        }>;
+      };
+      expression: {
+        weight: number;
+        criteria: string[];
+      };
+      compliance: {
+        weight: number;
+        criteria: string[];
+      };
+    };
+    bonusPoints: {
+      innovation: number;
+      persuasiveness: number;
+      clarity: number;
+    };
+  };
+
+  // 评分记录存储
+  scoringRecords: {
+    [recordId: string]: {
+      debateId: string;
+      roundId: string;
+      speakerId: string;
+      dimensionScores: {
+        logic: number;
+        expression: number;
+        compliance: number;
+      };
+      bonusScore: number;
+      totalScore: number;
+      evaluation: string;
+      timestamp: number;
+    };
+  };
+
+  // 轮次统计存储
+  roundStats: {
+    [roundId: string]: {
+      averageScore: number;
+      highestScore: number;
+      lowestScore: number;
+      participantScores: {
+        [speakerId: string]: number;
+      };
+    };
+  };
+}
+
+// 评分记录验证
+const scoringRecordSchema = z.object({
+  debateId: z.string(),
+  roundId: z.string(),
+  speakerId: z.string(),
+  dimensionScores: z.object({
+    logic: z.number().min(0).max(30),
+    expression: z.number().min(0).max(25),
+    compliance: z.number().min(0).max(20)
+  }),
+  bonusScore: z.number().min(0).max(10),
+  totalScore: z.number().min(0).max(100),
+  evaluation: z.string().max(500),
+  timestamp: z.number()
+});
 ```
 
 ## 数据关系
@@ -662,6 +901,12 @@ class BatchOperationService {
 - 实现了完整的人设配置系统
 - 添加了角色模板管理功能
 - 支持配置的本地持久化存储
+
+### 4. 裁判系统配置
+- 实现了裁判系统的配置功能
+- 支持AI裁判和群体评审的配置
+- 实现了评分标准的配置
+- 添加了评分记录和评分统计功能
 
 ## 技术实现细节
 

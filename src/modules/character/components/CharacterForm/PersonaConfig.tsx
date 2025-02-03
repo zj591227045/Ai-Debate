@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Form, Select, Input, Checkbox, Space, Card, Button } from 'antd';
+import { UserOutlined, BulbOutlined, BookOutlined, HeartOutlined, ExperimentOutlined, PlusOutlined, CloseOutlined } from '@ant-design/icons';
+import styled from '@emotion/styled';
 import { CharacterConfig } from '../../types';
 import {
   personalityOptions,
@@ -8,141 +11,320 @@ import {
   argumentationStyleOptions,
 } from '../../types';
 
+const { TextArea } = Input;
+
+const ConfigSection = styled.div`
+  margin-bottom: 10px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+`;
+
+const SectionTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f1f1f;
+  margin-bottom: 12px;
+  
+  .anticon {
+    color: #4157ff;
+    font-size: 18px;
+  }
+`;
+
+const OptionGroup = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+`;
+
+const StyledCheckbox = styled(Checkbox)`
+  .ant-checkbox-wrapper {
+    margin-right: 8px;
+  }
+  
+  &:hover {
+    .ant-checkbox-inner {
+      border-color: #4157ff;
+    }
+  }
+  
+  .ant-checkbox-checked .ant-checkbox-inner {
+    background-color: #4157ff;
+    border-color: #4157ff;
+  }
+`;
+
+const StyledSelect = styled(Select)`
+  width: 100%;
+  
+  .ant-select-selector {
+    border-radius: 6px !important;
+  }
+  
+  &:hover .ant-select-selector {
+    border-color: #4157ff !important;
+  }
+  
+  &.ant-select-focused .ant-select-selector {
+    border-color: #4157ff !important;
+    box-shadow: 0 0 0 2px rgba(65, 87, 255, 0.1) !important;
+  }
+`;
+
+const StyledTextArea = styled(TextArea)`
+  border-radius: 6px;
+  
+  &:hover {
+    border-color: #4157ff;
+  }
+  
+  &:focus {
+    border-color: #4157ff;
+    box-shadow: 0 0 0 2px rgba(65, 87, 255, 0.1);
+  }
+`;
+
+const CustomInputSection = styled.div`
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+`;
+
+const StyledInput = styled(Input)`
+  flex: 1;
+  border-radius: 6px;
+  
+  &:hover {
+    border-color: #4157ff;
+  }
+  
+  &:focus {
+    border-color: #4157ff;
+    box-shadow: 0 0 0 2px rgba(65, 87, 255, 0.1);
+  }
+`;
+
+const AddButton = styled(Button)`
+  color: #4157ff;
+  border-color: #4157ff;
+  
+  &:hover {
+    color: #6677ff;
+    border-color: #6677ff;
+  }
+  
+  &:active {
+    color: #3344ff;
+    border-color: #3344ff;
+  }
+`;
+
+const SelectedItemsSection = styled.div`
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const SelectedItem = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #f0f2ff;
+  border: 1px solid #e6e8ff;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #4157ff;
+
+  .anticon {
+    cursor: pointer;
+    font-size: 12px;
+    
+    &:hover {
+      color: #f5222d;
+    }
+  }
+`;
+
+interface MultiSelectSectionProps {
+  title: string;
+  icon: React.ReactNode;
+  options: string[];
+  value: string[];
+  onChange: (newValue: string[]) => void;
+  customPlaceholder: string;
+}
+
+const MultiSelectSection: React.FC<MultiSelectSectionProps> = ({
+  title,
+  icon,
+  options,
+  value = [],
+  onChange,
+  customPlaceholder,
+}) => {
+  const [customInput, setCustomInput] = useState('');
+
+  const handleAdd = () => {
+    if (customInput && !value.includes(customInput)) {
+      onChange([...value, customInput]);
+      setCustomInput('');
+    }
+  };
+
+  const handleRemove = (item: string) => {
+    onChange(value.filter(v => v !== item));
+  };
+
+  const customItems = value.filter(item => !options.includes(item));
+
+  return (
+    <ConfigSection>
+      <SectionTitle>
+        {icon}
+        {title}
+      </SectionTitle>
+      <OptionGroup>
+        {options.map(option => (
+          <StyledCheckbox
+            key={option}
+            checked={value.includes(option)}
+            onChange={e => {
+              const newValue = e.target.checked
+                ? [...value, option]
+                : value.filter(v => v !== option);
+              onChange(newValue);
+            }}
+          >
+            {option}
+          </StyledCheckbox>
+        ))}
+      </OptionGroup>
+      {customItems.length > 0 && (
+        <SelectedItemsSection>
+          {customItems.map(item => (
+            <SelectedItem key={item}>
+              {item}
+              <CloseOutlined onClick={() => handleRemove(item)} />
+            </SelectedItem>
+          ))}
+        </SelectedItemsSection>
+      )}
+      <CustomInputSection>
+        <StyledInput
+          placeholder={customPlaceholder}
+          value={customInput}
+          onChange={e => setCustomInput(e.target.value)}
+          onPressEnter={handleAdd}
+        />
+        <AddButton 
+          icon={<PlusOutlined />}
+          onClick={handleAdd}
+        >
+          添加
+        </AddButton>
+      </CustomInputSection>
+    </ConfigSection>
+  );
+};
+
 interface PersonaConfigProps {
   data: Partial<CharacterConfig>;
   onChange: (data: Partial<CharacterConfig>) => void;
 }
 
 export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
-  // 创建基础persona对象，包含所有必需字段的默认值
-  const getBasePersona = () => ({
-    personality: data.persona?.personality || [],
-    speakingStyle: data.persona?.speakingStyle || speakingStyleOptions[0],
-    background: data.persona?.background || backgroundOptions[0],
-    values: data.persona?.values || [],
-    argumentationStyle: data.persona?.argumentationStyle || [],
-    customDescription: data.persona?.customDescription,
-  });
+  const handlePersonaChange = (field: keyof CharacterConfig['persona'], value: any) => {
+    const updatedPersona = {
+      personality: data.persona?.personality || [],
+      speakingStyle: data.persona?.speakingStyle || '',
+      background: data.persona?.background || '',
+      values: data.persona?.values || [],
+      argumentationStyle: data.persona?.argumentationStyle || [],
+      customDescription: data.persona?.customDescription,
+      [field]: value,
+    };
 
-  // 通用的更新函数
-  const updatePersona = (field: keyof CharacterConfig['persona'], value: any) => {
     onChange({
       ...data,
-      persona: {
-        ...getBasePersona(),
-        [field]: value,
-      },
+      persona: updatedPersona,
     });
   };
 
-  // 处理多选项的变化
-  const handleMultiSelectChange = (field: 'personality' | 'values' | 'argumentationStyle', value: string) => {
-    const currentValues = data.persona?.[field] || [];
-    const newValues = currentValues.includes(value)
-      ? currentValues.filter((v) => v !== value)
-      : [...currentValues, value];
-    
-    updatePersona(field, newValues);
-  };
-
-  // 处理单选项的变化
-  const handleSelectChange = (field: 'speakingStyle' | 'background') => 
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      updatePersona(field, e.target.value);
-    };
-
   return (
-    <div className="persona-config">
-      <div className="form-group">
-        <label>性格特征（可多选）</label>
-        <div className="checkbox-group">
-          {personalityOptions.map((option) => (
-            <label key={option} className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={data.persona?.personality?.includes(option)}
-                onChange={() => handleMultiSelectChange('personality', option)}
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </div>
+    <div>
+      <MultiSelectSection
+        title="性格特征（可多选）"
+        icon={<UserOutlined />}
+        options={personalityOptions}
+        value={data.persona?.personality || []}
+        onChange={value => handlePersonaChange('personality', value)}
+        customPlaceholder="输入自定义性格特征"
+      />
 
-      <div className="form-group">
-        <label htmlFor="speakingStyle">说话风格</label>
-        <select
-          id="speakingStyle"
-          value={data.persona?.speakingStyle || ''}
-          onChange={handleSelectChange('speakingStyle')}
-        >
-          <option value="">请选择说话风格</option>
-          {speakingStyleOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ConfigSection>
+        <SectionTitle>
+          <BulbOutlined />
+          说话风格
+        </SectionTitle>
+        <StyledSelect
+          placeholder="请选择说话风格"
+          value={data.persona?.speakingStyle}
+          onChange={value => handlePersonaChange('speakingStyle', value)}
+          options={speakingStyleOptions.map(style => ({ label: style, value: style }))}
+        />
+      </ConfigSection>
 
-      <div className="form-group">
-        <label htmlFor="background">专业背景</label>
-        <select
-          id="background"
-          value={data.persona?.background || ''}
-          onChange={handleSelectChange('background')}
-        >
-          <option value="">请选择专业背景</option>
-          {backgroundOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ConfigSection>
+        <SectionTitle>
+          <BookOutlined />
+          专业背景
+        </SectionTitle>
+        <StyledSelect
+          placeholder="请选择专业背景"
+          value={data.persona?.background}
+          onChange={value => handlePersonaChange('background', value)}
+          options={backgroundOptions.map(bg => ({ label: bg, value: bg }))}
+        />
+      </ConfigSection>
 
-      <div className="form-group">
-        <label>价值观（可多选）</label>
-        <div className="checkbox-group">
-          {valueOptions.map((option) => (
-            <label key={option} className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={data.persona?.values?.includes(option)}
-                onChange={() => handleMultiSelectChange('values', option)}
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </div>
+      <MultiSelectSection
+        title="价值观（可多选）"
+        icon={<HeartOutlined />}
+        options={valueOptions}
+        value={data.persona?.values || []}
+        onChange={value => handlePersonaChange('values', value)}
+        customPlaceholder="输入自定义价值观"
+      />
 
-      <div className="form-group">
-        <label>论证风格（可多选）</label>
-        <div className="checkbox-group">
-          {argumentationStyleOptions.map((option) => (
-            <label key={option} className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={data.persona?.argumentationStyle?.includes(option)}
-                onChange={() => handleMultiSelectChange('argumentationStyle', option)}
-              />
-              {option}
-            </label>
-          ))}
-        </div>
-      </div>
+      <MultiSelectSection
+        title="论证风格（可多选）"
+        icon={<ExperimentOutlined />}
+        options={argumentationStyleOptions}
+        value={data.persona?.argumentationStyle || []}
+        onChange={value => handlePersonaChange('argumentationStyle', value)}
+        customPlaceholder="输入自定义论证风格"
+      />
 
-      <div className="form-group">
-        <label htmlFor="customDescription">自定义人设描述</label>
-        <textarea
-          id="customDescription"
-          value={data.persona?.customDescription || ''}
-          onChange={(e) => updatePersona('customDescription', e.target.value)}
+      <ConfigSection>
+        <SectionTitle>
+          <UserOutlined />
+          自定义人设描述
+        </SectionTitle>
+        <StyledTextArea
           placeholder="请输入自定义人设描述"
+          value={data.persona?.customDescription}
+          onChange={e => handlePersonaChange('customDescription', e.target.value)}
           rows={4}
         />
-      </div>
+      </ConfigSection>
     </div>
   );
 } 

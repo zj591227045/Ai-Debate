@@ -1,6 +1,5 @@
-import { ProviderConfig } from '../../model/types';
 import { BaseStorageService } from './BaseStorageService';
-import { providerConfigSchema } from '../validation/schemas/model.schema';
+import { providerConfigSchema, ProviderConfig } from '../validation/schemas/model.schema';
 
 export class ProviderConfigService extends BaseStorageService<ProviderConfig> {
   protected storageKey = 'provider_configs';

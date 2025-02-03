@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2015",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -17,13 +17,11 @@
     "jsx": "react-jsx",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "downlevelIteration": true,
     "baseUrl": "src",
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/types",
-      "./node_modules/antd/lib",
-      "./node_modules/@types/node"
-    ]
+    "paths": {
+      "@/*": ["*"]
+    }
   },
   "include": ["src"]
 } 

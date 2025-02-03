@@ -1,13 +1,6 @@
 import { useState, useCallback } from 'react';
-
-export type DebateRole = 'affirmative1' | 'affirmative2' | 'negative1' | 'negative2' | 'judge' | 'timekeeper' | 'unassigned';
-
-export interface Player {
-  id: string;
-  name: string;
-  role: DebateRole;
-  isAI: boolean;
-}
+import { Player, DebateRole } from '../types/player';
+import { shuffleArray } from '../utils/array';
 
 export interface RoleAssignmentConfig {
   affirmativeCount: number;
@@ -19,19 +12,10 @@ export interface RoleAssignmentConfig {
   autoAssign?: boolean;
 }
 
-export interface RoleAssignmentState {
+interface RoleAssignmentState {
   players: Player[];
   config: RoleAssignmentConfig;
 }
-
-const shuffleArray = <T>(array: T[]): T[] => {
-  const newArray = [...array];
-  for (let i = newArray.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-  }
-  return newArray;
-};
 
 export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleAssignmentConfig) => {
   const [state, setState] = useState<RoleAssignmentState>({
@@ -57,6 +41,15 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
       ...prev,
       players: prev.players.map(player =>
         player.id === playerId ? { ...player, ...updates } : player
+      ),
+    }));
+  }, []);
+
+  const selectCharacter = useCallback((playerId: string, characterId: string) => {
+    setState(prev => ({
+      ...prev,
+      players: prev.players.map(player =>
+        player.id === playerId ? { ...player, characterId } : player
       ),
     }));
   }, []);
@@ -96,7 +89,7 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
   }, []);
 
   const autoAssignRoles = useCallback(() => {
-    const { affirmativeCount, negativeCount, judgeCount, timekeeperCount } = state.config;
+    const { affirmativeCount, negativeCount } = state.config;
     const unassignedPlayers = shuffleArray(state.players.filter(p => p.role === 'unassigned'));
     let currentIndex = 0;
 
@@ -116,20 +109,6 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
       newPlayers[playerIndex] = { ...player, role: `negative${i + 1}` as DebateRole };
     }
 
-    // 分配裁判角色
-    for (let i = 0; i < judgeCount && currentIndex < unassignedPlayers.length; i++) {
-      const player = unassignedPlayers[currentIndex++];
-      const playerIndex = newPlayers.findIndex(p => p.id === player.id);
-      newPlayers[playerIndex] = { ...player, role: 'judge' };
-    }
-
-    // 分配计时员角色
-    for (let i = 0; i < timekeeperCount && currentIndex < unassignedPlayers.length; i++) {
-      const player = unassignedPlayers[currentIndex++];
-      const playerIndex = newPlayers.findIndex(p => p.id === player.id);
-      newPlayers[playerIndex] = { ...player, role: 'timekeeper' };
-    }
-
     setState(prev => ({
       ...prev,
       players: newPlayers,
@@ -143,76 +122,28 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
     }));
   }, []);
 
-  const getTeamPlayers = useCallback((team: 'affirmative' | 'negative') => {
-    return state.players.filter(player => 
-      player.role.startsWith(team)
-    ).sort((a, b) => a.role.localeCompare(b.role));
-  }, [state.players]);
-
-  const getSpeakingOrder = useCallback(() => {
-    const affirmativePlayers = getTeamPlayers('affirmative');
-    const negativePlayers = getTeamPlayers('negative');
-    
-    // 按照正一、反一、正二、反二的顺序排列
-    const order: Player[] = [];
-    const maxSpeakers = Math.max(affirmativePlayers.length, negativePlayers.length);
-    
-    for (let i = 0; i < maxSpeakers; i++) {
-      if (affirmativePlayers[i]) order.push(affirmativePlayers[i]);
-      if (negativePlayers[i]) order.push(negativePlayers[i]);
-    }
-    
-    return order;
-  }, [getTeamPlayers]);
-
   const getAssignedCount = useCallback(() => {
     const affirmative = state.players.filter(p => p.role.startsWith('affirmative')).length;
     const negative = state.players.filter(p => p.role.startsWith('negative')).length;
-    const judges = state.players.filter(p => p.role === 'judge').length;
-    const timekeepers = state.players.filter(p => p.role === 'timekeeper').length;
 
-    const assigned = affirmative + negative + judges + timekeepers;
-    const total = state.players.length;
-    const required = {
-      affirmative: state.config.affirmativeCount,
-      negative: state.config.negativeCount,
-      judges: state.config.judgeCount,
-      timekeepers: state.config.timekeeperCount,
-      total: state.config.affirmativeCount + state.config.negativeCount + 
-             state.config.judgeCount + state.config.timekeeperCount
+    return {
+      affirmative,
+      negative,
+      total: state.players.length,
+      isBalanced: affirmative === negative,
     };
-
-    const isComplete = 
-      affirmative >= required.affirmative &&
-      negative >= required.negative &&
-      judges >= required.judges &&
-      timekeepers >= required.timekeepers;
-
-    return { 
-      assigned,
-      total,
-      required,
-      isComplete,
-      counts: {
-        affirmative,
-        negative,
-        judges,
-        timekeepers
-      }
-    };
-  }, [state.players, state.config]);
+  }, [state.players]);
 
   return {
     players: state.players,
     config: state.config,
     assignRole,
     updatePlayer,
+    selectCharacter,
     addPlayer,
     removePlayer,
     autoAssignRoles,
     resetRoles,
-    getTeamPlayers,
-    getSpeakingOrder,
     getAssignedCount,
   };
 }; 

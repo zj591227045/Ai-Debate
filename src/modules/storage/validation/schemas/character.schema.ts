@@ -24,8 +24,7 @@ export const callConfigSchema = z.object({
 });
 
 // 角色配置存储验证模式
-export const characterStorageSchema = z.object({
-  id: z.string(),
+export const characterStorageSchema = baseEntitySchema.extend({
   name: z.string().min(1, '角色名称不能为空'),
   avatar: z.string().optional(),
   description: z.string().optional(),
@@ -33,8 +32,6 @@ export const characterStorageSchema = z.object({
   callConfig: callConfigSchema,
   isTemplate: z.literal(true).or(z.literal(false)),
   templateId: z.string().optional(),
-  createdAt: z.number().optional(),
-  updatedAt: z.number().optional(),
 });
 
 // 角色配置验证模式

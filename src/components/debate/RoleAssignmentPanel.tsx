@@ -1,149 +1,233 @@
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { Player, DebateRole, RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
+import { Player, DebateRole } from '../../types/player';
+import { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
+import { Avatar, Space, Button as AntButton, Tooltip, Select, Modal, Input } from 'antd';
+import { UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
+import { useCharacter } from '../../modules/character/context/CharacterContext';
+import { useModel } from '../../modules/model/context/ModelContext';
 
 const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${props => props.theme.spacing.lg};
-  padding: ${props => props.theme.spacing.lg};
-  background-color: ${props => props.theme.colors.background.primary};
-  border-radius: ${props => props.theme.radius.lg};
-  box-shadow: ${props => props.theme.shadows.md};
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
 `;
 
-const ControlPanel = styled.div`
+const Header = styled.div`
   display: flex;
-  gap: ${props => props.theme.spacing.md};
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
-  padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.md};
-  background-color: ${props => {
-    switch (props.variant) {
-      case 'primary':
-        return props.theme.colors.primary;
-      case 'danger':
-        return props.theme.colors.error;
-      default:
-        return props.theme.colors.background.secondary;
-    }
-  }};
-  color: ${props => 
-    props.variant === 'secondary' ? props.theme.colors.text.primary : props.theme.colors.white
-  };
-  border: none;
-  border-radius: ${props => props.theme.radius.md};
-  cursor: pointer;
-  transition: all ${props => props.theme.transitions.fast};
+const Title = styled.h2`
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+`;
 
-  &:hover {
-    opacity: 0.9;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 8px;
 `;
 
 const PlayerList = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: ${props => props.theme.spacing.md};
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
 `;
 
-const PlayerCard = styled.div<{ isAI: boolean }>`
-  padding: ${props => props.theme.spacing.md};
-  background-color: ${props => props.theme.colors.background.secondary};
-  border-radius: ${props => props.theme.radius.md};
-  border-left: 4px solid ${props => 
-    props.isAI ? props.theme.colors.secondary : props.theme.colors.accent
-  };
-`;
-
-const PlayerHeader = styled.div`
+const PlayerCard = styled.div<{ $isAffirmative?: boolean; $isNegative?: boolean; $isHuman?: boolean }>`
+  background: white;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  transition: all 0.3s ease;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: ${props => props.theme.spacing.sm};
-`;
+  
+  ${props => props.$isAffirmative && `
+    border-left: 4px solid #4157ff;
+    background: linear-gradient(to right, rgba(65, 87, 255, 0.05), transparent);
+  `}
+  
+  ${props => props.$isNegative && `
+    border-left: 4px solid #ff4157;
+    background: linear-gradient(to right, rgba(255, 65, 87, 0.05), transparent);
+  `}
+  
+  ${props => props.$isHuman && `
+    border-left: 4px solid #ff9041;
+    background: linear-gradient(to right, rgba(255, 144, 65, 0.05), transparent);
+  `}
 
-const PlayerName = styled.div`
-  font-size: ${props => props.theme.typography.fontSize.md};
-  font-weight: ${props => props.theme.typography.fontWeight.bold};
-  color: ${props => props.theme.colors.text.primary};
-`;
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
 
-const PlayerType = styled.div<{ isAI: boolean }>`
-  padding: ${props => `${props.theme.spacing.xs} ${props.theme.spacing.sm}`};
-  background-color: ${props => 
-    props.isAI ? props.theme.colors.secondary + '20' : props.theme.colors.accent + '20'
-  };
-  color: ${props => 
-    props.isAI ? props.theme.colors.secondary : props.theme.colors.accent
-  };
-  border-radius: ${props => props.theme.radius.sm};
-  font-size: ${props => props.theme.typography.fontSize.sm};
-`;
-
-const RoleSelect = styled.select`
-  width: 100%;
-  padding: ${props => props.theme.spacing.sm};
-  border: 1px solid ${props => props.theme.colors.border};
-  border-radius: ${props => props.theme.radius.md};
-  background-color: ${props => props.theme.colors.background.primary};
-  color: ${props => props.theme.colors.text.primary};
-  font-size: ${props => props.theme.typography.fontSize.md};
-  cursor: pointer;
-
-  &:focus {
-    outline: none;
-    border-color: ${props => props.theme.colors.primary};
+  .character-description {
+    margin: 8px 0 16px;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.45);
+    text-align: center;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 `;
 
-const PlayerActions = styled.div`
+const AvatarWrapper = styled.div`
+  position: relative;
   display: flex;
-  gap: ${props => props.theme.spacing.sm};
-  margin-top: ${props => props.theme.spacing.sm};
-`;
-
-const TakeoverDialog = styled.div`
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: ${props => props.theme.colors.background.primary};
-  padding: ${props => props.theme.spacing.lg};
-  border-radius: ${props => props.theme.radius.lg};
-  box-shadow: ${props => props.theme.shadows.lg};
-  z-index: 1000;
-`;
-
-const Overlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 999;
-`;
-
-const Input = styled.input`
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
   width: 100%;
-  padding: ${props => props.theme.spacing.sm};
-  border: 1px solid ${props => props.theme.colors.border};
-  border-radius: ${props => props.theme.radius.md};
-  margin-bottom: ${props => props.theme.spacing.md};
-  font-size: ${props => props.theme.typography.fontSize.md};
+`;
 
-  &:focus {
-    outline: none;
-    border-color: ${props => props.theme.colors.primary};
+const StyledAvatar = styled(Avatar)`
+  width: 120px;
+  height: 120px;
+  margin-bottom: 12px;
+  
+  .ant-avatar-string {
+    font-size: 48px;
+    line-height: 120px;
   }
+  
+  .anticon {
+    font-size: 64px;
+  }
+`;
+
+const AIBadge = styled.div`
+  position: absolute;
+  bottom: 8px;
+  right: calc(50% - 70px);
+  background: #4157ff;
+  color: white;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+`;
+
+const CardHeader = styled.div`
+  text-align: center;
+  margin-bottom: 24px;
+`;
+
+const PlayerName = styled.h3`
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 500;
+  text-align: center;
+`;
+
+const PlayerInfo = styled.div`
+  flex: 1;
+`;
+
+const RoleSelector = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  width: 100%;
+`;
+
+const RoleOption = styled.div<{ $active?: boolean; $type: 'affirmative' | 'negative' }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  
+  ${props => props.$active && props.$type === 'affirmative' && `
+    background: rgba(65, 87, 255, 0.1);
+    color: #4157ff;
+  `}
+  
+  ${props => props.$active && props.$type === 'negative' && `
+    background: rgba(255, 65, 87, 0.1);
+    color: #ff4157;
+  `}
+  
+  &:hover {
+    background: ${props => props.$type === 'affirmative' 
+      ? 'rgba(65, 87, 255, 0.05)' 
+      : 'rgba(255, 65, 87, 0.05)'};
+  }
+`;
+
+const DebateOrder = styled.span`
+  font-size: 12px;
+  opacity: 0.7;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  width: 100%;
+`;
+
+const CharacterSelect = styled.div`
+  margin: 16px 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  width: 100%;
+`;
+
+const CharacterOption = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const CharacterName = styled.div`
+  font-weight: 500;
+`;
+
+const CharacterDescription = styled.div`
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+`;
+
+const TakeoverMessage = styled.div`
+  margin: 16px 0;
+  padding: 12px;
+  background: rgba(255, 144, 65, 0.05);
+  border-radius: 6px;
+  color: #ff9041;
+  text-align: center;
+  font-size: 14px;
+`;
+
+const ModelInfo = styled.div`
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+`;
+
+const ModelTag = styled.span`
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
 `;
 
 interface RoleAssignmentPanelProps {
@@ -152,10 +236,11 @@ interface RoleAssignmentPanelProps {
   onAssignRole: (playerId: string, role: DebateRole) => void;
   onAutoAssign: () => void;
   onReset: () => void;
-  onTakeoverPlayer: (playerId: string, playerName: string) => void;
+  onTakeoverPlayer: (playerId: string, playerName: string, isTakeover: boolean) => void;
   onRemovePlayer: (playerId: string) => void;
   onAddAIPlayer?: () => void;
-  onStartDebate: () => void;
+  onStartDebate?: () => void;
+  onSelectCharacter: (playerId: string, characterId: string) => void;
 }
 
 export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
@@ -168,105 +253,255 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   onRemovePlayer,
   onAddAIPlayer,
   onStartDebate,
+  onSelectCharacter,
 }) => {
-  const [takeoverDialogOpen, setTakeoverDialogOpen] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [newPlayerName, setNewPlayerName] = useState('');
+  const { state: characterState } = useCharacter();
+  const { state: modelState } = useModel();
+  const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
+  const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
+  const [playerName, setPlayerName] = useState('');
 
-  const handleTakeover = (playerId: string) => {
-    setSelectedPlayerId(playerId);
-    setTakeoverDialogOpen(true);
-    setNewPlayerName('');
+  // 获取已被选择的角色ID列表
+  const selectedCharacterIds = players
+    .filter(p => p.characterId)
+    .map(p => p.characterId) as string[];
+
+  // 检查是否已有人类玩家
+  const hasHumanPlayer = players.some(p => !p.isAI);
+
+  const handleTakeoverClick = (playerId: string) => {
+    if (hasHumanPlayer) {
+      Modal.warning({
+        title: '无法接管',
+        content: '已有一名人类玩家，不能再接管其他角色',
+      });
+      return;
+    }
+    setTakeoverPlayerId(playerId);
+    setTakeoverModalVisible(true);
+    setPlayerName('');
   };
 
   const handleTakeoverConfirm = () => {
-    if (selectedPlayerId && newPlayerName.trim()) {
-      onTakeoverPlayer(selectedPlayerId, newPlayerName.trim());
-      setTakeoverDialogOpen(false);
-      setSelectedPlayerId(null);
-      setNewPlayerName('');
+    if (takeoverPlayerId && playerName.trim()) {
+      onTakeoverPlayer(takeoverPlayerId, playerName.trim(), true);
+      setTakeoverModalVisible(false);
+      setTakeoverPlayerId(null);
+      setPlayerName('');
     }
   };
 
-  const isOptionalPlayer = (index: number) => {
-    return index >= config.minPlayers;
+  const handleCancelTakeover = (playerId: string) => {
+    const player = players.find(p => p.id === playerId);
+    if (player) {
+      onTakeoverPlayer(playerId, `AI选手${player.name.match(/\d+/)?.[0] || ''}`, false);
+    }
+  };
+
+  const handleRoleChange = (playerId: string, type: 'affirmative' | 'negative', currentRole: string) => {
+    const playersByType = players.filter(p => p.role.startsWith(type));
+    
+    // 如果已经有3个同阵营选手，不允许再添加
+    if (playersByType.length >= 3 && !currentRole.startsWith(type)) {
+      return;
+    }
+
+    // 如果当前选手已经是该阵营，取消选择
+    if (currentRole.startsWith(type)) {
+      onAssignRole(playerId, 'unassigned' as DebateRole);
+      return;
+    }
+
+    // 根据已有选手数量分配号位
+    const nextNumber = playersByType.length + 1;
+    if (nextNumber <= 3) {
+      onAssignRole(playerId, `${type}${nextNumber}` as DebateRole);
+    }
   };
 
   return (
     <Container>
-      <ControlPanel>
-        <Button variant="primary" onClick={onAutoAssign}>
-          自动分配角色
-        </Button>
-        <Button variant="secondary" onClick={onReset}>
-          重置角色
-        </Button>
-        {onAddAIPlayer && (
-          <Button variant="secondary" onClick={onAddAIPlayer}>
-            添加AI选手
-          </Button>
-        )}
-      </ControlPanel>
+      <Header>
+        <Title>选手配置</Title>
+        <ButtonGroup>
+          <AntButton onClick={onAutoAssign}>自动分配角色</AntButton>
+          <AntButton onClick={onReset}>重置角色</AntButton>
+          {onAddAIPlayer && (
+            <AntButton type="primary" onClick={onAddAIPlayer}>
+              添加AI选手
+            </AntButton>
+          )}
+        </ButtonGroup>
+      </Header>
 
       <PlayerList>
-        {players.map((player, index) => (
-          <PlayerCard key={player.id} isAI={player.isAI}>
-            <PlayerHeader>
-              <PlayerName>{player.name}</PlayerName>
-              <PlayerType isAI={player.isAI}>
-                {player.isAI ? 'AI' : '玩家'}
-              </PlayerType>
-            </PlayerHeader>
+        {players.map((player) => {
+          const isAffirmative = player.role.startsWith('affirmative');
+          const isNegative = player.role.startsWith('negative');
+          const selectedCharacter = player.characterId 
+            ? characterState.characters.find(c => c.id === player.characterId)
+            : undefined;
+          
+          // 获取角色关联的模型信息
+          const modelId = selectedCharacter?.callConfig?.type === 'direct' 
+            ? selectedCharacter.callConfig.direct?.modelId 
+            : undefined;
+          const characterModel = modelId
+            ? modelState.models.find(m => m.id === modelId)
+            : undefined;
 
-            <RoleSelect
-              value={player.role}
-              onChange={(e) => onAssignRole(player.id, e.target.value as DebateRole)}
+          // 过滤掉已被其他玩家选择的角色
+          const availableCharacters = characterState.characters.filter(
+            character => !selectedCharacterIds.includes(character.id) || character.id === player.characterId
+          );
+
+          return (
+            <PlayerCard 
+              key={player.id}
+              $isAffirmative={isAffirmative}
+              $isNegative={isNegative}
+              $isHuman={!player.isAI}
             >
-              <option value="unassigned">未分配</option>
-              <option value="affirmative1">正方一辩</option>
-              <option value="affirmative2">正方二辩</option>
-              <option value="negative1">反方一辩</option>
-              <option value="negative2">反方二辩</option>
-              <option value="judge">裁判</option>
-              <option value="timekeeper">计时员</option>
-            </RoleSelect>
+              <AvatarWrapper>
+                <StyledAvatar 
+                  src={selectedCharacter?.avatar}
+                  icon={player.isAI ? <RobotOutlined /> : <UserOutlined />}
+                />
+                {player.isAI && <AIBadge>AI</AIBadge>}
+              </AvatarWrapper>
+              
+              <CardHeader>
+                <PlayerName>{player.name}</PlayerName>
+                {selectedCharacter && (
+                  <>
+                    <div className="character-description">
+                      {selectedCharacter.description}
+                    </div>
+                    {characterModel && (
+                      <ModelInfo>
+                        <ModelTag>{characterModel.provider}</ModelTag>
+                        <ModelTag>{characterModel.model}</ModelTag>
+                      </ModelInfo>
+                    )}
+                  </>
+                )}
+              </CardHeader>
 
-            <PlayerActions>
-              {player.isAI && (
-                <Button variant="secondary" onClick={() => handleTakeover(player.id)}>
-                  接管
-                </Button>
+              {player.isAI ? (
+                <CharacterSelect>
+                  <Select
+                    style={{ width: '100%' }}
+                    placeholder="选择AI角色"
+                    value={player.characterId}
+                    onChange={(value) => onSelectCharacter(player.id, value || '')}
+                    optionLabelProp="label"
+                    allowClear
+                  >
+                    {availableCharacters.map(character => (
+                      <Select.Option 
+                        key={character.id} 
+                        value={character.id}
+                        label={character.name}
+                      >
+                        <CharacterOption>
+                          <CharacterName>{character.name}</CharacterName>
+                          {character.description && (
+                            <CharacterDescription>
+                              {character.description}
+                            </CharacterDescription>
+                          )}
+                        </CharacterOption>
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </CharacterSelect>
+              ) : (
+                <TakeoverMessage>
+                  该角色已被人类接管
+                </TakeoverMessage>
               )}
-              {isOptionalPlayer(index) && (
-                <Button variant="danger" onClick={() => onRemovePlayer(player.id)}>
+
+              <RoleSelector>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Space>
+                    <RoleOption 
+                      $active={isAffirmative}
+                      $type="affirmative"
+                      onClick={() => handleRoleChange(player.id, 'affirmative', player.role)}
+                    >
+                      正方
+                      {isAffirmative && (
+                        <DebateOrder>
+                          {player.role.replace('affirmative', '')}号
+                        </DebateOrder>
+                      )}
+                    </RoleOption>
+                    <RoleOption 
+                      $active={isNegative}
+                      $type="negative"
+                      onClick={() => handleRoleChange(player.id, 'negative', player.role)}
+                    >
+                      反方
+                      {isNegative && (
+                        <DebateOrder>
+                          {player.role.replace('negative', '')}号
+                        </DebateOrder>
+                      )}
+                    </RoleOption>
+                  </Space>
+                </Space>
+              </RoleSelector>
+
+              <ActionButtons>
+                {player.isAI ? (
+                  <Tooltip title="接管为人类玩家">
+                    <AntButton 
+                      icon={<SwapOutlined />}
+                      onClick={() => handleTakeoverClick(player.id)}
+                      disabled={hasHumanPlayer && player.isAI}
+                    >
+                      接管
+                    </AntButton>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="取消接管">
+                    <AntButton 
+                      icon={<SwapOutlined />}
+                      onClick={() => handleCancelTakeover(player.id)}
+                    >
+                      取消接管
+                    </AntButton>
+                  </Tooltip>
+                )}
+                <AntButton 
+                  danger
+                  onClick={() => onRemovePlayer(player.id)}
+                >
                   移除
-                </Button>
-              )}
-            </PlayerActions>
-          </PlayerCard>
-        ))}
+                </AntButton>
+              </ActionButtons>
+            </PlayerCard>
+          );
+        })}
       </PlayerList>
 
-      {takeoverDialogOpen && (
-        <>
-          <Overlay onClick={() => setTakeoverDialogOpen(false)} />
-          <TakeoverDialog>
-            <h3>接管AI选手</h3>
-            <Input
-              type="text"
-              placeholder="请输入您的名字"
-              value={newPlayerName}
-              onChange={(e) => setNewPlayerName(e.target.value)}
-            />
-            <Button variant="primary" onClick={handleTakeoverConfirm}>
-              确认
-            </Button>
-            <Button variant="secondary" onClick={() => setTakeoverDialogOpen(false)}>
-              取消
-            </Button>
-          </TakeoverDialog>
-        </>
-      )}
+      <Modal
+        title="接管AI选手"
+        open={takeoverModalVisible}
+        onOk={handleTakeoverConfirm}
+        onCancel={() => setTakeoverModalVisible(false)}
+        okButtonProps={{ disabled: !playerName.trim() }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>请输入您的名字：</div>
+          <Input
+            placeholder="请输入玩家名称"
+            value={playerName}
+            onChange={e => setPlayerName(e.target.value)}
+            onPressEnter={handleTakeoverConfirm}
+          />
+        </Space>
+      </Modal>
     </Container>
   );
 }; 

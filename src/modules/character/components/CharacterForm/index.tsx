@@ -170,7 +170,7 @@ export default function CharacterForm({
             {character ? '编辑角色' : '创建新角色'}
           </h2>
           <p className="character-form-subtitle">
-            配置AI辩手的基本信息、人设和调用方式
+            配置AI角色的基本信息、人设和调用方式
           </p>
         </div>
 

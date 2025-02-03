@@ -11,6 +11,9 @@ import { TopicRuleConfig } from '../components/debate/TopicRuleConfig';
 import TemplateActions from '../components/debate/TemplateActions';
 import { defaultRuleConfig } from '../components/debate/RuleConfig';
 import type { RuleConfig } from '../types/rules';
+import { TemplateManager } from '../components/template/TemplateManager';
+import type { DebateConfig } from '../types/debate';
+import { message } from 'antd';
 
 const Container = styled.div`
   display: flex;
@@ -30,7 +33,7 @@ const Header = styled.div`
 const HeaderRight = styled.div`
   display: flex;
   align-items: center;
-  gap: ${props => props.theme.spacing.md};
+  gap: 8px;
 `;
 
 const Title = styled.h1`
@@ -118,6 +121,66 @@ const GameConfigContent: React.FC = () => {
     }
     console.log('使用默认规则配置');
     return defaultRuleConfig;
+  });
+  const [debateConfig, setDebateConfig] = useState<DebateConfig>(() => {
+    if (location.state?.lastConfig) {
+      return location.state.lastConfig;
+    }
+    return {
+      topic: {
+        title: '',
+        description: '',
+        type: 'binary',
+      },
+      rules: {
+        debateFormat: 'structured',
+        description: '',
+        basicRules: {
+          speechLengthLimit: {
+            min: 100,
+            max: 1000,
+          },
+          allowEmptySpeech: false,
+          allowRepeatSpeech: false,
+        },
+        advancedRules: {
+          allowQuoting: true,
+          requireResponse: true,
+          allowStanceChange: false,
+          requireEvidence: true,
+        },
+      },
+      judging: {
+        description: '',
+        dimensions: [
+          {
+            name: '逻辑性',
+            weight: 30,
+            description: '论证的逻辑严密程度',
+            criteria: ['论点清晰', '论证充分', '结构完整'],
+          },
+          {
+            name: '创新性',
+            weight: 20,
+            description: '观点和论证的创新程度',
+            criteria: ['视角新颖', '论证方式创新', '例证独特'],
+          },
+          {
+            name: '表达性',
+            weight: 20,
+            description: '语言表达的准确性和流畅性',
+            criteria: ['用词准确', '语言流畅', '表达清晰'],
+          },
+          {
+            name: '互动性',
+            weight: 30,
+            description: '与对方观点的互动和回应程度',
+            criteria: ['回应准确', '反驳有力', '互动充分'],
+          },
+        ],
+        totalScore: 100,
+      },
+    };
   });
 
   // 使用上次的配置或默认配置
@@ -208,14 +271,65 @@ const GameConfigContent: React.FC = () => {
     });
   };
 
-  const handleLoadTemplate = (templateId: string) => {
-    console.log('加载模板:', templateId);
-    // TODO: 实现模板加载逻辑
+  const handleLoadTemplate = (config: DebateConfig) => {
+    // 更新辩论配置
+    setDebateConfig(config);
+    
+    // 更新规则配置
+    setRuleConfig({
+      ...defaultRuleConfig,
+      // 辩论形式
+      format: config.rules.debateFormat === 'structured' ? 'structured' : 'free',
+      // 规则说明
+      description: config.rules.description,
+      // 高级规则
+      advancedRules: {
+        maxLength: config.rules.basicRules.speechLengthLimit.max,
+        minLength: config.rules.basicRules.speechLengthLimit.min,
+        allowQuoting: config.rules.advancedRules.allowQuoting,
+        requireResponse: config.rules.advancedRules.requireResponse,
+        allowStanceChange: config.rules.advancedRules.allowStanceChange,
+        requireEvidence: config.rules.advancedRules.requireEvidence,
+      }
+    });
+
+    message.success('模板加载成功');
   };
 
   const handleSaveTemplate = () => {
-    console.log('保存为模板');
-    // TODO: 实现模板保存逻辑
+    // 构建完整的配置对象
+    const templateConfig: DebateConfig = {
+      topic: {
+        title: debateConfig.topic.title,
+        description: debateConfig.topic.description,
+        type: ruleConfig.format === 'structured' ? 'binary' : 'open',
+      },
+      rules: {
+        debateFormat: ruleConfig.format,
+        description: ruleConfig.description,
+        basicRules: {
+          speechLengthLimit: {
+            min: ruleConfig.advancedRules.minLength,
+            max: ruleConfig.advancedRules.maxLength,
+          },
+          allowEmptySpeech: false,
+          allowRepeatSpeech: ruleConfig.advancedRules.allowQuoting,
+        },
+        advancedRules: {
+          allowQuoting: ruleConfig.advancedRules.allowQuoting,
+          requireResponse: ruleConfig.advancedRules.requireResponse,
+          allowStanceChange: ruleConfig.advancedRules.allowStanceChange,
+          requireEvidence: ruleConfig.advancedRules.requireEvidence,
+        },
+      },
+      judging: {
+        description: debateConfig.judging?.description || '',
+        dimensions: debateConfig.judging?.dimensions || [],
+        totalScore: debateConfig.judging?.totalScore || 100,
+      },
+    };
+
+    return templateConfig;
   };
 
   const handleSelectCharacter = (playerId: string, characterId: string) => {
@@ -297,9 +411,9 @@ const GameConfigContent: React.FC = () => {
           </Tab>
         </TabGroup>
         {activeTab === 'roles' && (
-          <TemplateActions
+          <TemplateManager
+            currentConfig={debateConfig}
             onLoadTemplate={handleLoadTemplate}
-            onSaveTemplate={handleSaveTemplate}
           />
         )}
       </Tabs>

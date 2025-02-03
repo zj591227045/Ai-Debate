@@ -4,6 +4,7 @@ import { Input, Radio, Checkbox, Button, InputNumber, Select, Space } from 'antd
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useJudgeConfig } from '../../hooks/useJudgeConfig';
 import { Judge } from '../../types/judge';
+import type { RuleConfig } from '../../types/rules';
 
 const { TextArea } = Input;
 
@@ -197,14 +198,20 @@ const JudgeOption = styled.div`
   }
 `;
 
-export const TopicRuleConfig: React.FC = () => {
+interface TopicRuleConfigProps {
+  ruleConfig: RuleConfig;
+  onRuleConfigChange: (config: RuleConfig) => void;
+}
+
+export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
+  ruleConfig,
+  onRuleConfigChange,
+}) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [newRuleName, setNewRuleName] = useState('');
-  const [newRuleScore, setNewRuleScore] = useState<number>(0);
   const [showDimensions, setShowDimensions] = useState(false);
   
   const {
-    config,
+    config: judgeConfig,
     handleJudgeSelect,
     handleScoringRuleChange,
     handleDimensionChange,
@@ -214,16 +221,7 @@ export const TopicRuleConfig: React.FC = () => {
     availableJudges,
   } = useJudgeConfig();
 
-  const handleAddCustomRule = () => {
-    if (newRuleName && newRuleScore) {
-      addCustomScoreRule(newRuleName, newRuleScore);
-      setNewRuleName('');
-      setNewRuleScore(0);
-    }
-  };
-
   const toggleDimensions = () => {
-    console.log('Toggle button clicked, current state:', showDimensions);
     setShowDimensions(prev => !prev);
   };
 
@@ -252,40 +250,120 @@ export const TopicRuleConfig: React.FC = () => {
           <CardHeader>
             <CardTitle>规则配置</CardTitle>
             <ButtonGroup>
-              <StyledButton>重置</StyledButton>
-              <StyledButton type="primary">保存</StyledButton>
+              <StyledButton onClick={() => onRuleConfigChange({ ...ruleConfig })}>重置</StyledButton>
+              <StyledButton type="primary" onClick={() => onRuleConfigChange({ ...ruleConfig })}>保存</StyledButton>
             </ButtonGroup>
           </CardHeader>
           <FormItem>
-            <Radio.Group defaultValue="structured">
-              <Radio.Button value="structured">正反方辩论</Radio.Button>
+            <div className="label">辩论模式</div>
+            <Radio.Group
+              value={ruleConfig.format}
+              onChange={e => onRuleConfigChange({ ...ruleConfig, format: e.target.value as 'free' | 'structured' })}
+            >
               <Radio.Button value="free">自由辩论</Radio.Button>
+              <Radio.Button value="structured">正反方辩论</Radio.Button>
             </Radio.Group>
           </FormItem>
           <FormItem>
             <div className="label">规则说明</div>
-            <TextArea rows={4} placeholder="输入规则说明" />
+            <TextArea
+              placeholder="输入规则说明"
+              value={ruleConfig.description}
+              onChange={e => onRuleConfigChange({ ...ruleConfig, description: e.target.value })}
+              rows={4}
+            />
           </FormItem>
-          <FormItem>
-            <Checkbox checked={showAdvanced} onChange={e => setShowAdvanced(e.target.checked)}>
-              高级规则
-            </Checkbox>
-          </FormItem>
+          <Checkbox
+            checked={showAdvanced}
+            onChange={e => setShowAdvanced(e.target.checked)}
+          >
+            高级规则
+          </Checkbox>
           <AdvancedSection visible={showAdvanced}>
             <FormItem>
-              <div className="label">发言规则</div>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Input placeholder="最大字数" type="number" />
-                <Input placeholder="最小字数" type="number" />
+              <div className="label">字数限制</div>
+              <Space>
+                <InputNumber
+                  min={0}
+                  placeholder="最小字数"
+                  value={ruleConfig.advancedRules.minLength}
+                  onChange={value => onRuleConfigChange({
+                    ...ruleConfig,
+                    advancedRules: {
+                      ...ruleConfig.advancedRules,
+                      minLength: value || 0
+                    }
+                  })}
+                />
+                <InputNumber
+                  min={0}
+                  placeholder="最大字数"
+                  value={ruleConfig.advancedRules.maxLength}
+                  onChange={value => onRuleConfigChange({
+                    ...ruleConfig,
+                    advancedRules: {
+                      ...ruleConfig.advancedRules,
+                      maxLength: value || 0
+                    }
+                  })}
+                />
               </Space>
             </FormItem>
             <FormItem>
-              <Space direction="vertical">
-                <Checkbox>允许引用</Checkbox>
-                <Checkbox>要求回应</Checkbox>
-                <Checkbox>允许立场转换</Checkbox>
-                <Checkbox>要求证据支持</Checkbox>
-              </Space>
+              <Checkbox
+                checked={ruleConfig.advancedRules.allowQuoting}
+                onChange={e => onRuleConfigChange({
+                  ...ruleConfig,
+                  advancedRules: {
+                    ...ruleConfig.advancedRules,
+                    allowQuoting: e.target.checked
+                  }
+                })}
+              >
+                允许引用
+              </Checkbox>
+            </FormItem>
+            <FormItem>
+              <Checkbox
+                checked={ruleConfig.advancedRules.requireResponse}
+                onChange={e => onRuleConfigChange({
+                  ...ruleConfig,
+                  advancedRules: {
+                    ...ruleConfig.advancedRules,
+                    requireResponse: e.target.checked
+                  }
+                })}
+              >
+                要求回应
+              </Checkbox>
+            </FormItem>
+            <FormItem>
+              <Checkbox
+                checked={ruleConfig.advancedRules.allowStanceChange}
+                onChange={e => onRuleConfigChange({
+                  ...ruleConfig,
+                  advancedRules: {
+                    ...ruleConfig.advancedRules,
+                    allowStanceChange: e.target.checked
+                  }
+                })}
+              >
+                允许立场转换
+              </Checkbox>
+            </FormItem>
+            <FormItem>
+              <Checkbox
+                checked={ruleConfig.advancedRules.requireEvidence}
+                onChange={e => onRuleConfigChange({
+                  ...ruleConfig,
+                  advancedRules: {
+                    ...ruleConfig.advancedRules,
+                    requireEvidence: e.target.checked
+                  }
+                })}
+              >
+                要求证据支持
+              </Checkbox>
             </FormItem>
           </AdvancedSection>
         </Card>
@@ -304,7 +382,7 @@ export const TopicRuleConfig: React.FC = () => {
             <Select
               style={{ width: '100%' }}
               placeholder="选择裁判"
-              value={config.selectedJudgeId}
+              value={judgeConfig.selectedJudgeId}
               onChange={handleJudgeSelect}
               optionLabelProp="label"
             >
@@ -330,7 +408,7 @@ export const TopicRuleConfig: React.FC = () => {
             <TextArea 
               rows={4} 
               placeholder="输入评分规则说明"
-              value={config.scoringRule}
+              value={judgeConfig.scoringRule}
               onChange={e => handleScoringRuleChange(e.target.value)}
             />
           </FormItem>
@@ -354,7 +432,7 @@ export const TopicRuleConfig: React.FC = () => {
                   <InputNumber
                     min={0}
                     max={100}
-                    value={config.dimensionScores.logic}
+                    value={judgeConfig.dimensionScores.logic}
                     onChange={(value) => handleDimensionChange('logic', value || 0)}
                   />
                 </DimensionItem>
@@ -363,7 +441,7 @@ export const TopicRuleConfig: React.FC = () => {
                   <InputNumber
                     min={0}
                     max={100}
-                    value={config.dimensionScores.humanness}
+                    value={judgeConfig.dimensionScores.humanness}
                     onChange={(value) => handleDimensionChange('humanness', value || 0)}
                   />
                 </DimensionItem>
@@ -372,34 +450,13 @@ export const TopicRuleConfig: React.FC = () => {
                   <InputNumber
                     min={0}
                     max={100}
-                    value={config.dimensionScores.compliance}
+                    value={judgeConfig.dimensionScores.compliance}
                     onChange={(value) => handleDimensionChange('compliance', value || 0)}
                   />
                 </DimensionItem>
               </ScoreDimensions>
 
-              <FormItem>
-                <div className="label">自定义评分规则</div>
-                <Space.Compact style={{ width: '100%' }}>
-                  <Input
-                    placeholder="规则名称"
-                    value={newRuleName}
-                    onChange={e => setNewRuleName(e.target.value)}
-                  />
-                  <InputNumber
-                    placeholder="分值"
-                    value={newRuleScore}
-                    onChange={value => setNewRuleScore(value || 0)}
-                    min={0}
-                    max={100}
-                  />
-                  <Button type="primary" onClick={handleAddCustomRule}>
-                    添加
-                  </Button>
-                </Space.Compact>
-              </FormItem>
-
-              {config.customScoreRules.map(rule => (
+              {judgeConfig.customScoreRules.map(rule => (
                 <CustomScoreItem key={rule.id}>
                   <span>{rule.name}：</span>
                   <span>{rule.score}分</span>

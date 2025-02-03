@@ -42,7 +42,7 @@ const PlayerCard = styled.div<{ $isAffirmative?: boolean; $isNegative?: boolean;
   background: white;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 24px;
+  padding: 12px;
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -66,19 +66,6 @@ const PlayerCard = styled.div<{ $isAffirmative?: boolean; $isNegative?: boolean;
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
-
-  .character-description {
-    margin: 8px 0 16px;
-    font-size: 14px;
-    color: rgba(0, 0, 0, 0.45);
-    text-align: center;
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
 `;
 
 const AvatarWrapper = styled.div`
@@ -86,14 +73,14 @@ const AvatarWrapper = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
   width: 100%;
 `;
 
 const StyledAvatar = styled(Avatar)`
   width: 120px;
   height: 120px;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
   
   .ant-avatar-string {
     font-size: 48px;
@@ -107,7 +94,7 @@ const StyledAvatar = styled(Avatar)`
 
 const AIBadge = styled.div`
   position: absolute;
-  bottom: 8px;
+  bottom: 0;
   right: calc(50% - 70px);
   background: #4157ff;
   color: white;
@@ -118,14 +105,34 @@ const AIBadge = styled.div`
 
 const CardHeader = styled.div`
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 `;
 
 const PlayerName = styled.h3`
-  margin: 0 0 12px;
+  margin: 0 0 4px;
   font-size: 18px;
   font-weight: 500;
   text-align: center;
+`;
+
+const CharacterInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 8px;
+
+  .character-description {
+    margin: 4px 0;
+    font-size: 14px;
+    color: rgba(0, 0, 0, 0.45);
+    text-align: center;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
 `;
 
 const PlayerInfo = styled.div`
@@ -134,9 +141,9 @@ const PlayerInfo = styled.div`
 
 const RoleSelector = styled.div`
   display: flex;
-  gap: 12px;
-  margin-top: 16px;
-  padding: 16px;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 8px;
   background: rgba(0, 0, 0, 0.02);
   border-radius: 8px;
   width: 100%;
@@ -177,13 +184,13 @@ const ActionButtons = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 24px;
+  margin-top: 8px;
   width: 100%;
 `;
 
 const CharacterSelect = styled.div`
-  margin: 16px 0;
-  padding: 16px;
+  margin: 4px 0;
+  padding: 8px;
   background: rgba(0, 0, 0, 0.02);
   border-radius: 8px;
   width: 100%;
@@ -205,8 +212,8 @@ const CharacterDescription = styled.div`
 `;
 
 const TakeoverMessage = styled.div`
-  margin: 16px 0;
-  padding: 12px;
+  margin: 4px 0;
+  padding: 8px;
   background: rgba(255, 144, 65, 0.05);
   border-radius: 6px;
   color: #ff9041;
@@ -215,9 +222,9 @@ const TakeoverMessage = styled.div`
 `;
 
 const ModelInfo = styled.div`
-  margin-top: 8px;
+  margin: 4px 0;
   display: flex;
-  gap: 8px;
+  gap: 4px;
   flex-wrap: wrap;
   justify-content: center;
 `;
@@ -233,6 +240,7 @@ const ModelTag = styled.span`
 interface RoleAssignmentPanelProps {
   players: Player[];
   config: RoleAssignmentConfig;
+  debateFormat: 'free' | 'structured';
   onAssignRole: (playerId: string, role: DebateRole) => void;
   onAutoAssign: () => void;
   onReset: () => void;
@@ -246,6 +254,7 @@ interface RoleAssignmentPanelProps {
 export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   players,
   config,
+  debateFormat,
   onAssignRole,
   onAutoAssign,
   onReset,
@@ -324,13 +333,17 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
       <Header>
         <Title>选手配置</Title>
         <ButtonGroup>
-          <AntButton onClick={onAutoAssign}>自动分配角色</AntButton>
-          <AntButton onClick={onReset}>重置角色</AntButton>
-          {onAddAIPlayer && (
-            <AntButton type="primary" onClick={onAddAIPlayer}>
-              添加AI选手
-            </AntButton>
+          {debateFormat === 'structured' && (
+            <>
+              <AntButton onClick={onAutoAssign}>自动分配角色</AntButton>
+              <AntButton onClick={onReset}>重置角色</AntButton>
+            </>
           )}
+        {onAddAIPlayer && (
+            <AntButton type="primary" onClick={onAddAIPlayer}>
+            添加AI选手
+            </AntButton>
+        )}
         </ButtonGroup>
       </Header>
 
@@ -358,8 +371,8 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
           return (
             <PlayerCard 
               key={player.id}
-              $isAffirmative={isAffirmative}
-              $isNegative={isNegative}
+              $isAffirmative={debateFormat === 'structured' && isAffirmative}
+              $isNegative={debateFormat === 'structured' && isNegative}
               $isHuman={!player.isAI}
             >
               <AvatarWrapper>
@@ -372,19 +385,21 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
               
               <CardHeader>
                 <PlayerName>{player.name}</PlayerName>
-                {selectedCharacter && (
-                  <>
-                    <div className="character-description">
-                      {selectedCharacter.description}
-                    </div>
-                    {characterModel && (
-                      <ModelInfo>
-                        <ModelTag>{characterModel.provider}</ModelTag>
-                        <ModelTag>{characterModel.model}</ModelTag>
-                      </ModelInfo>
-                    )}
-                  </>
-                )}
+                <CharacterInfo>
+                  {selectedCharacter && (
+                    <>
+                      <div className="character-description">
+                        {selectedCharacter.description}
+                      </div>
+                      {characterModel && (
+                        <ModelInfo>
+                          <ModelTag>{characterModel.provider}</ModelTag>
+                          <ModelTag>{characterModel.model}</ModelTag>
+                        </ModelInfo>
+                      )}
+                    </>
+                  )}
+                </CharacterInfo>
               </CardHeader>
 
               {player.isAI ? (
@@ -421,36 +436,38 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
                 </TakeoverMessage>
               )}
 
-              <RoleSelector>
-                <Space direction="vertical" style={{ width: '100%' }}>
-                  <Space>
-                    <RoleOption 
-                      $active={isAffirmative}
-                      $type="affirmative"
-                      onClick={() => handleRoleChange(player.id, 'affirmative', player.role)}
-                    >
-                      正方
-                      {isAffirmative && (
-                        <DebateOrder>
-                          {player.role.replace('affirmative', '')}号
-                        </DebateOrder>
-                      )}
-                    </RoleOption>
-                    <RoleOption 
-                      $active={isNegative}
-                      $type="negative"
-                      onClick={() => handleRoleChange(player.id, 'negative', player.role)}
-                    >
-                      反方
-                      {isNegative && (
-                        <DebateOrder>
-                          {player.role.replace('negative', '')}号
-                        </DebateOrder>
-                      )}
-                    </RoleOption>
+              {debateFormat === 'structured' && (
+                <RoleSelector>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Space>
+                      <RoleOption 
+                        $active={isAffirmative}
+                        $type="affirmative"
+                        onClick={() => handleRoleChange(player.id, 'affirmative', player.role)}
+                      >
+                        正方
+                        {isAffirmative && (
+                          <DebateOrder>
+                            {player.role.replace('affirmative', '')}号
+                          </DebateOrder>
+                        )}
+                      </RoleOption>
+                      <RoleOption 
+                        $active={isNegative}
+                        $type="negative"
+                        onClick={() => handleRoleChange(player.id, 'negative', player.role)}
+                      >
+                        反方
+                        {isNegative && (
+                          <DebateOrder>
+                            {player.role.replace('negative', '')}号
+                          </DebateOrder>
+                        )}
+                      </RoleOption>
+                    </Space>
                   </Space>
-                </Space>
-              </RoleSelector>
+                </RoleSelector>
+              )}
 
               <ActionButtons>
                 {player.isAI ? (
@@ -480,7 +497,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
                   移除
                 </AntButton>
               </ActionButtons>
-            </PlayerCard>
+          </PlayerCard>
           );
         })}
       </PlayerList>
@@ -494,7 +511,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>请输入您的名字：</div>
-          <Input
+            <Input
             placeholder="请输入玩家名称"
             value={playerName}
             onChange={e => setPlayerName(e.target.value)}

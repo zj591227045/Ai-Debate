@@ -9,6 +9,8 @@ import { ModelProvider } from '../modules/model/context/ModelContext';
 import ModelList from '../modules/model/components/ModelList';
 import { TopicRuleConfig } from '../components/debate/TopicRuleConfig';
 import TemplateActions from '../components/debate/TemplateActions';
+import { defaultRuleConfig } from '../components/debate/RuleConfig';
+import type { RuleConfig } from '../types/rules';
 
 const Container = styled.div`
   display: flex;
@@ -109,6 +111,14 @@ const GameConfigContent: React.FC = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'roles' | 'characters' | 'models'>('roles');
   const { state: characterState } = useCharacter();
+  const [ruleConfig, setRuleConfig] = useState<RuleConfig>(() => {
+    if (location.state?.lastConfig?.ruleConfig) {
+      console.log('使用上次的规则配置:', location.state.lastConfig.ruleConfig);
+      return location.state.lastConfig.ruleConfig;
+    }
+    console.log('使用默认规则配置');
+    return defaultRuleConfig;
+  });
 
   // 使用上次的配置或默认配置
   const getInitialPlayers = () => {
@@ -219,10 +229,14 @@ const GameConfigContent: React.FC = () => {
       case 'roles':
         return (
           <>
-            <TopicRuleConfig />
+            <TopicRuleConfig 
+              ruleConfig={ruleConfig}
+              onRuleConfigChange={setRuleConfig}
+            />
             <RoleAssignmentPanel
               players={players}
               config={config}
+              debateFormat={ruleConfig.format}
               onAssignRole={assignRole}
               onAutoAssign={autoAssignRoles}
               onReset={resetRoles}

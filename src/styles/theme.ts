@@ -21,7 +21,8 @@ export const theme: Theme = {
       default: '#F5F5F5',
       primary: '#FFFFFF',
       secondary: '#FAFAFA',
-      accent: '#FFF1F0'
+      accent: '#FFF1F0',
+      hover: '#F0F0F0'
     },
     white: '#FFFFFF'
   },

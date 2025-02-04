@@ -5,6 +5,8 @@ import { ThemeProvider } from './styles/ThemeContext';
 import { ModelProvider } from './modules/model/context/ModelContext';
 import AppRoutes from './routes';
 import './App.css';
+import { Provider } from 'react-redux';
+import { store } from './store';
 
 const globalStyles = css`
   body {
@@ -25,16 +27,18 @@ const globalStyles = css`
 
 function App() {
   return (
-    <BrowserRouter>
-      <ModelProvider>
-        <ThemeProvider>
-          <Global styles={globalStyles} />
-          <div className="app">
-            <AppRoutes />
-          </div>
-        </ThemeProvider>
-      </ModelProvider>
-    </BrowserRouter>
+    <Provider store={store}>
+      <BrowserRouter>
+        <ModelProvider>
+          <ThemeProvider>
+            <Global styles={globalStyles} />
+            <div className="app">
+              <AppRoutes />
+            </div>
+          </ThemeProvider>
+        </ModelProvider>
+      </BrowserRouter>
+    </Provider>
   );
 }
 

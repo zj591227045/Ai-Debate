@@ -6,6 +6,8 @@ import { Avatar, Space, Button as AntButton, Tooltip, Select, Modal, Input } fro
 import { UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
 import { useCharacter } from '../../modules/character/context/CharacterContext';
 import { useModel } from '../../modules/model/context/ModelContext';
+import { useDispatch } from 'react-redux';
+import { updatePlayers } from '../../store/slices/gameConfigSlice';
 
 const Container = styled.div`
   background-color: white;
@@ -269,6 +271,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
   const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
+  const dispatch = useDispatch();
 
   // 获取已被选择的角色ID列表
   const selectedCharacterIds = players
@@ -307,6 +310,15 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
     }
   };
 
+  const handleAssignRole = (playerId: string, role: DebateRole) => {
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...p, role } : p
+    );
+    console.log('RoleAssignmentPanel - Updating player role:', { playerId, role, updatedPlayers });
+    onAssignRole(playerId, role);
+    dispatch(updatePlayers(updatedPlayers));
+  };
+
   const handleRoleChange = (playerId: string, type: 'affirmative' | 'negative', currentRole: string) => {
     const playersByType = players.filter(p => p.role.startsWith(type));
     
@@ -317,15 +329,40 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
 
     // 如果当前选手已经是该阵营，取消选择
     if (currentRole.startsWith(type)) {
-      onAssignRole(playerId, 'unassigned' as DebateRole);
+      handleAssignRole(playerId, 'unassigned' as DebateRole);
       return;
     }
 
     // 根据已有选手数量分配号位
     const nextNumber = playersByType.length + 1;
     if (nextNumber <= 3) {
-      onAssignRole(playerId, `${type}${nextNumber}` as DebateRole);
+      handleAssignRole(playerId, `${type}${nextNumber}` as DebateRole);
     }
+  };
+
+  const handleSelectCharacter = (playerId: string, characterId: string) => {
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...p, characterId } : p
+    );
+    console.log('RoleAssignmentPanel - Updating player character:', { playerId, characterId, updatedPlayers });
+    onSelectCharacter(playerId, characterId);
+    dispatch(updatePlayers(updatedPlayers));
+  };
+
+  const handleAutoAssign = () => {
+    onAutoAssign();
+    // 自动分配后更新 Redux store
+    const updatedPlayers = [...players];
+    console.log('RoleAssignmentPanel - Auto assigning players:', updatedPlayers);
+    dispatch(updatePlayers(updatedPlayers));
+  };
+
+  const handleReset = () => {
+    onReset();
+    // 重置后更新 Redux store
+    const resetPlayers = players.map(p => ({ ...p, role: 'unassigned' as DebateRole }));
+    console.log('RoleAssignmentPanel - Resetting players:', resetPlayers);
+    dispatch(updatePlayers(resetPlayers));
   };
 
   return (
@@ -335,8 +372,8 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
         <ButtonGroup>
           {debateFormat === 'structured' && (
             <>
-              <AntButton onClick={onAutoAssign}>自动分配角色</AntButton>
-              <AntButton onClick={onReset}>重置角色</AntButton>
+              <AntButton onClick={handleAutoAssign}>自动分配角色</AntButton>
+              <AntButton onClick={handleReset}>重置角色</AntButton>
             </>
           )}
         {onAddAIPlayer && (
@@ -408,7 +445,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
                     style={{ width: '100%' }}
                     placeholder="选择AI角色"
                     value={player.characterId}
-                    onChange={(value) => onSelectCharacter(player.id, value || '')}
+                    onChange={(value) => handleSelectCharacter(player.id, value || '')}
                     optionLabelProp="label"
                     allowClear
                   >

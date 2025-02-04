@@ -30,9 +30,9 @@ export abstract class BaseStorageService<T extends BaseEntity> {
 
   // 获取所有记录
   async getAll(): Promise<T[]> {
-    console.log(`[${this.storageKey}] 获取所有记录`);
+    //console.log(`[${this.storageKey}] 获取所有记录`);
     const data = await this.storage.get<T[]>(this.storageKey) || [];
-    console.log(`[${this.storageKey}] 获取到的数据:`, data);
+    // console.log(`[${this.storageKey}] 获取到的数据:`, data);
     const validData = data.filter(item => {
       const parseResult = this.schema.safeParse(item);
       if (!parseResult.success) {
@@ -40,16 +40,16 @@ export abstract class BaseStorageService<T extends BaseEntity> {
       }
       return parseResult.success;
     });
-    console.log(`[${this.storageKey}] 有效数据:`, validData);
+    //console.log(`[${this.storageKey}] 有效数据:`, validData);
     return validData;
   }
 
   // 根据ID获取记录
   async getById(id: string): Promise<T | null> {
-    console.log(`[${this.storageKey}] 获取记录, id:`, id);
+    //console.log(`[${this.storageKey}] 获取记录, id:`, id);
     const items = await this.getAll();
     const item = items.find(item => item.id === id);
-    console.log(`[${this.storageKey}] 获取到的记录:`, item);
+    // console.log(`[${this.storageKey}] 获取到的记录:`, item);
     return item || null;
   }
 

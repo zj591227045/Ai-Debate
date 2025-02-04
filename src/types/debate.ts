@@ -1,3 +1,5 @@
+import type { Judge } from './judge';
+
 export interface Topic {
   title: string;
   description: string;
@@ -105,6 +107,7 @@ export interface DebateConfig {
       criteria: string[];        
     }>;
     totalScore: number;          
+    selectedJudge?: Judge;
   };
   // 参与者配置
   participants?: {

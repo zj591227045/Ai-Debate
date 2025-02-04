@@ -11,6 +11,10 @@ import { useDebateControl } from '../hooks/debate/useDebateControl';
 import type { Player } from '../types';
 import SpeechList from '../components/debate/SpeechList';
 import type { Speech } from '../hooks/debate/useSpeechRecorder';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
+import { setConfiguring } from '../store/slices/gameConfigSlice';
+import { adaptStateToRoom } from '../store/adapters/gameConfigAdapter';
 
 const Container = styled.div`
   width: 100%;
@@ -34,9 +38,37 @@ const defaultRules = [
   '禁止人身攻击和过激言论',
 ];
 
+// 添加状态监视器组件
+const StateMonitor: React.FC = () => {
+  const gameConfig = useSelector((state: RootState) => state.gameConfig);
+  
+  return (
+    <div style={{ 
+      position: 'fixed', 
+      bottom: 20, 
+      right: 20, 
+      padding: 20,
+      background: 'rgba(0,0,0,0.8)',
+      color: 'white',
+      borderRadius: 8,
+      maxWidth: 400,
+      maxHeight: 300,
+      overflow: 'auto',
+      zIndex: 1000
+    }}>
+      <h3>状态监视器</h3>
+      <pre style={{ fontSize: 12 }}>
+        {JSON.stringify(gameConfig, null, 2)}
+      </pre>
+    </div>
+  );
+};
+
 export const DebateRoom: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const gameConfig = useSelector((state: RootState) => state.gameConfig);
   
   // 添加调试信息
   console.log('DebateRoom - 接收到的状态:', location.state);
@@ -53,13 +85,13 @@ export const DebateRoom: React.FC = () => {
     console.log('点击选手:', playerId);
   };
 
-  // 如果没有玩家配置，重定向到配置页面
+  // 如果没有配置，重定向到配置页面
   React.useEffect(() => {
-    if (!location.state?.players) {
-      console.log('DebateRoom - 未接收到玩家配置，重定向到配置页面');
+    if (!gameConfig) {
+      console.log('DebateRoom - 未接收到配置，重定向到配置页面');
       navigate('/game-config');
     }
-  }, [location.state, navigate]);
+  }, [gameConfig, navigate]);
 
   const {
     state: debateState,
@@ -84,26 +116,14 @@ export const DebateRoom: React.FC = () => {
 
   const [speeches, setSpeeches] = React.useState<Speech[]>([]);
 
-  // 将配置页面传递的玩家数据转换为辩论室需要的格式
-  const convertConfigPlayers = (configPlayers: any[]): Player[] => {
-    return configPlayers.map(p => ({
-      id: p.id,
-      name: p.name,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${p.id}`,
-      role: p.role.startsWith('affirmative') ? 'for' : 'against',
-      score: 0,
-      isActive: false,
-      isAI: p.isAI
-    }));
-  };
-
-  // 使用配置页面传递的玩家数据或默认数据
+  // 将Redux配置转换为辩论室需要的格式
   const [players, setPlayers] = React.useState<Player[]>(() => {
-    if (location.state?.players) {
-      console.log('DebateRoom - 使用配置页面传递的玩家数据');
-      return convertConfigPlayers(location.state.players);
+    if (gameConfig) {
+      console.log('DebateRoom - 使用Redux配置');
+      const roomState = adaptStateToRoom(gameConfig);
+      return roomState.players;
     }
-    console.log('DebateRoom - 使用默认玩家数据');
+    console.log('DebateRoom - 使用默认配置');
     return [
       {
         id: '1',
@@ -200,25 +220,21 @@ export const DebateRoom: React.FC = () => {
   };
 
   const handleBackToConfig = () => {
-    // 如果辩论正在进行，先确认是否要返回
     if (debateState.status !== 'preparing' && debateState.status !== 'finished') {
       if (!window.confirm('辩论正在进行中，确定要返回配置页面吗？')) {
         return;
       }
-      // 结束当前辩论
       handleEnd();
     }
-    // 返回配置页面时，传递当前的配置
-    navigate('/game-config', {
-      state: {
-        lastConfig: location.state
-      }
-    });
+    
+    // 标记为配置调整状态
+    dispatch(setConfiguring(true));
+    navigate('/game-config');
   };
 
   const canNextSpeaker: boolean = !!(isActive && currentSpeaker && debateState.status !== 'paused');
 
-  if (!location.state?.players) {
+  if (!gameConfig) {
     return null; // 等待重定向
   }
 
@@ -268,6 +284,7 @@ export const DebateRoom: React.FC = () => {
           isRulesExpanded={isRulesExpanded}
         />
       </ContentContainer>
+      <StateMonitor />
     </Container>
   );
 }

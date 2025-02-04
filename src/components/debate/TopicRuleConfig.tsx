@@ -5,6 +5,9 @@ import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useJudgeConfig } from '../../hooks/useJudgeConfig';
 import { Judge } from '../../types/judge';
 import type { RuleConfig } from '../../types/rules';
+import { useDispatch } from 'react-redux';
+import { updateRuleConfig, updateDebateConfig } from '../../store/slices/gameConfigSlice';
+import type { DebateConfig } from '../../types/debate';
 
 const { TextArea } = Input;
 
@@ -201,11 +204,15 @@ const JudgeOption = styled.div`
 interface TopicRuleConfigProps {
   ruleConfig: RuleConfig;
   onRuleConfigChange: (config: RuleConfig) => void;
+  debateConfig: DebateConfig;
+  onDebateConfigChange: (config: Partial<DebateConfig>) => void;
 }
 
 export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   ruleConfig,
   onRuleConfigChange,
+  debateConfig,
+  onDebateConfigChange,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDimensions, setShowDimensions] = useState(false);
@@ -221,9 +228,58 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
     availableJudges,
   } = useJudgeConfig();
 
+  const dispatch = useDispatch();
+
+  const handleRuleChange = (newConfig: Partial<RuleConfig>) => {
+    const updatedConfig = {
+      ...ruleConfig,
+      ...newConfig
+    };
+    console.log('TopicRuleConfig - Updating rule config:', updatedConfig);
+    onRuleConfigChange(updatedConfig);
+    dispatch(updateRuleConfig(updatedConfig));
+  };
+
+  const handleJudgeConfigChange = (judging: Partial<DebateConfig['judging']>) => {
+    const updatedJudging = {
+      description: judging.description || debateConfig.judging.description,
+      dimensions: judging.dimensions || debateConfig.judging.dimensions,
+      totalScore: judging.totalScore || debateConfig.judging.totalScore,
+      selectedJudge: judging.selectedJudge
+    };
+    console.log('TopicRuleConfig - Updating judge config:', updatedJudging);
+    dispatch(updateDebateConfig({ judging: updatedJudging }));
+  };
+
+  const handleTopicChange = (topic: Partial<DebateConfig['topic']>) => {
+    console.log('TopicRuleConfig - handleTopicChange - Input:', topic);
+    console.log('TopicRuleConfig - handleTopicChange - Current Config:', debateConfig.topic);
+    
+    const updatedTopic = {
+      ...debateConfig.topic,
+      ...topic
+    };
+    
+    console.log('TopicRuleConfig - handleTopicChange - Updated Topic:', updatedTopic);
+    
+    // 更新本地状态
+    onDebateConfigChange({ 
+      topic: updatedTopic
+    });
+    
+    // 更新 Redux store
+    dispatch(updateDebateConfig({ 
+      topic: updatedTopic,
+      rules: debateConfig.rules,
+      judging: debateConfig.judging
+    }));
+  };
+
   const toggleDimensions = () => {
     setShowDimensions(prev => !prev);
   };
+
+  console.log('TopicRuleConfig - Render - Current debateConfig:', debateConfig);
 
   return (
     <Container>
@@ -238,11 +294,30 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           </CardHeader>
           <FormItem>
             <div className="label">主题名称</div>
-            <Input placeholder="输入辩题" />
+            <Input 
+              placeholder="请输入辩题" 
+              value={debateConfig.topic.title}
+              onChange={e => {
+                console.log('TopicRuleConfig - Title Input - Value:', e.target.value);
+                handleTopicChange({ 
+                  title: e.target.value
+                });
+              }}
+            />
           </FormItem>
           <FormItem>
             <div className="label">主题背景</div>
-            <TextArea rows={4} placeholder="输入主题背景说明" />
+            <TextArea 
+              rows={4} 
+              placeholder="输入主题背景说明" 
+              value={debateConfig.topic.description}
+              onChange={e => {
+                console.log('TopicRuleConfig - Description Input - Value:', e.target.value);
+                handleTopicChange({ 
+                  description: e.target.value
+                });
+              }}
+            />
           </FormItem>
         </Card>
 
@@ -258,7 +333,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <div className="label">辩论模式</div>
             <Radio.Group
               value={ruleConfig.format}
-              onChange={e => onRuleConfigChange({ ...ruleConfig, format: e.target.value as 'free' | 'structured' })}
+              onChange={e => handleRuleChange({ format: e.target.value as 'free' | 'structured' })}
             >
               <Radio.Button value="free">自由辩论</Radio.Button>
               <Radio.Button value="structured">正反方辩论</Radio.Button>
@@ -269,7 +344,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <TextArea
               placeholder="输入规则说明"
               value={ruleConfig.description}
-              onChange={e => onRuleConfigChange({ ...ruleConfig, description: e.target.value })}
+              onChange={e => handleRuleChange({ description: e.target.value })}
               rows={4}
             />
           </FormItem>
@@ -287,8 +362,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                   min={0}
                   placeholder="最小字数"
                   value={ruleConfig.advancedRules.minLength}
-                  onChange={value => onRuleConfigChange({
-                    ...ruleConfig,
+                  onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
                       minLength: value || 0
@@ -299,8 +373,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                   min={0}
                   placeholder="最大字数"
                   value={ruleConfig.advancedRules.maxLength}
-                  onChange={value => onRuleConfigChange({
-                    ...ruleConfig,
+                  onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
                       maxLength: value || 0
@@ -312,8 +385,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <FormItem>
               <Checkbox
                 checked={ruleConfig.advancedRules.allowQuoting}
-                onChange={e => onRuleConfigChange({
-                  ...ruleConfig,
+                onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
                     allowQuoting: e.target.checked
@@ -326,8 +398,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <FormItem>
               <Checkbox
                 checked={ruleConfig.advancedRules.requireResponse}
-                onChange={e => onRuleConfigChange({
-                  ...ruleConfig,
+                onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
                     requireResponse: e.target.checked
@@ -340,8 +411,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <FormItem>
               <Checkbox
                 checked={ruleConfig.advancedRules.allowStanceChange}
-                onChange={e => onRuleConfigChange({
-                  ...ruleConfig,
+                onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
                     allowStanceChange: e.target.checked
@@ -354,8 +424,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <FormItem>
               <Checkbox
                 checked={ruleConfig.advancedRules.requireEvidence}
-                onChange={e => onRuleConfigChange({
-                  ...ruleConfig,
+                onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
                     requireEvidence: e.target.checked
@@ -383,7 +452,14 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               style={{ width: '100%' }}
               placeholder="选择裁判"
               value={judgeConfig.selectedJudgeId}
-              onChange={handleJudgeSelect}
+              onChange={(value) => {
+                handleJudgeSelect(value);
+                const selectedJudge = availableJudges.find(j => j.id === value);
+                handleJudgeConfigChange({
+                  ...debateConfig.judging,
+                  selectedJudge
+                });
+              }}
               optionLabelProp="label"
             >
               {availableJudges.map((judge: Judge) => (
@@ -409,7 +485,13 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               rows={4} 
               placeholder="输入评分规则说明"
               value={judgeConfig.scoringRule}
-              onChange={e => handleScoringRuleChange(e.target.value)}
+              onChange={e => {
+                handleScoringRuleChange(e.target.value);
+                handleJudgeConfigChange({
+                  ...debateConfig.judging,
+                  description: e.target.value
+                });
+              }}
             />
           </FormItem>
 
@@ -433,7 +515,25 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                     min={0}
                     max={100}
                     value={judgeConfig.dimensionScores.logic}
-                    onChange={(value) => handleDimensionChange('logic', value || 0)}
+                    onChange={(value) => {
+                      handleDimensionChange('logic', value || 0);
+                      const dimensions = [...(debateConfig.judging.dimensions || [])];
+                      const logicIndex = dimensions.findIndex(d => d.name === '逻辑性');
+                      if (logicIndex >= 0) {
+                        dimensions[logicIndex] = { ...dimensions[logicIndex], weight: value || 0 };
+                      } else {
+                        dimensions.push({
+                          name: '逻辑性',
+                          weight: value || 0,
+                          description: '论证的逻辑严密程度',
+                          criteria: ['论点清晰', '论证充分', '结构完整']
+                        });
+                      }
+                      handleJudgeConfigChange({
+                        ...debateConfig.judging,
+                        dimensions
+                      });
+                    }}
                   />
                 </DimensionItem>
                 <DimensionItem>

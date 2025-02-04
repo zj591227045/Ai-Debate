@@ -21,7 +21,8 @@ export const darkTheme: Theme = {
       default: '#1F1F1F',
       primary: '#2D2D2D',
       secondary: '#363636',
-      accent: '#2D1F1F'
+      accent: '#2D1F1F',
+      hover: '#404040'
     },
     white: '#2D2D2D'
   },

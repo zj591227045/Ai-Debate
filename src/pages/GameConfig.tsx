@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
@@ -14,6 +14,16 @@ import type { RuleConfig } from '../types/rules';
 import { TemplateManager } from '../components/template/TemplateManager';
 import type { DebateConfig } from '../types/debate';
 import { message } from 'antd';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState } from '../store';
+import { 
+  setGameConfig, 
+  clearGameConfig, 
+  updateRuleConfig, 
+  updatePlayers,
+  updateDebateConfig 
+} from '../store/slices/gameConfigSlice';
+import { store } from '../store';
 
 const Container = styled.div`
   display: flex;
@@ -109,6 +119,33 @@ const defaultConfig = {
   autoAssign: false,
 };
 
+// 添加状态监视器组件
+const StateMonitor: React.FC = () => {
+  const gameConfig = useSelector((state: RootState) => state.gameConfig);
+  
+  console.log('StateMonitor - Current gameConfig:', gameConfig);
+  
+  return (
+    <div style={{ 
+      position: 'fixed', 
+      bottom: 20, 
+      right: 20, 
+      padding: 20,
+      background: 'rgba(0,0,0,0.8)',
+      color: 'white',
+      borderRadius: 8,
+      maxWidth: 400,
+      maxHeight: 300,
+      overflow: 'auto'
+    }}>
+      <h3>状态监视器</h3>
+      <pre style={{ fontSize: 12 }}>
+        {JSON.stringify(gameConfig, null, 2)}
+      </pre>
+    </div>
+  );
+};
+
 const GameConfigContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -116,10 +153,10 @@ const GameConfigContent: React.FC = () => {
   const { state: characterState } = useCharacter();
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>(() => {
     if (location.state?.lastConfig?.ruleConfig) {
-      console.log('使用上次的规则配置:', location.state.lastConfig.ruleConfig);
+      // console.log('使用上次的规则配置:', location.state.lastConfig.ruleConfig);
       return location.state.lastConfig.ruleConfig;
     }
-    console.log('使用默认规则配置');
+    //console.log('使用默认规则配置');
     return defaultRuleConfig;
   });
   const [debateConfig, setDebateConfig] = useState<DebateConfig>(() => {
@@ -183,13 +220,18 @@ const GameConfigContent: React.FC = () => {
     };
   });
 
+  const dispatch = useDispatch();
+  const gameConfig = useSelector((state: RootState) => state.gameConfig);
+  
+  console.log('GameConfigContent - Current Redux State:', gameConfig);
+
   // 使用上次的配置或默认配置
   const getInitialPlayers = () => {
     if (location.state?.lastConfig?.players) {
       console.log('使用上次的玩家配置:', location.state.lastConfig.players);
       return location.state.lastConfig.players;
     }
-    console.log('使用默认玩家配置');
+  //  console.log('使用默认玩家配置');
     return defaultInitialPlayers;
   };
 
@@ -198,7 +240,7 @@ const GameConfigContent: React.FC = () => {
       console.log('使用上次的游戏配置:', location.state.lastConfig.config);
       return location.state.lastConfig.config;
     }
-    console.log('使用默认游戏配置');
+   // console.log('使用默认游戏配置');
     return defaultConfig;
   };
 
@@ -214,75 +256,64 @@ const GameConfigContent: React.FC = () => {
     getAssignedCount,
   } = useRoleAssignment(getInitialPlayers(), getInitialConfig());
 
+  // 更新规则配置时同时更新 Redux store
+  const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
+    console.log('GameConfig - handleRuleConfigChange:', newRuleConfig);
+    setRuleConfig(newRuleConfig);
+    dispatch(updateRuleConfig(newRuleConfig));
+  };
+
+  // 更新辩论配置时同时更新本地状态
+  const handleDebateConfigChange = (config: Partial<DebateConfig>) => {
+    console.log('GameConfig - handleDebateConfigChange - Before:', debateConfig);
+    const newConfig = {
+      ...debateConfig,
+      ...config
+    };
+    console.log('GameConfig - handleDebateConfigChange - After:', newConfig);
+    setDebateConfig(newConfig);
+  };
+
+  // 添加 Redux store 更新的监听
+  useEffect(() => {
+    const unsubscribe = store.subscribe(() => {
+      const state = store.getState();
+      console.log('GameConfig - Redux State Updated:', state.gameConfig);
+      if (state.gameConfig?.debate) {
+        handleDebateConfigChange(state.gameConfig.debate);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 修改 handleStartDebate 函数
+  const handleStartDebate = () => {
+    // 直接保存当前配置到 Redux store
+    dispatch(setGameConfig({
+      debate: debateConfig,
+      players,
+      ruleConfig,
+      isConfiguring: false
+    }));
+
+    // 导航到辩论室
+    navigate('/debate-room');
+  };
+
+  // 修改 handleBack 函数
   const handleBack = () => {
+    dispatch(clearGameConfig());
     navigate('/');
   };
 
-  const handleStartDebate = () => {
-    // 检查是否所有角色都已分配
-    const affirmative = players.filter(p => p.role.startsWith('affirmative')).length;
-    const negative = players.filter(p => p.role.startsWith('negative')).length;
-
-    if (affirmative < 2 || negative < 2) {
-      alert('请确保正方和反方各有两名选手！');
-      return;
-    }
-
-    // 检查是否每个AI选手都有对应的角色配置
-    const aiPlayersWithoutCharacter = players.filter(
-      p => p.isAI && !characterState.characters.some(c => c.name === p.name)
-    );
-
-    if (aiPlayersWithoutCharacter.length > 0) {
-      alert(`以下AI选手尚未配置角色：\n${aiPlayersWithoutCharacter.map(p => p.name).join('\n')}`);
-      setActiveTab('characters');
-      return;
-    }
-
-    // 添加调试信息
-    console.log('GameConfig - 传递给辩论室的玩家配置:', {
-      players,
-      config,
-      playerCount: players.length,
-      roles: players.map(p => ({ name: p.name, role: p.role, isAI: p.isAI }))
-    });
-
-    // 将玩家配置传递给辩论室页面
-    navigate('/debate-room', { 
-      state: { 
-        players,
-        config,
-        lastConfig: { players, config } // 保存最后一次的配置
-      }
-    });
-  };
-
-  const handleAddAIPlayer = () => {
-    const playerNumber = players.length + 1;
-    addPlayer(`AI选手${playerNumber}`, true);
-  };
-
-  const handleTakeoverPlayer = (playerId: string, playerName: string, isTakeover: boolean) => {
-    updatePlayer(playerId, {
-      name: playerName,
-      isAI: !isTakeover,
-      // 如果是取消接管，清除角色配置
-      characterId: !isTakeover ? undefined : undefined,
-    });
-  };
-
+  // 修改 handleLoadTemplate 函数
   const handleLoadTemplate = (config: DebateConfig) => {
-    // 更新辩论配置
     setDebateConfig(config);
     
     // 更新规则配置
-    setRuleConfig({
-      ...defaultRuleConfig,
-      // 辩论形式
+    const newRuleConfig: RuleConfig = {
       format: config.rules.debateFormat === 'structured' ? 'structured' : 'free',
-      // 规则说明
       description: config.rules.description,
-      // 高级规则
       advancedRules: {
         maxLength: config.rules.basicRules.speechLengthLimit.max,
         minLength: config.rules.basicRules.speechLengthLimit.min,
@@ -291,9 +322,47 @@ const GameConfigContent: React.FC = () => {
         allowStanceChange: config.rules.advancedRules.allowStanceChange,
         requireEvidence: config.rules.advancedRules.requireEvidence,
       }
-    });
+    };
+    
+    setRuleConfig(newRuleConfig);
+    
+    // 同时更新 Redux store
+    dispatch(updateDebateConfig(config));
+    dispatch(updateRuleConfig(newRuleConfig));
 
     message.success('模板加载成功');
+  };
+
+  // 修改 handleTakeoverPlayer 函数
+  const handleTakeoverPlayer = (playerId: string, playerName: string, isTakeover: boolean) => {
+    const updatedPlayer = {
+      id: playerId,
+      name: playerName,
+      isAI: !isTakeover,
+      characterId: !isTakeover ? undefined : undefined,
+    };
+    
+    updatePlayer(playerId, updatedPlayer);
+    // 同步到 Redux store
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...p, ...updatedPlayer } : p
+    );
+    dispatch(updatePlayers(updatedPlayers));
+  };
+
+  // 修改 handleAddAIPlayer 函数
+  const handleAddAIPlayer = () => {
+    const playerNumber = players.length + 1;
+    const newPlayer = {
+      id: String(playerNumber),
+      name: `AI选手${playerNumber}`,
+      role: 'unassigned' as DebateRole,
+      isAI: true
+    };
+    
+    addPlayer(newPlayer.name, true);
+    // 同步到 Redux store
+    dispatch(updatePlayers([...players, newPlayer]));
   };
 
   const handleSaveTemplate = () => {
@@ -345,7 +414,9 @@ const GameConfigContent: React.FC = () => {
           <>
             <TopicRuleConfig 
               ruleConfig={ruleConfig}
-              onRuleConfigChange={setRuleConfig}
+              onRuleConfigChange={handleRuleConfigChange}
+              debateConfig={debateConfig}
+              onDebateConfigChange={handleDebateConfigChange}
             />
             <RoleAssignmentPanel
               players={players}
@@ -421,6 +492,7 @@ const GameConfigContent: React.FC = () => {
       <div className="game-config-content">
         {renderContent()}
       </div>
+      <StateMonitor />
     </Container>
   );
 };

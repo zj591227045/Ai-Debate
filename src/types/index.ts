@@ -45,6 +45,7 @@ export interface Theme {
       primary: string;
       secondary: string;
       accent: string;
+      hover: string;
     };
     white: string;
   };

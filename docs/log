@@ -1,0 +1,1451 @@
+GameConfig - Redux State Updated: {topic: {…}, rules: {…}, debate: {…}, players: Array(4), ruleConfig: {…}, …}
+GameConfig.tsx:255 GameConfig - handleDebateConfigChange - Before: {topic: {…}, rules: {…}, judging: {…}}
+GameConfig.tsx:260 GameConfig - handleDebateConfigChange - After: {topic: {…}, rules: {…}, judging: {…}}
+DebateRoom.tsx:373 DebateRoom - Current gameConfig: {topic: {…}, rules: {…}, debate: {…}, players: Array(4), ruleConfig: {…}, …}
+DebateRoom.tsx:374 DebateRoom - Character State: {characters: Array(0), templates: Array(3), activeMode: 'direct', difyConfig: {…}, directConfig: {…}}
+DebateRoom.tsx:373 DebateRoom - Current gameConfig: {topic: {…}, rules: {…}, debate: {…}, players: Array(4), ruleConfig: {…}, …}
+DebateRoom.tsx:374 DebateRoom - Character State: {characters: Array(0), templates: Array(3), activeMode: 'direct', difyConfig: {…}, directConfig: {…}}
+DebateRoom.tsx:229 ========== 开始加载角色 ==========
+DebateRoom.tsx:230 当前加载状态: {isLoading: false, characterCount: 0, characterState: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:254 开始加载角色数据...
+DebateRoom.tsx:259 从 localStorage 读取的原始数据: {"characters":[{"id":"default_1","name":"维德","description":"富有同理心的辩手，善于从对方角度思考","avatar":"","persona":{"personality":["empathetic","logical"],"speakingStyle":"moderate","background":"psychology","values":["understanding","respect"],"argumentationStyle":["analytical","persuasive"]},"callConfig":{"type":"direct","direct":{"modelId":"6787386d-12d1-4db9-90c3-973576c23a84"}},"createdAt":1738640931886,"updatedAt":1738640931886},{"id":"default_2","name":"程心","description":"严谨的学术派辩手，擅长数据论证","avatar":"","persona":{"personality":["analytical","precise"],"speakingStyle":"academic","background":"science","values":["truth","objectivity"],"argumentationStyle":["evidence-based","systematic"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640939750,"updatedAt":1738640939750},{"id":"default_3","name":"罗辑","description":"富有洞察力的思想家，善于抽象思维","avatar":"","persona":{"personality":["philosophical","strategic"],"speakingStyle":"intellectual","background":"philosophy","values":["wisdom","rationality"],"argumentationStyle":["conceptual","logical"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640946183,"updatedAt":1738640946183},{"id":"char_1738640516011_6ccbl53ir","name":"章北海","description":"注重实践的辩手，擅长从现实角度分析问题","avatar":"https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640516011,"updatedAt":1738640516011}],"templates":[{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"],"customDescription":"我倾向于从实践和效果的角度来分析问题。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"],"customDescription":"我倾向于从实践和效果的角度来分析问题。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"
+DebateRoom.tsx:263 解析后的状态数据: {
+  "characters": [
+    {
+      "id": "default_1",
+      "name": "维德",
+      "description": "富有同理心的辩手，善于从对方角度思考",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "empathetic",
+          "logical"
+        ],
+        "speakingStyle": "moderate",
+        "background": "psychology",
+        "values": [
+          "understanding",
+          "respect"
+        ],
+        "argumentationStyle": [
+          "analytical",
+          "persuasive"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "6787386d-12d1-4db9-90c3-973576c23a84"
+        }
+      },
+      "createdAt": 1738640931886,
+      "updatedAt": 1738640931886
+    },
+    {
+      "id": "default_2",
+      "name": "程心",
+      "description": "严谨的学术派辩手，擅长数据论证",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "analytical",
+          "precise"
+        ],
+        "speakingStyle": "academic",
+        "background": "science",
+        "values": [
+          "truth",
+          "objectivity"
+        ],
+        "argumentationStyle": [
+          "evidence-based",
+          "systematic"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640939750,
+      "updatedAt": 1738640939750
+    },
+    {
+      "id": "default_3",
+      "name": "罗辑",
+      "description": "富有洞察力的思想家，善于抽象思维",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "philosophical",
+          "strategic"
+        ],
+        "speakingStyle": "intellectual",
+        "background": "philosophy",
+        "values": [
+          "wisdom",
+          "rationality"
+        ],
+        "argumentationStyle": [
+          "conceptual",
+          "logical"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640946183,
+      "updatedAt": 1738640946183
+    },
+    {
+      "id": "char_1738640516011_6ccbl53ir",
+      "name": "章北海",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "avatar": "https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640516011,
+      "updatedAt": 1738640516011
+    }
+  ],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personalit
+DebateRoom.tsx:267 适配后的状态数据: {
+  "characters": [
+    {
+      "id": "default_1",
+      "name": "维德",
+      "description": "富有同理心的辩手，善于从对方角度思考",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "empathetic",
+          "logical"
+        ],
+        "speakingStyle": "moderate",
+        "background": "psychology",
+        "values": [
+          "understanding",
+          "respect"
+        ],
+        "argumentationStyle": [
+          "analytical",
+          "persuasive"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "6787386d-12d1-4db9-90c3-973576c23a84"
+        }
+      },
+      "createdAt": 1738640931886,
+      "updatedAt": 1738640931886
+    },
+    {
+      "id": "default_2",
+      "name": "程心",
+      "description": "严谨的学术派辩手，擅长数据论证",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "analytical",
+          "precise"
+        ],
+        "speakingStyle": "academic",
+        "background": "science",
+        "values": [
+          "truth",
+          "objectivity"
+        ],
+        "argumentationStyle": [
+          "evidence-based",
+          "systematic"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640939750,
+      "updatedAt": 1738640939750
+    },
+    {
+      "id": "default_3",
+      "name": "罗辑",
+      "description": "富有洞察力的思想家，善于抽象思维",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "philosophical",
+          "strategic"
+        ],
+        "speakingStyle": "intellectual",
+        "background": "philosophy",
+        "values": [
+          "wisdom",
+          "rationality"
+        ],
+        "argumentationStyle": [
+          "conceptual",
+          "logical"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640946183,
+      "updatedAt": 1738640946183
+    },
+    {
+      "id": "char_1738640516011_6ccbl53ir",
+      "name": "章北海",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "avatar": "https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640516011,
+      "updatedAt": 1738640516011
+    }
+  ],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personalit
+DebateRoom.tsx:271 ========== 开始设置角色数据 ==========
+DebateRoom.tsx:272 准备设置角色数据: {数据类型: 'object', 是否为数组: true, 数组长度: 4, 详细数据: '[\n  {\n    "id": "default_1",\n    "name": "维德",\n   …38640516011,\n    "updatedAt": 1738640516011\n  }\n]'}
+DebateRoom.tsx:279 dispatch前的状态: {状态类型: 'object', 是否有characters: true, characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:287 正在执行 SET_CHARACTERS dispatch...
+DebateRoom.tsx:292 SET_CHARACTERS dispatch 执行完成
+DebateRoom.tsx:306 dispatch后的状态: {状态类型: 'object', 是否有characters: true, characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:318 准备设置活动模式: direct
+DebateRoom.tsx:323 SET_ACTIVE_MODE dispatch完成
+DebateRoom.tsx:327 准备设置 Dify 配置: {
+  "serverUrl": "",
+  "apiKey": "",
+  "workflowId": "",
+  "parameters": {}
+}
+DebateRoom.tsx:332 SET_DIFY_CONFIG dispatch完成
+DebateRoom.tsx:336 准备设置直接调用配置: {
+  "provider": "",
+  "apiKey": "",
+  "model": "",
+  "parameters": {}
+}
+DebateRoom.tsx:341 SET_DIRECT_CONFIG dispatch完成
+DebateRoom.tsx:344 所有配置设置完成，最终的characterState: {
+  "characters": [],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    }
+  ],
+  "activeMode": "direct",
+  "difyConfig": {
+    "serverUrl": "",
+    "apiKey": "",
+    "workflowId": "",
+    "parameters": {}
+  },
+  "directConfig": {
+    "provider": "",
+    "apiKey": "",
+    "model": "",
+    "parameters": {}
+  }
+}
+DebateRoom.tsx:351 设置加载状态为 false
+DebateRoom.tsx:362 ========== 角色状态更新 ==========
+DebateRoom.tsx:363 最新角色状态: {
+  "characters": [],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    }
+  ],
+  "activeMode": "direct",
+  "difyConfig": {
+    "serverUrl": "",
+    "apiKey": "",
+    "workflowId": "",
+    "parameters": {}
+  },
+  "directConfig": {
+    "provider": "",
+    "apiKey": "",
+    "model": "",
+    "parameters": {}
+  }
+}
+DebateRoom.tsx:366 警告: 角色数组为空!
+DebateRoom.tsx:229 ========== 开始加载角色 ==========
+DebateRoom.tsx:230 当前加载状态: {isLoading: false, characterCount: 0, characterState: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:254 开始加载角色数据...
+DebateRoom.tsx:259 从 localStorage 读取的原始数据: {"characters":[{"id":"default_1","name":"维德","description":"富有同理心的辩手，善于从对方角度思考","avatar":"","persona":{"personality":["empathetic","logical"],"speakingStyle":"moderate","background":"psychology","values":["understanding","respect"],"argumentationStyle":["analytical","persuasive"]},"callConfig":{"type":"direct","direct":{"modelId":"6787386d-12d1-4db9-90c3-973576c23a84"}},"createdAt":1738640931886,"updatedAt":1738640931886},{"id":"default_2","name":"程心","description":"严谨的学术派辩手，擅长数据论证","avatar":"","persona":{"personality":["analytical","precise"],"speakingStyle":"academic","background":"science","values":["truth","objectivity"],"argumentationStyle":["evidence-based","systematic"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640939750,"updatedAt":1738640939750},{"id":"default_3","name":"罗辑","description":"富有洞察力的思想家，善于抽象思维","avatar":"","persona":{"personality":["philosophical","strategic"],"speakingStyle":"intellectual","background":"philosophy","values":["wisdom","rationality"],"argumentationStyle":["conceptual","logical"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640946183,"updatedAt":1738640946183},{"id":"char_1738640516011_6ccbl53ir","name":"章北海","description":"注重实践的辩手，擅长从现实角度分析问题","avatar":"https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"]},"callConfig":{"type":"direct","direct":{"modelId":"0e103215-0e96-44c4-970e-1e44dfa79f0f"}},"createdAt":1738640516011,"updatedAt":1738640516011}],"templates":[{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"],"customDescription":"我倾向于从实践和效果的角度来分析问题。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734819531,"updatedAt":1738734819531},{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"argumentationStyle":["对比论证","因果论证"],"customDescription":"我倾向于从实践和效果的角度来分析问题。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_academic","name":"学术型辩手","description":"严谨的学术派辩手，擅长使用数据和逻辑论证","persona":{"personality":["严谨","理性","专业"],"speakingStyle":"学术派","background":"研究学者","values":["科学精神","求真务实"],"argumentationStyle":["数据驱动","逻辑推理"],"customDescription":"作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"},"callConfig":{"type":"direct","direct":{"modelId":"gpt4"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_emotional","name":"感性型辩手","description":"富有感染力的辩手，善于调动情感共鸣","persona":{"personality":["感性","富有同理心","热情"],"speakingStyle":"平民化","background":"社会工作者","values":["人文关怀","社会公平"],"argumentationStyle":["案例引用","情感共鸣"],"customDescription":"我善于通过真实案例和情感共鸣来展开论证。"},"callConfig":{"type":"direct","direct":{"modelId":"claude2"}},"createdAt":1738734608800,"updatedAt":1738734608800},{"id":"template_pragmatic","name":"实用型辩手","description":"注重实践的辩手，擅长从现实角度分析问题","persona":{"personality":["务实","客观","灵活"],"speakingStyle":"专业化","background":"行业专家","values":["效率至上","实用主义"],"
+DebateRoom.tsx:263 解析后的状态数据: {
+  "characters": [
+    {
+      "id": "default_1",
+      "name": "维德",
+      "description": "富有同理心的辩手，善于从对方角度思考",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "empathetic",
+          "logical"
+        ],
+        "speakingStyle": "moderate",
+        "background": "psychology",
+        "values": [
+          "understanding",
+          "respect"
+        ],
+        "argumentationStyle": [
+          "analytical",
+          "persuasive"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "6787386d-12d1-4db9-90c3-973576c23a84"
+        }
+      },
+      "createdAt": 1738640931886,
+      "updatedAt": 1738640931886
+    },
+    {
+      "id": "default_2",
+      "name": "程心",
+      "description": "严谨的学术派辩手，擅长数据论证",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "analytical",
+          "precise"
+        ],
+        "speakingStyle": "academic",
+        "background": "science",
+        "values": [
+          "truth",
+          "objectivity"
+        ],
+        "argumentationStyle": [
+          "evidence-based",
+          "systematic"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640939750,
+      "updatedAt": 1738640939750
+    },
+    {
+      "id": "default_3",
+      "name": "罗辑",
+      "description": "富有洞察力的思想家，善于抽象思维",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "philosophical",
+          "strategic"
+        ],
+        "speakingStyle": "intellectual",
+        "background": "philosophy",
+        "values": [
+          "wisdom",
+          "rationality"
+        ],
+        "argumentationStyle": [
+          "conceptual",
+          "logical"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640946183,
+      "updatedAt": 1738640946183
+    },
+    {
+      "id": "char_1738640516011_6ccbl53ir",
+      "name": "章北海",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "avatar": "https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640516011,
+      "updatedAt": 1738640516011
+    }
+  ],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personalit
+DebateRoom.tsx:267 适配后的状态数据: {
+  "characters": [
+    {
+      "id": "default_1",
+      "name": "维德",
+      "description": "富有同理心的辩手，善于从对方角度思考",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "empathetic",
+          "logical"
+        ],
+        "speakingStyle": "moderate",
+        "background": "psychology",
+        "values": [
+          "understanding",
+          "respect"
+        ],
+        "argumentationStyle": [
+          "analytical",
+          "persuasive"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "6787386d-12d1-4db9-90c3-973576c23a84"
+        }
+      },
+      "createdAt": 1738640931886,
+      "updatedAt": 1738640931886
+    },
+    {
+      "id": "default_2",
+      "name": "程心",
+      "description": "严谨的学术派辩手，擅长数据论证",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "analytical",
+          "precise"
+        ],
+        "speakingStyle": "academic",
+        "background": "science",
+        "values": [
+          "truth",
+          "objectivity"
+        ],
+        "argumentationStyle": [
+          "evidence-based",
+          "systematic"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640939750,
+      "updatedAt": 1738640939750
+    },
+    {
+      "id": "default_3",
+      "name": "罗辑",
+      "description": "富有洞察力的思想家，善于抽象思维",
+      "avatar": "",
+      "persona": {
+        "personality": [
+          "philosophical",
+          "strategic"
+        ],
+        "speakingStyle": "intellectual",
+        "background": "philosophy",
+        "values": [
+          "wisdom",
+          "rationality"
+        ],
+        "argumentationStyle": [
+          "conceptual",
+          "logical"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640946183,
+      "updatedAt": 1738640946183
+    },
+    {
+      "id": "char_1738640516011_6ccbl53ir",
+      "name": "章北海",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "avatar": "https://img2.baidu.com/it/u=2967778182,2578776898&fm=253&fmt=auto&app=120&f=JPEG?w=800&h=500",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ]
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "0e103215-0e96-44c4-970e-1e44dfa79f0f"
+        }
+      },
+      "createdAt": 1738640516011,
+      "updatedAt": 1738640516011
+    }
+  ],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personalit
+DebateRoom.tsx:271 ========== 开始设置角色数据 ==========
+DebateRoom.tsx:272 准备设置角色数据: {数据类型: 'object', 是否为数组: true, 数组长度: 4, 详细数据: '[\n  {\n    "id": "default_1",\n    "name": "维德",\n   …38640516011,\n    "updatedAt": 1738640516011\n  }\n]'}
+DebateRoom.tsx:279 dispatch前的状态: {状态类型: 'object', 是否有characters: true, characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:287 正在执行 SET_CHARACTERS dispatch...
+DebateRoom.tsx:292 SET_CHARACTERS dispatch 执行完成
+DebateRoom.tsx:306 dispatch后的状态: {状态类型: 'object', 是否有characters: true, characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:318 准备设置活动模式: direct
+DebateRoom.tsx:323 SET_ACTIVE_MODE dispatch完成
+DebateRoom.tsx:327 准备设置 Dify 配置: {
+  "serverUrl": "",
+  "apiKey": "",
+  "workflowId": "",
+  "parameters": {}
+}
+DebateRoom.tsx:332 SET_DIFY_CONFIG dispatch完成
+DebateRoom.tsx:336 准备设置直接调用配置: {
+  "provider": "",
+  "apiKey": "",
+  "model": "",
+  "parameters": {}
+}
+DebateRoom.tsx:341 SET_DIRECT_CONFIG dispatch完成
+DebateRoom.tsx:344 所有配置设置完成，最终的characterState: {
+  "characters": [],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    }
+  ],
+  "activeMode": "direct",
+  "difyConfig": {
+    "serverUrl": "",
+    "apiKey": "",
+    "workflowId": "",
+    "parameters": {}
+  },
+  "directConfig": {
+    "provider": "",
+    "apiKey": "",
+    "model": "",
+    "parameters": {}
+  }
+}
+DebateRoom.tsx:351 设置加载状态为 false
+DebateRoom.tsx:362 ========== 角色状态更新 ==========
+DebateRoom.tsx:363 最新角色状态: {
+  "characters": [],
+  "templates": [
+    {
+      "id": "template_academic",
+      "name": "学术型辩手",
+      "description": "严谨的学术派辩手，擅长使用数据和逻辑论证",
+      "persona": {
+        "personality": [
+          "严谨",
+          "理性",
+          "专业"
+        ],
+        "speakingStyle": "学术派",
+        "background": "研究学者",
+        "values": [
+          "科学精神",
+          "求真务实"
+        ],
+        "argumentationStyle": [
+          "数据驱动",
+          "逻辑推理"
+        ],
+        "customDescription": "作为一名学术型辩手，我注重论据的可靠性和论证的严密性。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_emotional",
+      "name": "感性型辩手",
+      "description": "富有感染力的辩手，善于调动情感共鸣",
+      "persona": {
+        "personality": [
+          "感性",
+          "富有同理心",
+          "热情"
+        ],
+        "speakingStyle": "平民化",
+        "background": "社会工作者",
+        "values": [
+          "人文关怀",
+          "社会公平"
+        ],
+        "argumentationStyle": [
+          "案例引用",
+          "情感共鸣"
+        ],
+        "customDescription": "我善于通过真实案例和情感共鸣来展开论证。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "claude2"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    },
+    {
+      "id": "template_pragmatic",
+      "name": "实用型辩手",
+      "description": "注重实践的辩手，擅长从现实角度分析问题",
+      "persona": {
+        "personality": [
+          "务实",
+          "客观",
+          "灵活"
+        ],
+        "speakingStyle": "专业化",
+        "background": "行业专家",
+        "values": [
+          "效率至上",
+          "实用主义"
+        ],
+        "argumentationStyle": [
+          "对比论证",
+          "因果论证"
+        ],
+        "customDescription": "我倾向于从实践和效果的角度来分析问题。"
+      },
+      "callConfig": {
+        "type": "direct",
+        "direct": {
+          "modelId": "gpt4"
+        }
+      },
+      "createdAt": 1738734819531,
+      "updatedAt": 1738734819531
+    }
+  ],
+  "activeMode": "direct",
+  "difyConfig": {
+    "serverUrl": "",
+    "apiKey": "",
+    "workflowId": "",
+    "parameters": {}
+  },
+  "directConfig": {
+    "provider": "",
+    "apiKey": "",
+    "model": "",
+    "parameters": {}
+  }
+}
+DebateRoom.tsx:366 警告: 角色数组为空!
+DebateRoom.tsx:373 DebateRoom - Current gameConfig: {topic: {…}, rules: {…}, debate: {…}, players: Array(4), ruleConfig: {…}, …}
+DebateRoom.tsx:374 DebateRoom - Character State: {characters: Array(0), templates: Array(3), activeMode: 'direct', difyConfig: {…}, directConfig: {…}}
+DebateRoom.tsx:506 Rendering player: {id: '1', name: 'AI选手1', role: 'unassigned', isAI: true, characterId: 'char_1738640516011_6ccbl53ir'}
+DebateRoom.tsx:383 Looking for character with ID: char_1738640516011_6ccbl53ir
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: char_1738640516011_6ccbl53ir
+DebateRoom.tsx:510 Character info for player: AI选手1 undefined
+DebateRoom.tsx:506 Rendering player: {id: '2', name: 'AI选手2', role: 'unassigned', isAI: true, characterId: 'default_3'}
+DebateRoom.tsx:383 Looking for character with ID: default_3
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_3
+DebateRoom.tsx:510 Character info for player: AI选手2 undefined
+DebateRoom.tsx:506 Rendering player: {id: '3', name: 'AI选手3', role: 'unassigned', isAI: true, characterId: 'default_1'}
+DebateRoom.tsx:383 Looking for character with ID: default_1
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_1
+DebateRoom.tsx:510 Character info for player: AI选手3 undefined
+DebateRoom.tsx:506 Rendering player: {id: '4', name: 'AI选手4', role: 'unassigned', isAI: true, characterId: 'default_2'}
+DebateRoom.tsx:383 Looking for character with ID: default_2
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_2
+DebateRoom.tsx:510 Character info for player: AI选手4 undefined
+DebateRoom.tsx:373 DebateRoom - Current gameConfig: {topic: {…}, rules: {…}, debate: {…}, players: Array(4), ruleConfig: {…}, …}
+DebateRoom.tsx:374 DebateRoom - Character State: {characters: Array(0), templates: Array(3), activeMode: 'direct', difyConfig: {…}, directConfig: {…}}
+DebateRoom.tsx:506 Rendering player: {id: '1', name: 'AI选手1', role: 'unassigned', isAI: true, characterId: 'char_1738640516011_6ccbl53ir'}
+DebateRoom.tsx:383 Looking for character with ID: char_1738640516011_6ccbl53ir
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: char_1738640516011_6ccbl53ir
+DebateRoom.tsx:510 Character info for player: AI选手1 undefined
+DebateRoom.tsx:506 Rendering player: {id: '2', name: 'AI选手2', role: 'unassigned', isAI: true, characterId: 'default_3'}
+DebateRoom.tsx:383 Looking for character with ID: default_3
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_3
+DebateRoom.tsx:510 Character info for player: AI选手2 undefined
+DebateRoom.tsx:506 Rendering player: {id: '3', name: 'AI选手3', role: 'unassigned', isAI: true, characterId: 'default_1'}
+DebateRoom.tsx:383 Looking for character with ID: default_1
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_1
+DebateRoom.tsx:510 Character info for player: AI选手3 undefined
+DebateRoom.tsx:506 Rendering player: {id: '4', name: 'AI选手4', role: 'unassigned', isAI: true, characterId: 'default_2'}
+DebateRoom.tsx:383 Looking for character with ID: default_2
+DebateRoom.tsx:384 Available characters: []
+DebateRoom.tsx:392 No character found for ID: default_2
+DebateRoom.tsx:510 Character info for player: AI选手4 undefined
+DebateRoom.tsx:296 延时检查 - 当前状态: {characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}
+DebateRoom.tsx:296 延时检查 - 当前状态: {characters长度: 0, 详细状态: '{\n  "characters": [],\n  "templates": [\n    {\n     …: "",\n    "model": "",\n    "parameters": {}\n  }\n}'}

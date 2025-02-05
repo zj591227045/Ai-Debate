@@ -21,7 +21,9 @@ export const characterTemplateSchema = z.object({
       apiKey: z.string(),
     }).optional(),
     direct: z.object({
+      provider: z.string(),
       modelId: z.string(),
+      model: z.string()
     }).optional(),
   }),
   createdAt: z.number(),
@@ -33,6 +35,28 @@ export type CharacterTemplate = z.infer<typeof characterTemplateSchema>;
 
 // 预设模板列表
 export const defaultTemplates: CharacterTemplate[] = [
+  {
+    id: 'template_1',
+    name: '默认模板',
+    description: '基础AI角色模板',
+    persona: {
+      personality: ['理性', '严谨'],
+      speakingStyle: '专业化',
+      background: '通用',
+      values: ['科技进步', '社会公平'],
+      argumentationStyle: ['逻辑推理', '数据驱动'],
+    },
+    callConfig: {
+      type: 'direct',
+      direct: {
+        provider: 'ollama',
+        modelId: 'default',
+        model: 'default'
+      }
+    },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
   {
     id: 'template_academic',
     name: '学术型辩手',
@@ -48,7 +72,9 @@ export const defaultTemplates: CharacterTemplate[] = [
     callConfig: {
       type: 'direct',
       direct: {
-        modelId: 'gpt4'
+        provider: 'openai',
+        modelId: 'gpt4',
+        model: 'gpt-4'
       }
     },
     createdAt: Date.now(),
@@ -69,7 +95,9 @@ export const defaultTemplates: CharacterTemplate[] = [
     callConfig: {
       type: 'direct',
       direct: {
-        modelId: 'claude2'
+        provider: 'anthropic',
+        modelId: 'claude2',
+        model: 'claude-2'
       }
     },
     createdAt: Date.now(),
@@ -90,7 +118,9 @@ export const defaultTemplates: CharacterTemplate[] = [
     callConfig: {
       type: 'direct',
       direct: {
-        modelId: 'gpt4'
+        provider: 'openai',
+        modelId: 'gpt4',
+        model: 'gpt-4'
       }
     },
     createdAt: Date.now(),

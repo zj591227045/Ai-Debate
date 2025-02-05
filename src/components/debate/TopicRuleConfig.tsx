@@ -247,20 +247,20 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
       totalScore: judging.totalScore || debateConfig.judging.totalScore,
       selectedJudge: judging.selectedJudge
     };
-    console.log('TopicRuleConfig - Updating judge config:', updatedJudging);
+    //console.log('TopicRuleConfig - Updating judge config:', updatedJudging);
     dispatch(updateDebateConfig({ judging: updatedJudging }));
   };
 
   const handleTopicChange = (topic: Partial<DebateConfig['topic']>) => {
-    console.log('TopicRuleConfig - handleTopicChange - Input:', topic);
-    console.log('TopicRuleConfig - handleTopicChange - Current Config:', debateConfig.topic);
+    //console.log('TopicRuleConfig - handleTopicChange - Input:', topic);
+    //console.log('TopicRuleConfig - handleTopicChange - Current Config:', debateConfig.topic);
     
     const updatedTopic = {
       ...debateConfig.topic,
       ...topic
     };
     
-    console.log('TopicRuleConfig - handleTopicChange - Updated Topic:', updatedTopic);
+    //console.log('TopicRuleConfig - handleTopicChange - Updated Topic:', updatedTopic);
     
     // 更新本地状态
     onDebateConfigChange({ 
@@ -279,7 +279,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
     setShowDimensions(prev => !prev);
   };
 
-  console.log('TopicRuleConfig - Render - Current debateConfig:', debateConfig);
+  //console.log('TopicRuleConfig - Render - Current debateConfig:', debateConfig);
 
   return (
     <Container>

@@ -29,7 +29,9 @@ export interface CharacterConfig {
       apiKey: string;
     };
     direct?: {
+      provider: string;
       modelId: string;
+      model: string;
     };
   };
   

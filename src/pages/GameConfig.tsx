@@ -21,9 +21,15 @@ import {
   clearGameConfig, 
   updateRuleConfig, 
   updatePlayers,
-  updateDebateConfig 
+  updateDebateConfig,
+  setConfiguring
 } from '../store/slices/gameConfigSlice';
 import { store } from '../store';
+import { useDebate } from '../contexts/DebateContext';
+import type { GameConfigState } from '../types/config';
+import { Button } from '../components/common/Button';
+import { adaptRoleAssignmentToGameConfig, adaptConfigToGameConfig } from '../store/adapters/gameConfigAdapter';
+import { StateDebugger } from '../components/debug/StateDebugger';
 
 const Container = styled.div`
   display: flex;
@@ -49,25 +55,6 @@ const HeaderRight = styled.div`
 const Title = styled.h1`
   color: ${props => props.theme.colors.text.primary};
   font-size: ${props => props.theme.typography.fontSize.xl};
-`;
-
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-  padding: ${props => props.theme.spacing.md} ${props => props.theme.spacing.lg};
-  background-color: ${props => 
-    props.variant === 'primary' ? props.theme.colors.primary : props.theme.colors.background.secondary
-  };
-  color: ${props => 
-    props.variant === 'primary' ? props.theme.colors.white : props.theme.colors.text.primary
-  };
-  border: none;
-  border-radius: ${props => props.theme.radius.md};
-  cursor: pointer;
-  transition: all ${props => props.theme.transitions.fast};
-  margin-left: ${props => props.theme.spacing.md};
-
-  &:hover {
-    opacity: 0.9;
-  }
 `;
 
 const Tabs = styled.div`
@@ -117,33 +104,6 @@ const defaultConfig = {
   minPlayers: 4,
   maxPlayers: 6,
   autoAssign: false,
-};
-
-// 添加状态监视器组件
-const StateMonitor: React.FC = () => {
-  const gameConfig = useSelector((state: RootState) => state.gameConfig);
-  
-  console.log('StateMonitor - Current gameConfig:', gameConfig);
-  
-  return (
-    <div style={{ 
-      position: 'fixed', 
-      bottom: 20, 
-      right: 20, 
-      padding: 20,
-      background: 'rgba(0,0,0,0.8)',
-      color: 'white',
-      borderRadius: 8,
-      maxWidth: 400,
-      maxHeight: 300,
-      overflow: 'auto'
-    }}>
-      <h3>状态监视器</h3>
-      <pre style={{ fontSize: 12 }}>
-        {JSON.stringify(gameConfig, null, 2)}
-      </pre>
-    </div>
-  );
 };
 
 const GameConfigContent: React.FC = () => {
@@ -222,13 +182,14 @@ const GameConfigContent: React.FC = () => {
 
   const dispatch = useDispatch();
   const gameConfig = useSelector((state: RootState) => state.gameConfig);
+  const { setGameConfig: setDebateContextGameConfig, validateConfig } = useDebate();
   
-  console.log('GameConfigContent - Current Redux State:', gameConfig);
+  //console.log('GameConfigContent - Current Redux State:', gameConfig);
 
   // 使用上次的配置或默认配置
   const getInitialPlayers = () => {
     if (location.state?.lastConfig?.players) {
-      console.log('使用上次的玩家配置:', location.state.lastConfig.players);
+      //console.log('使用上次的玩家配置:', location.state.lastConfig.players);
       return location.state.lastConfig.players;
     }
   //  console.log('使用默认玩家配置');
@@ -237,7 +198,7 @@ const GameConfigContent: React.FC = () => {
 
   const getInitialConfig = () => {
     if (location.state?.lastConfig?.config) {
-      console.log('使用上次的游戏配置:', location.state.lastConfig.config);
+      //console.log('使用上次的游戏配置:', location.state.lastConfig.config);
       return location.state.lastConfig.config;
     }
    // console.log('使用默认游戏配置');
@@ -258,19 +219,19 @@ const GameConfigContent: React.FC = () => {
 
   // 更新规则配置时同时更新 Redux store
   const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
-    console.log('GameConfig - handleRuleConfigChange:', newRuleConfig);
+    //console.log('GameConfig - handleRuleConfigChange:', newRuleConfig);
     setRuleConfig(newRuleConfig);
     dispatch(updateRuleConfig(newRuleConfig));
   };
 
   // 更新辩论配置时同时更新本地状态
   const handleDebateConfigChange = (config: Partial<DebateConfig>) => {
-    console.log('GameConfig - handleDebateConfigChange - Before:', debateConfig);
+    //console.log('GameConfig - handleDebateConfigChange - Before:', debateConfig);
     const newConfig = {
       ...debateConfig,
       ...config
     };
-    console.log('GameConfig - handleDebateConfigChange - After:', newConfig);
+    //console.log('GameConfig - handleDebateConfigChange - After:', newConfig);
     setDebateConfig(newConfig);
   };
 
@@ -278,7 +239,7 @@ const GameConfigContent: React.FC = () => {
   useEffect(() => {
     const unsubscribe = store.subscribe(() => {
       const state = store.getState();
-      console.log('GameConfig - Redux State Updated:', state.gameConfig);
+      //console.log('GameConfig - Redux State Updated:', state.gameConfig);
       if (state.gameConfig?.debate) {
         handleDebateConfigChange(state.gameConfig.debate);
       }
@@ -286,16 +247,43 @@ const GameConfigContent: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 修改 handleStartDebate 函数
-  const handleStartDebate = () => {
-    // 直接保存当前配置到 Redux store
-    dispatch(setGameConfig({
-      debate: debateConfig,
-      players,
-      ruleConfig,
+  // 修改 handleStartGame 函数
+  const handleStartGame = () => {
+    // 构建完整的配置对象
+    const fullConfig = {
+      debate: {
+        ...debateConfig,
+        topic: {
+          ...debateConfig.topic,
+          title: debateConfig.topic.title || '未设置主题',
+          description: debateConfig.topic.description || '未设置描述'
+        }
+      },
+      players: players.map(player => ({
+        ...player,
+        characterId: player.characterId || undefined
+      })),
+      ruleConfig: {
+        ...ruleConfig,
+        format: ruleConfig.format || 'structured'
+      },
       isConfiguring: false
-    }));
+    };
 
+    // 使用适配器转换配置
+    const gameConfig = adaptConfigToGameConfig(fullConfig);
+    
+    if (validateConfig && !validateConfig(gameConfig)) {
+      message.error('游戏配置验证失败，请检查配置是否完整');
+      return;
+    }
+
+    // 更新 Redux store
+    dispatch(setGameConfig(gameConfig));
+    
+    // 更新 DebateContext
+    setDebateContextGameConfig(gameConfig);
+    
     // 导航到辩论室
     navigate('/debate-room');
   };
@@ -428,7 +416,7 @@ const GameConfigContent: React.FC = () => {
               onTakeoverPlayer={handleTakeoverPlayer}
               onRemovePlayer={removePlayer}
               onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
-              onStartDebate={handleStartDebate}
+              onStartDebate={handleStartGame}
               onSelectCharacter={handleSelectCharacter}
             />
           </>
@@ -454,7 +442,7 @@ const GameConfigContent: React.FC = () => {
           <Button variant="secondary" onClick={handleBack}>
             返回
           </Button>
-          <Button variant="primary" onClick={handleStartDebate}>
+          <Button variant="primary" onClick={handleStartGame}>
             开始游戏
           </Button>
         </HeaderRight>
@@ -492,7 +480,7 @@ const GameConfigContent: React.FC = () => {
       <div className="game-config-content">
         {renderContent()}
       </div>
-      <StateMonitor />
+      <StateDebugger />
     </Container>
   );
 };

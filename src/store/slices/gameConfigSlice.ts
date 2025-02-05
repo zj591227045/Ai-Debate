@@ -5,6 +5,14 @@ import type { RuleConfig } from '../../types/rules';
 import type { DebateConfig } from '../../types/debate';
 
 const initialState: GameConfigState = {
+  topic: {
+    title: '',
+    description: ''
+  },
+  rules: {
+    totalRounds: 4,
+    debateFormat: 'structured'
+  },
   debate: {
     topic: {
       title: '',
@@ -64,11 +72,21 @@ export const gameConfigSlice = createSlice({
           ...state.debate.topic,
           ...action.payload.topic
         };
+        // 同步更新顶层 topic
+        state.topic = {
+          title: state.debate.topic.title,
+          description: state.debate.topic.description
+        };
       }
       if (action.payload.rules) {
         state.debate.rules = {
           ...state.debate.rules,
           ...action.payload.rules
+        };
+        // 同步更新顶层 rules
+        state.rules = {
+          totalRounds: 4, // 默认值
+          debateFormat: state.debate.rules.debateFormat
         };
       }
       if (action.payload.judging) {
@@ -98,6 +116,11 @@ export const gameConfigSlice = createSlice({
         advancedRules: {
           ...action.payload.advancedRules
         }
+      };
+      // 同步更新顶层 rules
+      state.rules = {
+        totalRounds: 4, // 默认值
+        debateFormat: action.payload.format
       };
     },
     setConfiguring: (state, action: PayloadAction<boolean>) => {

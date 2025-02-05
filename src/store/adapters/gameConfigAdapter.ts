@@ -1,18 +1,13 @@
-import type { GameConfigState } from '../../types/adapters';
+import type { GameConfigState, UnifiedPlayer } from '../../types/adapters';
 import type { Player as RoomPlayer } from '../../types/index';
 import type { Player as ConfigPlayer } from '../../types/player';
-import { roleMap, reverseRoleMap, getSpecificRole } from '../../types/adapters';
+import type { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
+import type { DebateConfig } from '../../types/debate';
+import { roleMap, reverseRoleMap, getSpecificRole, configToUnifiedPlayer } from '../../types/adapters';
 
 // 配置页面玩家到辩论室玩家的转换
-export const adaptConfigToRoomPlayer = (player: ConfigPlayer): RoomPlayer => {
-  return {
-    id: player.id,
-    name: player.name,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`,
-    role: roleMap[player.role],
-    score: 0,
-    isActive: false
-  };
+export const adaptConfigToRoomPlayer = (player: ConfigPlayer): UnifiedPlayer => {
+  return configToUnifiedPlayer(player);
 };
 
 // 辩论室玩家到配置页面玩家的转换
@@ -52,5 +47,52 @@ export const adaptRoomToState = (roomState: any): Partial<GameConfigState> => {
     players,
     debate: roomState.debate,
     ruleConfig: roomState.ruleConfig
+  };
+};
+
+// 新增：RoleAssignment配置到GameConfig的转换
+export const adaptRoleAssignmentToGameConfig = (
+  roleConfig: {
+    config: RoleAssignmentConfig;
+    players: ConfigPlayer[];
+  },
+  debateConfig: DebateConfig,
+  ruleConfig: any
+): GameConfigState => {
+  return {
+    topic: {
+      title: debateConfig.topic.title,
+      description: debateConfig.topic.description
+    },
+    rules: {
+      totalRounds: 4, // 默认值
+      debateFormat: ruleConfig.format
+    },
+    debate: debateConfig,
+    players: roleConfig.players,
+    ruleConfig: ruleConfig,
+    isConfiguring: true
+  };
+};
+
+// 新增：配置对象到GameConfig的转换
+export const adaptConfigToGameConfig = (
+  config: {
+    debate: DebateConfig;
+    players: ConfigPlayer[];
+    ruleConfig: any;
+    isConfiguring: boolean;
+  }
+): GameConfigState => {
+  return {
+    topic: {
+      title: config.debate.topic.title,
+      description: config.debate.topic.description
+    },
+    rules: {
+      totalRounds: 4, // 默认值
+      debateFormat: config.ruleConfig.format
+    },
+    ...config
   };
 }; 

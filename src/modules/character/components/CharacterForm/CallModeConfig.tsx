@@ -20,7 +20,7 @@ export default function CallModeConfig({ data, onChange }: CallModeConfigProps) 
       callConfig: {
         type,
         ...(type === 'direct' 
-          ? { direct: { modelId: '' } }
+          ? { direct: { provider: 'ollama', modelId: '', model: '' } }
           : { dify: { serverUrl: '', apiKey: '' } }
         )
       }
@@ -29,12 +29,15 @@ export default function CallModeConfig({ data, onChange }: CallModeConfigProps) 
   };
 
   const handleDirectConfigChange = (field: string, value: string) => {
+    const model = models.find(m => m.id === value);
     const newConfig: Partial<CharacterConfig> = {
       ...data,
       callConfig: {
         type: 'direct',
         direct: {
-          modelId: value
+          provider: model?.provider || 'ollama',
+          modelId: value,
+          model: model?.name || value
         }
       }
     };

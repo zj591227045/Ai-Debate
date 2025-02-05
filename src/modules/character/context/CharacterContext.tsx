@@ -3,7 +3,7 @@ import { CharacterConfig, DifyConfig, DirectAPIConfig } from '../types';
 import { CharacterTemplate, defaultTemplates } from '../types/template';
 
 // 状态接口
-interface CharacterState {
+export interface CharacterState {
   characters: CharacterConfig[];
   templates: CharacterTemplate[];
   activeMode: 'dify' | 'direct';
@@ -19,6 +19,7 @@ type CharacterAction =
   | { type: 'DELETE_CHARACTER'; payload: string }
   | { type: 'ADD_TEMPLATE'; payload: CharacterTemplate }
   | { type: 'DELETE_TEMPLATE'; payload: string }
+  | { type: 'SET_TEMPLATES'; payload: CharacterTemplate[] }
   | { type: 'SET_STATE'; payload: CharacterState }
   | { type: 'SET_ACTIVE_MODE'; payload: 'dify' | 'direct' }
   | { type: 'SET_DIFY_CONFIG'; payload: DifyConfig }
@@ -55,16 +56,115 @@ const CharacterContext = createContext<{
 
 // Reducer函数
 function characterReducer(state: CharacterState, action: CharacterAction): CharacterState {
-  console.log('Character Reducer:', { type: action.type, payload: action.payload });
+  console.log('========== Character Reducer Start ==========');
+  console.log('Action Type:', action.type);
+  console.log('Current State:', {
+    charactersCount: state.characters.length,
+    templatesCount: state.templates.length,
+    activeMode: state.activeMode,
+    hasCharacters: Array.isArray(state.characters),
+    firstCharacter: state.characters[0]
+  });
+  console.log('Action Payload:', {
+    type: action.type,
+    payloadType: typeof action.payload,
+    isArray: Array.isArray(action.payload),
+    payloadLength: Array.isArray(action.payload) ? action.payload.length : 'N/A',
+    payload: action.payload
+  });
   
   let newState: CharacterState;
   switch (action.type) {
-    case 'SET_CHARACTERS':
-      newState = {
+    case 'SET_CHARACTERS': {
+      console.log('========== SET_CHARACTERS - 开始处理 ==========');
+      
+      // 1. 记录接收到的 action
+      console.log('接收到的 action:', {
+        type: action.type,
+        payload: action.payload,
+        payloadLength: Array.isArray(action.payload) ? action.payload.length : 0
+      });
+      
+      // 2. 记录当前状态
+      console.log('当前状态:', {
+        characters: state.characters,
+        charactersLength: state.characters.length,
+        stateType: typeof state,
+        isStateValid: state && typeof state === 'object'
+      });
+
+      // 3. 验证输入数据
+      if (!Array.isArray(action.payload)) {
+        console.error('SET_CHARACTERS - 无效的数据类型:', typeof action.payload);
+        return state;
+      }
+
+      // 4. 处理角色数据
+      const validatedCharacters = action.payload
+        .map(char => {
+          if (!char || typeof char !== 'object') {
+            console.error('无效的角色对象:', char);
+            return null;
+          }
+          
+          console.log('处理角色:', char);
+          
+          const processedChar: CharacterConfig = {
+            id: char.id || `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: char.name || '未命名角色',
+            description: char.description || '',
+            avatar: char.avatar || '',
+            persona: {
+              personality: Array.isArray(char.persona?.personality) ? char.persona.personality : [],
+              speakingStyle: char.persona?.speakingStyle || '',
+              background: char.persona?.background || '',
+              values: Array.isArray(char.persona?.values) ? char.persona.values : [],
+              argumentationStyle: Array.isArray(char.persona?.argumentationStyle) ? char.persona.argumentationStyle : []
+            },
+            callConfig: {
+              ...(char.callConfig || {}),
+              type: char.callConfig?.type || 'direct'
+            },
+            createdAt: char.createdAt || Date.now(),
+            updatedAt: char.updatedAt || Date.now()
+          };
+          
+          return processedChar;
+        })
+        .filter((char): char is CharacterConfig => char !== null);
+
+      // 5. 检查处理结果
+      console.log('验证后的角色数据:', {
+        validatedCount: validatedCharacters.length,
+        characters: validatedCharacters
+      });
+
+      if (validatedCharacters.length === 0) {
+        console.warn('没有有效的角色数据，保持现有状态');
+        return state;
+      }
+
+      // 6. 创建新状态
+      const updatedState = {
         ...state,
-        characters: action.payload,
+        characters: validatedCharacters
       };
-      break;
+
+      // 7. 记录状态更新
+      console.log('状态更新结果:', {
+        原状态: {
+          charactersLength: state.characters.length,
+          characters: state.characters
+        },
+        新状态: {
+          charactersLength: updatedState.characters.length,
+          characters: updatedState.characters
+        }
+      });
+
+      console.log('========== SET_CHARACTERS - 处理完成 ==========');
+      return updatedState;
+    }
     case 'ADD_CHARACTER':
       console.log('Adding new character:', action.payload);
       // 检查是否已存在相同ID的角色
@@ -84,6 +184,7 @@ function characterReducer(state: CharacterState, action: CharacterAction): Chara
           characters: [...state.characters, action.payload],
         };
       }
+      console.log('ADD_CHARACTER - New state:', newState);
       break;
     case 'UPDATE_CHARACTER':
       newState = {
@@ -100,10 +201,24 @@ function characterReducer(state: CharacterState, action: CharacterAction): Chara
       };
       break;
     case 'ADD_TEMPLATE':
-      newState = {
-        ...state,
-        templates: [...state.templates, action.payload],
-      };
+      console.log('ADD_TEMPLATE - Current templates:', state.templates);
+      console.log('ADD_TEMPLATE - Adding template:', action.payload);
+      // 检查是否已存在相同ID的模板
+      const existingTemplate = state.templates.find(t => t.id === action.payload.id);
+      if (existingTemplate) {
+        newState = {
+          ...state,
+          templates: state.templates.map(t =>
+            t.id === action.payload.id ? action.payload : t
+          ),
+        };
+      } else {
+        newState = {
+          ...state,
+          templates: [...state.templates, action.payload],
+        };
+      }
+      console.log('ADD_TEMPLATE - New state:', newState);
       break;
     case 'DELETE_TEMPLATE':
       newState = {
@@ -111,8 +226,74 @@ function characterReducer(state: CharacterState, action: CharacterAction): Chara
         templates: state.templates.filter((template) => template.id !== action.payload),
       };
       break;
+    case 'SET_TEMPLATES':
+      console.log('SET_TEMPLATES - Payload:', action.payload);
+      newState = {
+        ...state,
+        templates: Array.isArray(action.payload) ? [...action.payload] : [],
+      };
+      console.log('SET_TEMPLATES - New state:', newState);
+      break;
     case 'SET_STATE':
-      newState = action.payload;
+      console.log('SET_STATE - Start processing');
+      console.log('SET_STATE - Current state:', JSON.stringify(state, null, 2));
+      console.log('SET_STATE - Action payload:', JSON.stringify(action.payload, null, 2));
+      
+      // 处理角色数据
+      const characters = Array.isArray(action.payload.characters) 
+        ? action.payload.characters.map((char, index) => {
+            console.log(`Processing character ${index}:`, {
+              id: char.id,
+              name: char.name,
+              hasPersona: !!char.persona,
+              hasCallConfig: !!char.callConfig
+            });
+            
+            return {
+              ...char,
+              persona: char.persona || {
+                personality: [],
+                speakingStyle: '',
+                background: '',
+                values: [],
+                argumentationStyle: []
+              },
+              callConfig: char.callConfig || {
+                type: 'direct'
+              },
+              createdAt: char.createdAt || Date.now(),
+              updatedAt: char.updatedAt || Date.now()
+            };
+          })
+        : state.characters;
+        
+      console.log('SET_STATE - Processed characters count:', characters.length);
+      
+      // 创建新状态，保留现有的角色数据
+      newState = {
+        ...state,
+        characters: characters.length > 0 ? characters : state.characters,
+        templates: Array.isArray(action.payload.templates) 
+          ? action.payload.templates 
+          : state.templates,
+        activeMode: action.payload.activeMode || state.activeMode,
+        difyConfig: action.payload.difyConfig 
+          ? { ...state.difyConfig, ...action.payload.difyConfig }
+          : state.difyConfig,
+        directConfig: action.payload.directConfig
+          ? { ...state.directConfig, ...action.payload.directConfig }
+          : state.directConfig
+      };
+      
+      console.log('SET_STATE - New state:', {
+        hasCharacters: Array.isArray(newState.characters),
+        charactersLength: newState.characters.length,
+        sameTemplates: newState.templates === state.templates,
+        sameConfigs: 
+          newState.difyConfig === state.difyConfig && 
+          newState.directConfig === state.directConfig
+      });
+      
       break;
     case 'SET_ACTIVE_MODE':
       newState = {
@@ -142,99 +323,121 @@ function characterReducer(state: CharacterState, action: CharacterAction): Chara
       };
       break;
     default:
+      console.log('Unknown action type:', (action as CharacterAction).type);
       return state;
   }
   
-  console.log('New state:', newState);
+  console.log('Final new state:', newState);
   return newState;
 }
 
 // Provider组件
 export function CharacterProvider({ children }: { children: React.ReactNode }) {
+  console.log('========== CharacterProvider 初始化开始 ==========');
+  
   const [state, dispatch] = useReducer(characterReducer, (() => {
     try {
       const savedState = localStorage.getItem('characterState');
+      console.log('从 localStorage 读取的原始数据:', savedState);
+      
       if (savedState) {
         const parsedState = JSON.parse(savedState);
-        console.log('Loading initial state from localStorage:', parsedState);
+        console.log('解析后的状态数据:', {
+          hasCharacters: Array.isArray(parsedState.characters),
+          charactersCount: parsedState.characters?.length,
+          characters: parsedState.characters,
+          templatesCount: parsedState.templates?.length
+        });
         
         // 确保数据结构完整
         const validState: CharacterState = {
-          // 保持现有角色列表，确保每个角色的ID都是唯一的
           characters: Array.isArray(parsedState.characters) 
-            ? parsedState.characters.reduce((acc: CharacterConfig[], char: CharacterConfig) => {
-                // 检查是否已存在相同ID的角色
-                const existingIndex = acc.findIndex(c => c.id === char.id);
-                if (existingIndex >= 0) {
-                  // 如果存在，更新它
-                  acc[existingIndex] = char;
-                } else {
-                  // 如果不存在，添加它
-                  acc.push(char);
-                }
-                return acc;
-              }, [])
+            ? parsedState.characters.map((char: CharacterConfig) => ({
+                id: char.id || `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: char.name || '未命名角色',
+                description: char.description || '',
+                avatar: char.avatar || '',
+                persona: {
+                  personality: Array.isArray(char.persona?.personality) ? char.persona.personality : [],
+                  speakingStyle: char.persona?.speakingStyle || '',
+                  background: char.persona?.background || '',
+                  values: Array.isArray(char.persona?.values) ? char.persona.values : [],
+                  argumentationStyle: Array.isArray(char.persona?.argumentationStyle) ? char.persona.argumentationStyle : []
+                },
+                callConfig: {
+                  ...(char.callConfig || {}),
+                  type: char.callConfig?.type || 'direct'
+                },
+                createdAt: char.createdAt || Date.now(),
+                updatedAt: char.updatedAt || Date.now()
+              }))
             : [],
-          // 合并默认模板和已保存的模板
           templates: Array.isArray(parsedState.templates) 
-            ? [...defaultTemplates, ...parsedState.templates.filter((template: CharacterTemplate) => 
-                !defaultTemplates.some(defaultTemplate => defaultTemplate.id === template.id)
-              )]
+            ? [...defaultTemplates, ...parsedState.templates]
             : [...defaultTemplates],
           activeMode: parsedState.activeMode || 'direct',
           difyConfig: {
-            serverUrl: '',
-            apiKey: '',
-            workflowId: '',
-            parameters: {},
-            ...parsedState.difyConfig,
+            serverUrl: parsedState.difyConfig?.serverUrl || '',
+            apiKey: parsedState.difyConfig?.apiKey || '',
+            workflowId: parsedState.difyConfig?.workflowId || '',
+            parameters: parsedState.difyConfig?.parameters || {},
           },
           directConfig: {
-            provider: '',
-            apiKey: '',
-            model: '',
-            parameters: {},
-            ...parsedState.directConfig,
+            provider: parsedState.directConfig?.provider || '',
+            apiKey: parsedState.directConfig?.apiKey || '',
+            model: parsedState.directConfig?.model || '',
+            parameters: parsedState.directConfig?.parameters || {},
           },
         };
 
-        console.log('Validated state:', validState);
+        console.log('验证后的初始状态:', {
+          charactersCount: validState.characters.length,
+          characters: validState.characters,
+          templatesCount: validState.templates.length
+        });
+        
         return validState;
       }
     } catch (error) {
-      console.error('Error loading initial state from localStorage:', error);
+      console.error('初始化过程中出错:', error);
     }
-    return initialState;
+    
+    console.log('使用默认初始状态');
+    return {
+      ...initialState,
+      templates: [...defaultTemplates] // 确保至少有默认模板
+    };
   })());
 
   // 保存状态到本地存储
   useEffect(() => {
-    try {
-      // 在保存之前验证状态的完整性
-      const stateToSave = {
-        ...state,
-        characters: Array.isArray(state.characters) 
-          ? state.characters.reduce((acc: CharacterConfig[], char: CharacterConfig) => {
-              // 检查是否已存在相同ID的角色
-              const existingIndex = acc.findIndex(c => c.id === char.id);
-              if (existingIndex >= 0) {
-                // 如果存在，更新它
-                acc[existingIndex] = char;
-              } else {
-                // 如果不存在，添加它
-                acc.push(char);
-              }
-              return acc;
-            }, [])
-          : [],
-        templates: Array.isArray(state.templates) ? state.templates : [...defaultTemplates],
-      };
-      console.log('Saving state to localStorage:', stateToSave);
-      localStorage.setItem('characterState', JSON.stringify(stateToSave));
-    } catch (error) {
-      console.error('Error saving state to localStorage:', error);
+    console.log('========== 状态变更，准备保存 ==========');
+    console.log('当前状态:', {
+      charactersCount: state.characters.length,
+      characters: state.characters,
+      templatesCount: state.templates.length
+    });
+    
+    if (state.characters.length > 0) {
+      try {
+        localStorage.setItem('characterState', JSON.stringify(state));
+        console.log('状态保存成功');
+      } catch (error) {
+        console.error('保存状态时出错:', error);
+      }
+    } else {
+      console.warn('characters 数组为空，跳过保存');
     }
   }, [state]);
+
+  // 添加状态变更的监控
+  useEffect(() => {
+    console.log('========== 状态监控 ==========');
+    console.log('characters 数组:', state.characters);
+    console.log('characters 长度:', state.characters.length);
+    console.log('templates 长度:', state.templates.length);
+    console.log('activeMode:', state.activeMode);
+  }, [state.characters, state.templates, state.activeMode]);
 
   return (
     <CharacterContext.Provider value={{ state, dispatch }}>

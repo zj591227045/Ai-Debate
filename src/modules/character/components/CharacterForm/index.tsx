@@ -41,7 +41,9 @@ export default function CharacterForm({
       callConfig: {
         type: 'direct',
         direct: {
+          provider: 'ollama',
           modelId: '',
+          model: ''
         }
       }
     }

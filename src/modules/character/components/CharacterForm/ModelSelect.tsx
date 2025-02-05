@@ -13,15 +13,19 @@ export default function ModelSelect({ data, onChange }: ModelSelectProps) {
   const { models } = state;
 
   const handleModelChange = (modelId: string) => {
-    onChange({
+    const model = models.find(m => m.id === modelId);
+    const newConfig: Partial<CharacterConfig> = {
       ...data,
       callConfig: {
         type: 'direct',
         direct: {
-          modelId
+          provider: model?.provider || 'ollama',
+          modelId,
+          model: model?.name || modelId
         }
       }
-    });
+    };
+    onChange(newConfig);
   };
 
   const getProviderName = (modelId: string) => {

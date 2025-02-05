@@ -98,73 +98,134 @@ const MainContent = styled.div`
 const PlayerListSection = styled.div`
   background: white;
   border-right: 1px solid #e8e8e8;
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 `;
 
-const PlayerCard = styled.div`
-  padding: 16px;
-  margin-bottom: 1px;
-  background: white;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: #fafafa;
+const PlayerListContainer = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #e8e8e8;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
   }
 `;
 
+const DebugInfo = styled.div`
+  padding: 8px;
+  font-size: 12px;
+  color: #666;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+`;
+
+const PlayerCard = styled.div`
+  padding: 0;
+  margin-bottom: 2px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+  &:hover {
+    background: rgba(24, 144, 255, 0.02);
+  }
+`;
+
+const PlayerHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+`;
+
 const PlayerAvatar = styled.img`
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
   object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 2px solid #fff;
+  background: #f5f5f5;
 `;
 
 const PlayerInfo = styled.div`
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `;
 
 const PlayerName = styled.div`
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f1f1f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 
 const PlayerRole = styled.div`
-  font-size: 12px;
-  color: #999;
-  margin-top: 2px;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
 `;
 
 const CharacterInfo = styled.div`
   margin-top: 4px;
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.01);
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 `;
 
 const CharacterName = styled.div`
   color: #1890ff;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 16px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &:before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 18px;
+    background: #1890ff;
+    border-radius: 2px;
+  }
 `;
 
 const CharacterDescription = styled.div`
   color: #666;
-  font-size: 12px;
-  margin: 2px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 2px solid rgba(24, 144, 255, 0.15);
 `;
 
 const CharacterPersona = styled.div`
   color: #8c8c8c;
-  font-size: 11px;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  margin: 8px 0;
   
   &:before {
     content: '';
@@ -180,8 +241,9 @@ const CharacterModel = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.06);
 `;
 
 const ModelBadge = styled.span<{ provider: string }>`
@@ -480,71 +542,94 @@ export const DebateRoom: React.FC = () => {
           }}
         >
           <PlayerListSection>
-            <div>
-              {/* 调试信息 */}
-              <div style={{ padding: '8px', fontSize: '12px', color: '#666', borderBottom: '1px solid #eee' }}>
-                调试信息:
-                <div>玩家数量: {Object.keys(players.byId).length}</div>
-                <div>辩论形式: {unifiedState.debate.rules.format}</div>
-                <div>角色数量: {Object.keys(unifiedState.characters.byId).length}</div>
-                <div>当前状态: {currentState.status}</div>
-              </div>
-              
-              {/* 玩家列表 */}
+            <DebugInfo>
+              调试信息:
+              <div>玩家数量: {Object.keys(players.byId).length}</div>
+              <div>辩论形式: {unifiedState.debate.rules.format}</div>
+              <div>角色数量: {Object.keys(unifiedState.characters.byId).length}</div>
+              <div>当前状态: {currentState.status}</div>
+            </DebugInfo>
+            <PlayerListContainer>
               {Object.values(players.byId).map(player => {
                 const character = player.characterId ? 
                   unifiedState.characters.byId[player.characterId] : undefined;
                 
                 return (
                   <PlayerCard key={player.id}>
-                    <PlayerAvatar 
-                      src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
-                      alt={player.name}
-                    />
-                    <PlayerInfo>
-                      <PlayerName>{player.name}</PlayerName>
-                      <PlayerRole>
-                        {unifiedState.debate.rules.format === 'structured' ? (
-                          // 正反方辩论模式
-                          <>
-                            {player.role.includes('affirmative') ? '正方' : 
-                             player.role.includes('negative') ? '反方' : 
-                             player.role === 'judge' ? '裁判' : 
-                             player.role === 'timekeeper' ? '计时员' : '观众'}
-                            {player.role.includes('1') && ' - 一辩'}
-                            {player.role.includes('2') && ' - 二辩'}
-                            {player.role.includes('3') && ' - 三辩'}
-                            {player.role.includes('4') && ' - 四辩'}
-                          </>
-                        ) : (
-                          // 自由辩论模式，显示AI角色信息
-                          character ? (
-                            <CharacterInfo>
-                              <CharacterName>{character.name}</CharacterName>
-                              {character.description && (
-                                <CharacterDescription>
-                                  {character.description}
-                                </CharacterDescription>
-                              )}
-                              {character?.persona && (
-                                <CharacterPersona>
-                                  {character.persona.background} · {character.persona.speakingStyle}
-                                </CharacterPersona>
-                              )}
-                              <CharacterModel>
-                                {getModelInfo(character)}
-                              </CharacterModel>
-                            </CharacterInfo>
+                    <PlayerHeader>
+                      <PlayerAvatar 
+                        src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
+                        alt={player.name}
+                      />
+                      <PlayerInfo>
+                        <PlayerName>
+                          {player.name}
+
+                        </PlayerName>
+                        <PlayerRole>
+                          {unifiedState.debate.rules.format === 'structured' ? (
+                            // 正反方辩论模式
+                            <>
+                              {player.role.includes('affirmative') ? '正方' : 
+                               player.role.includes('negative') ? '反方' : 
+                               player.role === 'judge' ? '裁判' : 
+                               player.role === 'timekeeper' ? '计时员' : '观众'}
+                              {player.role.includes('1') && ' - 一辩'}
+                              {player.role.includes('2') && ' - 二辩'}
+                              {player.role.includes('3') && ' - 三辩'}
+                              {player.role.includes('4') && ' - 四辩'}
+                            </>
                           ) : (
-                            <div style={{ color: '#ff4d4f' }}>未分配角色 (ID: {player.characterId || 'none'})</div>
-                          )
-                        )}
-                      </PlayerRole>
-                    </PlayerInfo>
+                            // 自由辩论模式，显示AI角色信息
+                            character ? (
+                              <CharacterInfo>
+                                <CharacterName>{character.name}
+                                  {player.isAI && (
+                                    <span style={{ 
+                                    fontSize: '12px',
+                                    padding: '2px 8px',
+                                    background: 'rgba(24, 144, 255, 0.1)',
+                                    color: '#1890ff',
+                                    borderRadius: '4px'
+                                  }}>
+                                      AI
+                                  </span>
+                                  )}
+                                </CharacterName>
+
+                                {character.description && (
+                                  <CharacterDescription>
+                                    {character.description}
+                                  </CharacterDescription>
+                                )}
+                                {character?.persona && (
+                                  <CharacterPersona>
+                                    {character.persona.background} · {character.persona.speakingStyle}
+                                  </CharacterPersona>
+                                )}
+                                <CharacterModel>
+                                  {getModelInfo(character)}
+                                </CharacterModel>
+                              </CharacterInfo>
+                            ) : (
+                              <div style={{ 
+                                color: '#ff4d4f',
+                                fontSize: '13px',
+                                padding: '8px 12px',
+                                background: 'rgba(255, 77, 79, 0.1)',
+                                borderRadius: '6px'
+                              }}>
+                                未分配角色 (ID: {player.characterId || 'none'})
+                              </div>
+                            )
+                          )}
+                        </PlayerRole>
+                      </PlayerInfo>
+                    </PlayerHeader>
                   </PlayerCard>
                 );
               })}
-            </div>
+            </PlayerListContainer>
           </PlayerListSection>
         </Resizable>
 

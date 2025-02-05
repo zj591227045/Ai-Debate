@@ -71,6 +71,181 @@ const TopicBar = styled.div`
   padding: 16px;
   background: white;
   border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const TopicSection = styled.div`
+  flex: 1;
+`;
+
+const JudgeSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 24px;
+  border-left: 1px solid #e8e8e8;
+`;
+
+const JudgeAvatar = styled.div`
+  position: relative;
+  cursor: pointer;
+
+  img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  &:hover .judge-tooltip {
+    display: block;
+  }
+`;
+
+const JudgeTooltip = styled.div`
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: -10px;
+  width: 320px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 3px 6px -4px rgba(0,0,0,0.12), 0 6px 16px 0 rgba(0,0,0,0.08);
+  padding: 16px;
+  z-index: 1000;
+
+  &:before {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    right: 20px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    transform: rotate(45deg);
+    box-shadow: 3px 3px 6px -3px rgba(0,0,0,0.12);
+  }
+`;
+
+const JudgeTooltipContent = styled.div`
+  .judge-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .judge-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+  }
+
+  .judge-basic-info {
+    flex: 1;
+  }
+
+  .judge-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1f1f1f;
+    margin-bottom: 4px;
+  }
+
+  .judge-description {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  .judge-persona {
+    margin: 12px 0;
+    padding: 12px;
+    background: #f9f9f9;
+    border-radius: 6px;
+  }
+
+  .persona-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #666;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .label {
+      color: #1f1f1f;
+      font-weight: 500;
+      min-width: 80px;
+    }
+  }
+
+  .judge-model {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .judge-criteria {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
+
+    .criteria-title {
+      font-weight: 500;
+      color: #1f1f1f;
+      margin-bottom: 8px;
+    }
+
+    .criteria-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: #666;
+
+      .dimension-name {
+        min-width: 80px;
+        color: #1f1f1f;
+      }
+
+      .weight {
+        color: #1890ff;
+      }
+
+      .description {
+        color: #8c8c8c;
+        font-size: 12px;
+      }
+    }
+  }
+`;
+
+const JudgeInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`;
+
+const JudgeName = styled.div`
+  font-weight: 500;
+  font-size: 14px;
+  color: #1f1f1f;
+`;
+
+const JudgeRole = styled.div`
+  font-size: 12px;
+  color: #666;
 `;
 
 const TopicTitle = styled.h2`
@@ -342,86 +517,52 @@ export const DebateRoom: React.FC = () => {
   const { state: modelState } = useModel();
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [playerListWidth, setPlayerListWidth] = useState(300);
+  const [playerListWidth, setPlayerListWidth] = useState(330);
   const [unifiedState, setUnifiedState] = useState<UnifiedState | null>(null);
-  const stateManagerRef = React.useRef<ReturnType<typeof getStateManager>>(null);
+  const [stateManager, setStateManager] = useState<ReturnType<typeof getStateManager>>(null);
 
-  // 初始化统一状态
   useEffect(() => {
-    console.log('========== 初始化统一状态管理器 ==========');
-    
-    // 只在组件挂载时初始化一次状态管理器
-    if (!stateManagerRef.current) {
-      console.log('创建新的状态管理器');
-      stateManagerRef.current = getStateManager(gameConfig, characterState);
-      
-      if (stateManagerRef.current) {
-        // 尝试从本地存储加载状态
-        const loadedFromStorage = stateManagerRef.current.loadState();
-        console.log('从本地存储加载状态:', loadedFromStorage);
-      }
+    if (!gameConfig || !characterState) {
+      navigate('/');
+      return;
     }
 
-    // 获取并设置初始状态
-    if (stateManagerRef.current) {
-      const state = stateManagerRef.current.getState();
-      console.log('当前状态:', {
-        角色数量: Object.keys(state.characters.byId).length,
-        玩家数量: Object.keys(state.debate.players.byId).length,
-        当前状态: state.debate.currentState.status,
-        主题: state.debate.topic,
-        规则: state.debate.rules
-      });
-      
-      setUnifiedState(state);
+    const manager = getStateManager(gameConfig, characterState);
+    if (manager) {
+      setStateManager(manager);
+      setUnifiedState(manager.getState());
       setIsLoading(false);
-    }
-  }, []); // 空依赖数组，确保只在挂载时执行一次
-
-  // 订阅状态更新
-  useEffect(() => {
-    console.log('========== 设置状态订阅 ==========');
-    
-    if (stateManagerRef.current) {
-      const unsubscribe = stateManagerRef.current.subscribe(newState => {
-        console.log('状态更新:', {
-          角色数量: Object.keys(newState.characters.byId).length,
-          玩家数量: Object.keys(newState.debate.players.byId).length,
-          当前状态: newState.debate.currentState.status,
-          主题: newState.debate.topic
-        });
+      return manager.subscribe(newState => {
         setUnifiedState(newState);
       });
-
-      return () => {
-        console.log('清理状态订阅');
-        unsubscribe();
-      };
+    } else {
+      console.error('状态管理器初始化失败');
+      navigate('/');
     }
-  }, [stateManagerRef.current]); // 只在状态管理器变化时重新订阅
+  }, [gameConfig, characterState, navigate]);
 
-  // 监听配置变化并更新状态
-  useEffect(() => {
-    console.log('========== 配置变化检测 ==========');
-    console.log('游戏配置:', gameConfig);
-    console.log('角色状态:', characterState);
+  const getJudgeInfo = () => {
+    if (!unifiedState?.debate.judge.characterId) return null;
     
-    if (stateManagerRef.current) {
-      // 使用适配器创建新的统一状态
-      const newState = StateAdapter.toUnified(gameConfig, characterState);
-      
-      // 更新状态管理器
-      stateManagerRef.current.dispatch({
-        type: 'BATCH_UPDATE',
-        payload: newState
-      });
-    }
-  }, [gameConfig, characterState]);
+    const judgeCharacter = unifiedState.characters.byId[unifiedState.debate.judge.characterId];
+    if (!judgeCharacter) return null;
+
+    return {
+      id: judgeCharacter.id,
+      name: judgeCharacter.name,
+      avatar: judgeCharacter.avatar,
+      description: judgeCharacter.description,
+      persona: judgeCharacter.persona,
+      callConfig: judgeCharacter.callConfig
+    };
+  };
+
+  const judgeInfo = getJudgeInfo();
 
   // 处理辩论状态变更
   const handleDebateStateChange = (status: 'preparing' | 'ongoing' | 'paused' | 'finished') => {
-    if (stateManagerRef.current && unifiedState) {
-      stateManagerRef.current.dispatch({
+    if (stateManager && unifiedState) {
+      stateManager.dispatch({
         type: 'DEBATE_STATE_UPDATED',
         payload: {
           ...unifiedState.debate.currentState,
@@ -475,20 +616,12 @@ export const DebateRoom: React.FC = () => {
     return null;
   };
 
-  // 如果还在加载中，显示加载状态
-  if (isLoading || !unifiedState) {
-    return (
-      <Container>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100%' 
-        }}>
-          正在加载辩论室...
-        </div>
-      </Container>
-    );
+  if (isLoading) {
+    return <div>正在加载中...</div>;
+  }
+
+  if (!unifiedState || !stateManager) {
+    return <div>状态初始化失败，请返回重试</div>;
   }
 
   // 获取当前辩论状态
@@ -509,7 +642,11 @@ export const DebateRoom: React.FC = () => {
           {isDarkMode ? <BulbFilled /> : <BulbOutlined />}
           {isDarkMode ? '日间模式' : '夜间模式'}
         </ToolButton>
-        <ToolButton onClick={() => stateManagerRef.current?.saveState()}>
+        <ToolButton onClick={() => {
+          if (stateManager) {
+            stateManager.saveState();
+          }
+        }}>
           <SaveOutlined />保存会话
         </ToolButton>
         <ToolButton onClick={handleDebateControl}>
@@ -520,14 +657,133 @@ export const DebateRoom: React.FC = () => {
 
       {/* 主题信息区域 */}
       <TopicBar>
-        <TopicTitle>{topic.title}</TopicTitle>
-        <TopicInfo>
-          <div>
-            <span>辩论形式：{unifiedState.debate.rules.format === 'structured' ? '正反方辩论' : '自由辩论'}</span>
-            <span style={{ margin: '0 16px' }}>|</span>
-            <span>{topic.description}</span>
-          </div>
-        </TopicInfo>
+        <TopicSection>
+          <TopicTitle>{topic.title}</TopicTitle>
+          <TopicInfo>
+            <div>
+              <span>辩论形式：{unifiedState.debate.rules.format === 'structured' ? '正反方辩论' : '自由辩论'}</span>
+              <span style={{ margin: '0 16px' }}>|</span>
+              <span>{topic.description}</span>
+            </div>
+          </TopicInfo>
+        </TopicSection>
+        
+        {judgeInfo && (
+          <JudgeSection>
+            <Tooltip 
+              title={
+                <div style={{ padding: '8px', maxWidth: '400px' }}>
+                  {/* 基本信息 */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '12px',
+                    marginBottom: '12px',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}>
+                    <img 
+                      src={judgeInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${judgeInfo.id}`}
+                      alt={judgeInfo.name}
+                      style={{ width: '48px', height: '48px', borderRadius: '50%' }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '4px' }}>{judgeInfo.name}</div>
+                      <div style={{ fontSize: '13px', color: '#666' }}>{judgeInfo.description}</div>
+                    </div>
+                  </div>
+
+                  {/* 人设信息 */}
+                  <div style={{ 
+                    margin: '12px 0',
+                    padding: '12px',
+                    background: '#f9f9f9',
+                    borderRadius: '6px'
+                  }}>
+                    <div style={{ marginBottom: '8px' }}>
+                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>说话风格</span>
+                      <span style={{ color: '#666' }}>{judgeInfo.persona.speakingStyle}</span>
+                    </div>
+                    <div style={{ marginBottom: '8px' }}>
+                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>专业背景</span>
+                      <span style={{ color: '#666' }}>{judgeInfo.persona.background}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>性格特征</span>
+                      <span style={{ color: '#666' }}>{judgeInfo.persona.personality.join('、')}</span>
+                    </div>
+                  </div>
+
+                  {/* AI模型信息 */}
+                  <div style={{ 
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f0f0f0'
+                  }}>
+                    <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>AI模型</div>
+                    {getModelInfo(judgeInfo)}
+                  </div>
+
+                  {/* 评分规则 */}
+                  <div style={{ 
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f0f0f0'
+                  }}>
+                    <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>评分规则</div>
+                    <div style={{ 
+                      fontSize: '13px',
+                      color: '#666',
+                      padding: '8px 12px',
+                      background: '#f9f9f9',
+                      borderRadius: '6px',
+                      marginBottom: '12px',
+                      lineHeight: '1.5'
+                    }}>
+                      {unifiedState.debate.judging.description || '暂无评分规则说明'}
+                    </div>
+                  </div>
+
+                  {/* 评分标准 */}
+                  <div style={{ 
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f0f0f0'
+                  }}>
+                    <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>评分标准</div>
+                    {unifiedState.debate.judging.dimensions.map((dimension, index) => (
+                      <div key={index} style={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '6px',
+                        fontSize: '13px'
+                      }}>
+                        <span style={{ minWidth: '80px', color: '#1f1f1f' }}>{dimension.name}</span>
+                        <span style={{ color: '#1890ff' }}>{dimension.weight}分</span>
+                        <span style={{ color: '#8c8c8c', fontSize: '12px' }}>{dimension.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              }
+              placement="bottomRight"
+              color="#fff"
+              overlayStyle={{ maxWidth: '400px' }}
+            >
+              <JudgeAvatar>
+                <img 
+                  src={judgeInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${judgeInfo.id}`}
+                  alt={judgeInfo.name}
+                />
+              </JudgeAvatar>
+            </Tooltip>
+            <JudgeInfo>
+              <JudgeName>{judgeInfo.name}</JudgeName>
+              <JudgeRole>裁判</JudgeRole>
+            </JudgeInfo>
+          </JudgeSection>
+        )}
       </TopicBar>
 
       {/* 主内容区域 */}

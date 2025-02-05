@@ -79,7 +79,12 @@ export interface UnifiedDebateState {
       requireEvidence: boolean;
     };
   };
-  judging?: {
+  judge: {
+    characterId: string;
+    name?: string;
+    avatar?: string;
+  };
+  judging: {
     description: string;
     dimensions: Array<{
       name: string;

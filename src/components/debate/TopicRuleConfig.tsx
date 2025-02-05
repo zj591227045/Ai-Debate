@@ -8,6 +8,8 @@ import type { RuleConfig } from '../../types/rules';
 import { useDispatch } from 'react-redux';
 import { updateRuleConfig, updateDebateConfig } from '../../store/slices/gameConfigSlice';
 import type { DebateConfig } from '../../types/debate';
+import { useCharacter } from '../../modules/character/context/CharacterContext';
+import type { CharacterConfig } from '../../modules/character/types';
 
 const { TextArea } = Input;
 
@@ -229,6 +231,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   } = useJudgeConfig();
 
   const dispatch = useDispatch();
+  const { state: characterState } = useCharacter();
 
   const handleRuleChange = (newConfig: Partial<RuleConfig>) => {
     const updatedConfig = {
@@ -247,8 +250,10 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
       totalScore: judging.totalScore || debateConfig.judging.totalScore,
       selectedJudge: judging.selectedJudge
     };
-    //console.log('TopicRuleConfig - Updating judge config:', updatedJudging);
-    dispatch(updateDebateConfig({ judging: updatedJudging }));
+    
+    onDebateConfigChange({
+      judging: updatedJudging
+    });
   };
 
   const handleTopicChange = (topic: Partial<DebateConfig['topic']>) => {
@@ -451,28 +456,30 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <Select
               style={{ width: '100%' }}
               placeholder="选择裁判"
-              value={judgeConfig.selectedJudgeId}
-              onChange={(value) => {
-                handleJudgeSelect(value);
-                const selectedJudge = availableJudges.find(j => j.id === value);
-                handleJudgeConfigChange({
-                  ...debateConfig.judging,
-                  selectedJudge
-                });
+              value={debateConfig.judging.selectedJudge?.id}
+              onChange={(value: string) => {
+                const selectedJudge = characterState.characters.find(
+                  (c: CharacterConfig) => c.id === value
+                );
+                if (selectedJudge) {
+                  handleJudgeConfigChange({
+                    selectedJudge: {
+                      id: selectedJudge.id,
+                      name: selectedJudge.name
+                    }
+                  });
+                }
               }}
-              optionLabelProp="label"
             >
-              {availableJudges.map((judge: Judge) => (
+              {characterState.characters.map((character: CharacterConfig) => (
                 <Select.Option 
-                  key={judge.id} 
-                  value={judge.id}
-                  label={judge.name}
+                  key={character.id} 
+                  value={character.id}
+                  label={character.name}
                 >
                   <JudgeOption>
-                    <div className="judge-name">{judge.name}</div>
-                    <div className="judge-description">
-                      {judge.description || '暂无简介'}
-                    </div>
+                    <div className="judge-name">{character.name}</div>
+                    <div className="judge-description">{character.description}</div>
                   </JudgeOption>
                 </Select.Option>
               ))}

@@ -91,15 +91,23 @@ export class StateAdapter {
       },
       players: {
         byId: gameConfig.players.reduce((acc, player) => {
-          const characterId = player.characterId || (player.isAI ? `default_char_${player.id}` : undefined);
-          console.log('设置玩家角色:', player.id, characterId);
+          // 获取玩家的角色状态
+          const status = 'waiting';
+          
+          console.log('设置玩家角色:', {
+            playerId: player.id,
+            characterId: player.characterId,
+            role: player.role,
+            status
+          });
+          
           return {
             ...acc,
             [player.id]: {
               ...player,
-              status: 'ready',
+              status,
               role: player.role || 'unassigned',
-              characterId
+              characterId: player.characterId
             }
           };
         }, {}),
@@ -128,6 +136,12 @@ export class StateAdapter {
           allowStanceChange: gameConfig.debate.rules.advancedRules.allowStanceChange,
           requireEvidence: gameConfig.debate.rules.advancedRules.requireEvidence
         }
+      },
+      // 添加裁判配置
+      judge: {
+        characterId: gameConfig.debate.judging.selectedJudge?.id || '',
+        name: gameConfig.debate.judging.selectedJudge?.name,
+        avatar: gameConfig.debate.judging.selectedJudge?.avatar
       },
       judging: {
         description: gameConfig.debate.judging.description || '',
@@ -278,6 +292,16 @@ export class StateAdapter {
             allowStanceChange: false,
             requireEvidence: true
           }
+        },
+        judge: {
+          characterId: '',
+          name: '',
+          avatar: ''
+        },
+        judging: {
+          description: '',
+          dimensions: [],
+          totalScore: 100
         }
       },
       config: {

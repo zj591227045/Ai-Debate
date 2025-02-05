@@ -395,6 +395,32 @@ const GameConfigContent: React.FC = () => {
     });
   };
 
+  const handleJudgeConfigChange = (judging: Partial<DebateConfig['judging']>) => {
+    const updatedJudging = {
+      description: judging.description || debateConfig.judging.description,
+      dimensions: judging.dimensions || debateConfig.judging.dimensions,
+      totalScore: judging.totalScore || debateConfig.judging.totalScore,
+      selectedJudge: judging.selectedJudge
+    };
+    
+    // 如果选择了裁判，更新玩家列表
+    if (judging.selectedJudge) {
+      const judgePlayer = players.find(p => p.characterId === judging.selectedJudge?.id);
+      
+      // 如果找到对应的玩家，将其角色设置为裁判
+      if (judgePlayer) {
+        const updatedPlayers = players.map(p => 
+          p.id === judgePlayer.id 
+            ? { ...p, role: 'judge' as DebateRole }
+            : p
+        );
+        dispatch(updatePlayers(updatedPlayers));
+      }
+    }
+    
+    dispatch(updateDebateConfig({ judging: updatedJudging }));
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'roles':

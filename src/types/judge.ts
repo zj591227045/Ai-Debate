@@ -2,6 +2,7 @@ export interface Judge {
   id: string;
   name: string;
   description?: string;
+  avatar?: string;
 }
 
 export type DimensionType = 'logic' | 'humanness' | 'compliance';

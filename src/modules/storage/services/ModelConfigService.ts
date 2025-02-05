@@ -6,26 +6,60 @@ export class ModelConfigService extends BaseStorageService<ModelConfig> {
   protected storageKey = 'model_configs';
   protected schema = modelConfigSchema;
 
-  // 创建新记录时添加必要字段
-  async create(data: ModelConfig): Promise<void> {
-    const now = Date.now();
-    const completeData = {
-      ...data,
-      isEnabled: data.isEnabled ?? true,
-      createdAt: data.createdAt ?? now,
-      updatedAt: now,
-    };
-    await super.create(completeData);
+  async getById(modelId: string): Promise<ModelConfig | null> {
+    console.log('正在获取模型配置:', modelId);
+    try {
+      // 获取所有配置
+      const configs = await this.getAll();
+      // 查找匹配的配置
+      const config = configs.find(c => c.id === modelId);
+      
+      console.log('模型配置查找结果:', {
+        modelId,
+        found: !!config,
+        config
+      });
+      
+      return config || null;
+    } catch (error) {
+      console.error('获取模型配置失败:', error);
+      return null;
+    }
   }
 
-  // 更新记录时更新时间戳
-  async update(id: string, data: Partial<ModelConfig>): Promise<void> {
-    const now = Date.now();
-    const updateData = {
-      ...data,
-      updatedAt: now,
-    };
-    await super.update(id, updateData);
+  async save(config: ModelConfig): Promise<void> {
+    try {
+      // 获取现有配置
+      const configs = await this.getAll();
+      // 查找是否存在
+      const index = configs.findIndex(c => c.id === config.id);
+      
+      if (index >= 0) {
+        // 更新现有配置
+        configs[index] = {
+          ...config,
+          updatedAt: Date.now()
+        };
+      } else {
+        // 添加新配置
+        configs.push({
+          ...config,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+      }
+      
+      // 保存所有配置
+      await this.saveAll(configs);
+      console.log('保存模型配置成功:', {
+        modelId: config.id,
+        isUpdate: index >= 0,
+        configsCount: configs.length
+      });
+    } catch (error) {
+      console.error('保存模型配置失败:', error);
+      throw error;
+    }
   }
 
   // 获取默认配置
@@ -47,7 +81,16 @@ export class ModelConfigService extends BaseStorageService<ModelConfig> {
 
   // 启用/禁用配置
   async toggleConfig(id: string, isEnabled: boolean): Promise<void> {
-    await this.update(id, { isEnabled });
+    const configs = await this.getAll();
+    const index = configs.findIndex(c => c.id === id);
+    if (index >= 0) {
+      configs[index] = {
+        ...configs[index],
+        isEnabled,
+        updatedAt: Date.now()
+      };
+      await this.saveAll(configs);
+    }
   }
 
   // 根据供应商获取配置

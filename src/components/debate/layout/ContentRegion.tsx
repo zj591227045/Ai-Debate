@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from '@emotion/styled';
 import type { DebateRoomLayout, Speech, Score } from '../../../types/adapters';
+import { formatTimestamp } from '../../../utils/timestamp';
 
 type ContentComponents = DebateRoomLayout['regions']['content']['components'];
 type ContentStyle = DebateRoomLayout['regions']['content']['style'];
@@ -58,11 +59,6 @@ export const ContentRegion: React.FC<ContentRegionProps> = ({
   style
 }) => {
   const { speechHistory = [], currentSpeech, innerThoughts, judgeComments = [] } = components;
-
-  // 格式化时间戳
-  const formatTimestamp = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
 
   return (
     <ContentContainer style={style}>

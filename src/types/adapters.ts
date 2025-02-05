@@ -4,6 +4,24 @@ import type { RuleConfig } from './rules';
 import type { DebateConfig, Topic as LegacyTopic } from './debate';
 import type { CSSProperties } from 'react';
 
+// AI角色特征接口
+export interface AICharacteristics {
+  personality?: string;    // 性格特征
+  speakingStyle?: string; // 说话风格
+  background?: string;    // 专业背景
+  values?: string;        // 价值观
+  argumentationStyle?: string; // 论证风格
+}
+
+// 扩展现有的Player类型
+declare module './player' {
+  interface Player extends AICharacteristics {}
+}
+
+declare module './index' {
+  interface Player extends AICharacteristics {}
+}
+
 // 自定义样式类型
 export type StyleProperties = CSSProperties & Record<string, string | number>;
 
@@ -14,8 +32,16 @@ export interface UnifiedPlayer {
   role: 'affirmative' | 'negative' | 'free' | 'judge' | 'unassigned';
   isAI: boolean;
   characterId?: string;
+  modelId?: string;
   avatar?: string;
   status: 'ready' | 'speaking' | 'waiting' | 'finished';
+  
+  // AI角色特征
+  personality?: string;    // 性格特征
+  speakingStyle?: string; // 说话风格
+  background?: string;    // 专业背景
+  values?: string;        // 价值观
+  argumentationStyle?: string; // 论证风格
 }
 
 export interface UnifiedTopic {
@@ -64,8 +90,9 @@ export const configToUnifiedPlayer = (player: ConfigPlayer): UnifiedPlayer => ({
   role: unifiedRoleMap[player.role],
   isAI: player.isAI,
   characterId: player.characterId,
-  avatar: undefined, // 需要从其他地方获取
-  status: 'ready' // 默认状态
+  avatar: undefined,
+  status: 'ready',
+  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
 });
 
 // 统一玩家到配置玩家的转换
@@ -80,7 +107,8 @@ export const unifiedToConfigPlayer = (
         getSpecificRole(player.role, existingPlayers),
   isAI: player.isAI,
   characterId: player.characterId,
-  order: existingPlayers.length + 1
+  order: existingPlayers.length + 1,
+  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
 });
 
 // 房间玩家到统一玩家的转换
@@ -88,9 +116,10 @@ export const roomToUnifiedPlayer = (player: RoomPlayer): UnifiedPlayer => ({
   id: player.id,
   name: player.name,
   role: reverseRoleMap[player.role],
-  isAI: false, // 需要从其他地方获取
+  isAI: false,
   avatar: player.avatar,
-  status: player.isActive ? 'ready' : 'waiting'
+  status: player.isActive ? 'ready' : 'waiting',
+  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
 });
 
 // 旧主题到统一主题的转换
@@ -178,8 +207,9 @@ export interface Speech {
   id: string;
   playerId: string;
   content: string;
-  timestamp: number;
+  timestamp: string;  // 统一使用 ISO 字符串格式
   round: number;
+  type?: 'speech' | 'innerThought';
   references: string[];
   scores?: Score[];
 }
@@ -190,7 +220,7 @@ export interface Score {
   playerId: string;
   speechId: string;
   round: number;
-  timestamp: number;
+  timestamp: string;  // 修改为 string 类型
   dimensions: Record<string, number>;
   totalScore: number;
   comment: string;
@@ -252,4 +282,65 @@ export interface DebateRoomLayout {
     mode: 'light' | 'dark';
     colors: Record<string, string>;
   };
+}
+
+// 基础类型定义
+export type DebateStatus = 'preparing' | 'ongoing' | 'paused' | 'finished';
+
+// 统一发言类型
+export interface Speech {
+  id: string;
+  playerId: string;
+  content: string;
+  timestamp: string;
+  round: number;
+  type?: 'speech' | 'innerThought';
+  references: string[];
+  scores?: Score[];
+}
+
+// 统一评分类型
+export interface Score {
+  id: string;
+  judgeId: string;
+  playerId: string;
+  speechId: string;
+  round: number;
+  timestamp: string;  // 修改为 string 类型
+  dimensions: Record<string, number>;
+  totalScore: number;
+  comment: string;
+}
+
+// 统一事件类型
+export interface DebateEvent {
+  type: DebateEventType;
+  timestamp: string;  // 修改为 string 类型
+  data?: any;
+}
+
+export type DebateEventType = 
+  | 'debate_start' 
+  | 'debate_pause' 
+  | 'debate_resume' 
+  | 'debate_end'
+  | 'round_start'
+  | 'round_end'
+  | 'speech_start'
+  | 'speech_end';
+
+// 统一进度类型
+export interface DebateProgress {
+  currentRound: number;
+  totalRounds: number;
+  currentSpeaker?: string;
+  nextSpeaker?: string;
+  speakingOrder: string[];
+}
+
+// 统一历史记录类型
+export interface DebateHistory {
+  speeches: Speech[];
+  scores: Score[];
+  events: DebateEvent[];
 } 

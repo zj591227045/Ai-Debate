@@ -1,11 +1,12 @@
 import React from 'react';
 import styled from '@emotion/styled';
 import type { Player } from '../../types';
+import { formatTimestamp, convertNumberToTimestamp } from '../../utils/timestamp';
 
 interface SpeechBubbleProps {
   player: Player;
   content: string;
-  timestamp: Date;
+  timestamp: string | number;
   isInnerThought?: boolean;
 }
 
@@ -69,13 +70,6 @@ const BubbleContent = styled.div<{ isInnerThought?: boolean }>`
   white-space: pre-wrap;
 `;
 
-const formatTimestamp = (date: Date): string => {
-  return date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
 export const SpeechBubble: React.FC<SpeechBubbleProps> = ({
   player,
   content,
@@ -87,7 +81,9 @@ export const SpeechBubble: React.FC<SpeechBubbleProps> = ({
       <Header>
         <Avatar src={player.avatar} alt={player.name} />
         <PlayerName>{player.name}</PlayerName>
-        <Timestamp>{formatTimestamp(timestamp)}</Timestamp>
+        <Timestamp>
+          {formatTimestamp(typeof timestamp === 'number' ? convertNumberToTimestamp(timestamp) : timestamp)}
+        </Timestamp>
       </Header>
       <BubbleContent isInnerThought={isInnerThought}>
         {content}

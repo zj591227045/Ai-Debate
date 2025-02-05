@@ -14,7 +14,71 @@ export interface ApiConfig {
   timeout?: number;
   maxRetries?: number;
   secretKey?: string;
-  providerSpecific?: ProviderSpecificConfig;
+  providerSpecific?: {
+    openai?: {
+      organizationId: string;
+    };
+    ollama?: {
+      model?: string;
+      options?: {
+        temperature?: number;
+        top_p?: number;
+        top_k?: number;
+        repeat_penalty?: number;
+        seed?: number;
+        num_predict?: number;
+        stop?: string[];
+        num_ctx?: number;
+      };
+      useLocalEndpoint?: boolean;
+    };
+    aliyun?: {
+      accessKeyId: string;
+      accessKeySecret: string;
+      region: string;
+    };
+    baidu?: {
+      accessKey: string;
+      secretKey: string;
+    };
+    deepseek?: {
+      organizationId: string;
+      model?: string;
+    };
+    gemini?: {
+      safetySettings?: Array<{
+        category: SafetyCategory;
+        threshold: SafetyThreshold;
+      }>;
+    };
+    huggingface?: {
+      waitForModel?: boolean;
+      useCache?: boolean;
+      modelRevision?: string;
+    };
+    localai?: {
+      model: string;
+      options?: {
+        temperature?: number;
+        top_p?: number;
+        top_k?: number;
+        repeat_penalty?: number;
+        presence_penalty?: number;
+        frequency_penalty?: number;
+        seed?: number;
+        max_tokens?: number;
+        stop?: string[];
+      };
+    };
+    volcengine?: {
+      region: string;
+      projectId: string;
+    };
+    xunfei?: {
+      appId: string;
+      apiSecret: string;
+    };
+  };
 }
 
 // 模型配置接口

@@ -1,13 +1,17 @@
 import React, { useState, useRef } from 'react';
 import { useModel } from '../../context/ModelContext';
 import ModelForm from '../ModelForm';
-import { exportModelConfigs, importModelConfigs, testModelConfig, ValidationResult } from '../../utils/modelValidation';
+import { exportModelConfigs, importModelConfigs } from '../../utils/modelValidation';
+import { UnifiedLLMService } from '../../../llm/services/UnifiedLLMService';
+import { adaptModelConfig } from '../../../llm/utils/adapters';
+import { message } from 'antd';
 import './styles.css';
 
 interface TestStatus {
   [key: string]: {
     testing: boolean;
-    result?: ValidationResult;
+    success?: boolean;
+    error?: string;
   };
 }
 
@@ -106,32 +110,50 @@ export default function ModelList() {
     const model = state.models.find(m => m.id === id);
     if (!model) return;
 
+    console.group('=== 模型连接测试 ===');
+    console.log('测试模型配置:', model);
+
     setTestStatus(prev => ({
       ...prev,
       [id]: { testing: true }
     }));
 
     try {
-      const result = await testModelConfig(model);
+      console.log('创建 UnifiedLLMService 实例...');
+      const llmService = new UnifiedLLMService();
+      
+      console.log('适配模型配置...');
+      const adaptedConfig = adaptModelConfig(model);
+      console.log('适配后的配置:', adaptedConfig);
+      
+      console.log('获取并初始化供应商实例...');
+      const provider = await llmService.getInitializedProvider(adaptedConfig);
+      console.log('供应商实例初始化成功:', provider.getProviderName?.() || adaptedConfig.provider);
+      
+      console.log('验证供应商配置...');
+      await provider.validateConfig();
+      console.log('配置验证成功');
+      
       setTestStatus(prev => ({
         ...prev,
-        [id]: { testing: false, result }
+        [id]: { testing: false, success: true }
       }));
-
-      if (!result.isValid) {
-        alert(`测试失败：\n${result.errors.join('\n')}`);
-      } else {
-        alert('测试成功！');
-      }
+      message.success('连接测试成功！');
     } catch (error) {
+      console.error('测试失败:', error);
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+      console.error('错误详情:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      
       setTestStatus(prev => ({
         ...prev,
-        [id]: {
-          testing: false,
-          result: { isValid: false, errors: [(error as Error).message] }
-        }
+        [id]: { testing: false, success: false, error: errorMessage }
       }));
-      alert('测试失败：' + (error as Error).message);
+      message.error(`连接测试失败: ${errorMessage}`);
+    } finally {
+      console.groupEnd();
     }
   };
 
@@ -164,7 +186,7 @@ export default function ModelList() {
         <div className="model-form-modal">
           <div className="model-form-modal-content">
             <ModelForm
-              model={
+              initialValues={
                 editingModel
                   ? state.models.find((m) => m.id === editingModel)
                   : undefined
@@ -211,7 +233,7 @@ export default function ModelList() {
 
               <div className="model-config-actions">
                 <button
-                  className="btn-secondary"
+                  className={`btn-secondary ${status?.success ? 'success' : status?.error ? 'error' : ''}`}
                   onClick={() => handleTestModel(model.id)}
                   disabled={status?.testing}
                 >
@@ -230,6 +252,11 @@ export default function ModelList() {
                   删除
                 </button>
               </div>
+              {status?.error && (
+                <div className="error-message">
+                  {status.error}
+                </div>
+              )}
             </div>
           );
         })}

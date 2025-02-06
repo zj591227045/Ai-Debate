@@ -14,6 +14,7 @@ import { createAliyunProvider } from '../providers/aliyun';
 import { createBaiduProvider } from '../providers/baidu';
 import { createOllamaProvider } from '../providers/ollama/factory';
 import { createLocalAIProvider } from '../providers/localai/factory';
+import { createSiliconFlowProvider } from '../providers/siliconflow/factory';
 
 export class AIModelProviderFactory implements ModelProviderFactory {
   private readonly providers: Map<string, () => ModelProvider>;
@@ -34,6 +35,7 @@ export class AIModelProviderFactory implements ModelProviderFactory {
     this.providers.set('baidu', createBaiduProvider);
     this.providers.set('ollama', createOllamaProvider);
     this.providers.set('localai', createLocalAIProvider);
+    this.providers.set('siliconflow', createSiliconFlowProvider);
   }
 
   // 注册供应商

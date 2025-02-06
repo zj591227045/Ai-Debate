@@ -6,6 +6,7 @@
 - [接口定义](#接口定义)
 - [存储设计](#存储设计)
 - [实现细节](#实现细节)
+- [供应商集成规范](#供应商集成规范)
 
 ## 架构设计
 
@@ -468,12 +469,49 @@ import { NewProviderConfig } from '../../types/providers';
 import { LLMError, LLMErrorCode } from '../../types/error';
 
 export class NewProvider implements LLMProvider {
-  constructor(private config: NewProviderConfig) {
-    // 验证配置
-    this.validateConfig();
+  private initialized: boolean = false;
+
+  constructor(private config: NewProviderConfig) {}
+
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      // 1. 验证配置
+      await this.validateConfig();
+      
+      // 2. 初始化连接
+      await this.initializeConnection();
+      
+      // 3. 测试连接
+      await this.testConnection();
+      
+      this.initialized = true;
+    } catch (error) {
+      throw new LLMError(
+        '初始化失败',
+        LLMErrorCode.INITIALIZATION_FAILED,
+        'new_provider',
+        error as Error
+      );
+    }
+  }
+
+  private async initializeConnection(): Promise<void> {
+    // 实现供应商特定的连接初始化逻辑
+  }
+
+  private async testConnection(): Promise<void> {
+    // 实现连接测试逻辑
   }
 
   async generateCompletion(request: LLMRequest): Promise<LLMResponse> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
     try {
       // 1. 转换请求格式
       const apiRequest = this.transformRequest(request);
@@ -490,6 +528,9 @@ export class NewProvider implements LLMProvider {
   }
 
   async generateStream(request: LLMRequest): AsyncIterator<string> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
     // 实现流式输出
     // 如果不支持，可以不实现此方法
   }
@@ -850,3 +891,187 @@ export class NewProvider implements LLMProvider {
   }
 }
 ``` 
+
+## 开发进度记录
+
+### 当前开发状态
+- 开始时间: 2024-02-06
+- 当前阶段: 供应商适配器实现中
+- 最近更新: 2024-02-06
+- 完成度: 40%
+
+### 更新日志
+- 2024-02-06: 完成基础类型定义，包括LLMRequest、LLMResponse、供应商配置和错误处理类型
+- 2024-02-06: 完成中间层服务实现，包括UnifiedLLMService和ProviderManager
+- 2024-02-06: 完成基础适配器接口和抽象类，实现Ollama适配器
+- 2024-02-06: 实现Deepseek适配器
+- 2024-02-06: 实现火山引擎适配器
+
+### 1. 基础类型定义 [已完成]
+- [x] 创建 src/modules/llm/types/index.ts
+  - [x] 定义 LLMRequest 接口
+  - [x] 定义 LLMResponse 接口
+  - [x] 定义 LLMError 类型
+  - [x] 定义 LLMParameters 类型
+- [x] 创建 src/modules/llm/types/providers.ts
+  - [x] 定义各供应商配置接口
+  - [x] 定义供应商类型枚举
+  - [x] 定义供应商工厂接口
+
+### 2. 中间层服务实现 [已完成]
+- [x] 创建 src/modules/llm/services/UnifiedLLMService.ts
+  - [x] 实现统一的LLM服务类
+  - [x] 实现请求格式化方法
+  - [x] 实现响应格式化方法
+  - [x] 实现错误处理机制
+- [x] 创建 src/modules/llm/services/ProviderManager.ts
+  - [x] 实现供应商实例管理
+  - [x] 实现供应商配置验证
+  - [x] 实现供应商创建与缓存
+
+### 3. 供应商适配器实现 [进行中]
+- [x] 创建 src/modules/llm/adapters/base.ts
+  - [x] 定义基础适配器接口
+  - [x] 实现通用适配器方法
+- [ ] 创建各供应商适配器
+  - [x] Ollama适配器
+  - [x] Deepseek适配器
+  - [x] Volcengine适配器
+  - [ ] 其他供应商适配器
+
+### 4. 配置管理优化 [待开始]
+- [ ] 更新 ModelConfigService
+  - [ ] 增强配置验证逻辑
+  - [ ] 添加供应商特定配置支持
+  - [ ] 优化配置存储结构
+- [ ] 创建配置验证
+  - [ ] 实现供应商配置验证schema
+  - [ ] 实现配置迁移方法
+
+### 5. 错误处理与日志 [待开始]
+- [ ] 创建错误处理模块
+  - [ ] 定义错误类型
+  - [ ] 实现错误转换方法
+  - [ ] 实现错误处理工具
+- [ ] 创建日志模块
+  - [ ] 实现日志记录服务
+  - [ ] 添加性能监控
+  - [ ] 添加错误追踪
+
+### 6. 测试用例编写 [待开始]
+- [ ] 单元测试
+  - [ ] UnifiedLLMService测试
+  - [ ] 供应商适配器测试
+  - [ ] 配置验证测试
+- [ ] 集成测试
+  - [ ] 完整调用流程测试
+  - [ ] 错误处理测试
+  - [ ] 性能测试
+
+### 7. 应用集成 [待开始]
+- [ ] 更新辩论室服务
+  - [ ] 修改 AIDebateService
+  - [ ] 集成新的UnifiedLLMService
+  - [ ] 更新错误处理
+- [ ] 更新模型测试对话框
+  - [ ] 修改 ModelTestDialog
+  - [ ] 集成新的UnifiedLLMService
+  - [ ] 优化UI交互
+
+### 8. 文档编写 [待开始]
+- [ ] API文档
+  - [ ] 服务接口文档
+  - [ ] 配置说明文档
+  - [ ] 错误代码文档
+- [ ] 开发指南
+  - [ ] 新增供应商指南
+  - [ ] 配置管理指南
+  - [ ] 最佳实践指南
+
+### 9. 性能优化 [待开始]
+- [ ] 实现缓存机制
+  - [ ] 响应缓存
+  - [ ] 供应商实例缓存
+  - [ ] 配置缓存
+- [ ] 添加性能监控
+  - [ ] 请求耗时统计
+  - [ ] 资源使用监控
+  - [ ] 性能报告生成
+
+### 10. 迁移计划 [待开始]
+- [ ] 准备工作
+  - [ ] 创建新的分支
+  - [ ] 备份现有配置
+  - [ ] 准备回滚方案
+- [ ] 迁移步骤
+  - [ ] 逐步替换现有调用
+  - [ ] 验证功能正确性
+  - [ ] 性能对比测试
+
+## 供应商集成规范
+
+### 添加新供应商的步骤
+
+1. 类型定义
+   - 在 `src/modules/llm/types/providers.ts` 中的 `ProviderType` 枚举添加新供应商
+   - 定义供应商特定的配置接口（如有需要）
+
+2. 适配器实现
+   - 在 `src/modules/llm/adapters` 目录下创建新的适配器文件
+   - 实现 `BaseProviderAdapter` 的所有必需方法
+   - 确保正确实现 `ModelCapabilities` 接口
+
+3. 注册供应商
+   - 在 `src/modules/llm/services/initializeProviders.ts` 中注册新供应商
+   - 在 `src/modules/llm/adapters/index.ts` 中导出新适配器
+
+4. UI组件
+   - 在 `src/modules/model/components/providers` 目录下添加配置表单组件
+   - 在 `ProviderSelect` 组件中添加新供应商选项
+
+### 关键检查点
+
+1. 类型系统集成
+   ```typescript
+   // 1. 在 ProviderType 中添加
+   export enum ProviderType {
+     // ... 其他供应商
+     NEW_PROVIDER = 'new_provider'
+   }
+
+   // 2. 添加供应商特定配置（如需要）
+   export interface NewProviderConfig extends BaseProviderConfig {
+     // 特定配置项
+   }
+   ```
+
+2. 适配器实现要点
+   - 实现所有必需的接口方法
+   - 正确处理错误情况
+   - 实现合适的类型转换
+
+3. 注册流程
+   ```typescript
+   // 在 initializeProviders.ts 中
+   ProviderManager.getInstance().registerProvider(
+     ProviderType.NEW_PROVIDER,
+     new NewProviderAdapter()
+   );
+   ```
+
+### 常见问题处理
+
+1. 供应商类型不支持
+   - 确保在 `ProviderType` 枚举中添加了新供应商
+   - 确保在 `initializeProviders.ts` 中正确注册
+   - 检查拼写和大小写是否一致
+
+2. 类型错误
+   - 确保实现了所有必需的接口方法
+   - 检查返回类型是否符合接口定义
+   - 验证 `ModelCapabilities` 的实现是否正确
+
+3. 运行时错误
+   - 实现适当的错误处理
+   - 添加详细的日志记录
+   - 提供清晰的错误信息

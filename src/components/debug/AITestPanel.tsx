@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import styled from '@emotion/styled';
 import type { UnifiedPlayer, Speech } from '../../types/adapters';
-import { AIDebateService } from '../../modules/debate/services/AIDebateService';
-import { Character } from '../../modules/debate/types/character';
-import { DebateState } from '../../modules/debate/types/debate';
+import { useModelTest } from '../../modules/llm/hooks/useModelTest';
+import { adaptModelConfig } from '../../modules/llm/utils/adapters';
+import { useModel } from '../../modules/model/context/ModelContext';
 import { convertToISOString } from '../../utils/timestamp';
 
 const Container = styled.div`
@@ -80,7 +80,7 @@ interface AITestPanelProps {
     totalRounds: number;
     previousSpeeches: Speech[];
   };
-  onGenerateSuccess?: (type: 'thoughts' | 'speech', content: string) => void;
+  onGenerateSuccess?: (content: string) => void;
   onError?: (error: Error) => void;
 }
 
@@ -90,110 +90,103 @@ export const AITestPanel: React.FC<AITestPanelProps> = ({
   onGenerateSuccess,
   onError
 }) => {
-  // 状态管理
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [currentTask, setCurrentTask] = useState<'thoughts' | 'speech' | null>(null);
   const [output, setOutput] = useState<string>('');
-  const [error, setError] = useState<Error | null>(null);
+  const { state: modelState } = useModel();
 
-  // 创建AI服务实例
-  const aiService = new AIDebateService();
+  // 获取模型配置
+  const modelConfig = modelState.models.find(m => m.id === player.modelId);
+  if (!modelConfig) {
+    return (
+      <Container>
+        <Status type="error">
+          未找到模型配置 (ID: {player.modelId})
+        </Status>
+      </Container>
+    );
+  }
 
-  // 转换 UnifiedPlayer 到 Character
-  const convertToCharacter = (player: UnifiedPlayer): Character => {
-    console.log('转换角色配置:', {
-      characterId: player.characterId,
-      modelId: player.modelId,
-      name: player.name
-    });
-    
-    return {
-      id: player.characterId || '', // 使用characterId作为AI角色的ID
-      name: player.name,
-      isAI: player.isAI,
-      role: 'debater',  // 在测试面板中默认为辩手
-      config: {
-        modelId: player.modelId || '6787386d-12d1-4db9-90c3-973576c23a84' // 使用默认的模型ID
-      },
-      personality: player.personality,
-      speakingStyle: player.speakingStyle,
-      background: player.background,
-      values: player.values ? [player.values] : undefined,
-      argumentationStyle: player.argumentationStyle ? [player.argumentationStyle] : undefined
-    };
-  };
-
-  // 转换上下文到 DebateState
-  const convertToDebateState = (context: AITestPanelProps['context']): DebateState => ({
-    topic: {
-      title: context.topic.title,
-      background: context.topic.background
+  // 使用测试Hook
+  const {
+    loading: isGenerating,
+    error,
+    testStream
+  } = useModelTest({
+    modelConfig: adaptModelConfig(modelConfig),
+    context: {
+      topic: context.topic,
+      currentRound: context.currentRound,
+      totalRounds: context.totalRounds,
+      previousSpeeches: context.previousSpeeches.map(speech => ({
+        ...speech,
+        timestamp: typeof speech.timestamp === 'number' 
+          ? convertToISOString(speech.timestamp)
+          : speech.timestamp
+      }))
     },
-    currentRound: context.currentRound,
-    totalRounds: context.totalRounds,
-    speeches: context.previousSpeeches.map(speech => ({
-      ...speech,
-      timestamp: typeof speech.timestamp === 'number' 
-        ? convertToISOString(speech.timestamp)
-        : speech.timestamp
-    })),
-    status: 'ongoing',
-    players: [],
-    scores: [],
-    innerThoughts: {}
+    onStreamOutput: (chunk: string) => {
+      setOutput(prev => prev + chunk);
+    },
+    onError
   });
 
   // 生成内心OS
   const generateThoughts = useCallback(async () => {
-    setIsGenerating(true);
-    setCurrentTask('thoughts');
-    setError(null);
+    setOutput('');
     
+    const prompt = `
+你现在扮演一个辩论选手，需要针对当前的辩论主题和场景，生成内心的思考过程。
+
+角色信息：
+姓名：${player.name}
+背景：${player.background || '未指定'}
+性格：${player.personality || '未指定'}
+说话风格：${player.speakingStyle || '未指定'}
+价值观：${player.values || '未指定'}
+论证风格：${player.argumentationStyle || '未指定'}
+
+请基于以上信息，结合当前辩论主题和进展，生成一段内心独白，展现你的思考过程。
+`.trim();
+
     try {
-      const character = convertToCharacter(player);
-      const debateState = convertToDebateState(context);
-      const thoughts = await aiService.generateInnerThoughts(character, debateState);
-      
-      setOutput(thoughts);
-      onGenerateSuccess?.('thoughts', thoughts);
+      await testStream('', prompt);
+      if (output) {
+        onGenerateSuccess?.(output);
+      }
     } catch (err) {
-      const error = err as Error;
-      setError(error);
-      onError?.(error);
-    } finally {
-      setIsGenerating(false);
-      setCurrentTask(null);
+      console.error('生成内心OS失败:', err);
     }
-  }, [player, context, aiService, onGenerateSuccess, onError]);
+  }, [player, testStream, output, onGenerateSuccess]);
 
   // 生成发言
   const generateSpeech = useCallback(async () => {
-    setIsGenerating(true);
-    setCurrentTask('speech');
-    setError(null);
+    if (!output) return;
     
-    try {
-      const character = convertToCharacter(player);
-      const debateState = convertToDebateState(context);
-      const speech = await aiService.generateSpeech(character, debateState, output);
-      
-      setOutput(speech);
-      onGenerateSuccess?.('speech', speech);
-    } catch (err) {
-      const error = err as Error;
-      setError(error);
-      onError?.(error);
-    } finally {
-      setIsGenerating(false);
-      setCurrentTask(null);
-    }
-  }, [player, context, output, aiService, onGenerateSuccess, onError]);
+    const prompt = `
+你现在扮演一个辩论选手，需要基于之前的思考，生成一段正式的辩论发言。
 
-  // 取消生成 - 由于 AIDebateService 不支持取消，我们只更新UI状态
-  const cancelGeneration = useCallback(() => {
-    setIsGenerating(false);
-    setCurrentTask(null);
-  }, []);
+角色信息：
+姓名：${player.name}
+背景：${player.background || '未指定'}
+性格：${player.personality || '未指定'}
+说话风格：${player.speakingStyle || '未指定'}
+价值观：${player.values || '未指定'}
+论证风格：${player.argumentationStyle || '未指定'}
+
+你之前的思考过程是：
+${output}
+
+请基于以上信息，生成一段正式的辩论发言。
+`.trim();
+
+    try {
+      await testStream('', prompt);
+      if (output) {
+        onGenerateSuccess?.(output);
+      }
+    } catch (err) {
+      console.error('生成发言失败:', err);
+    }
+  }, [player, output, testStream, onGenerateSuccess]);
 
   return (
     <Container>
@@ -214,19 +207,11 @@ export const AITestPanel: React.FC<AITestPanelProps> = ({
           >
             生成发言
           </Button>
-          {isGenerating && (
-            <Button
-              variant="danger"
-              onClick={cancelGeneration}
-            >
-              取消生成
-            </Button>
-          )}
         </div>
 
         {isGenerating && (
           <Status type="info">
-            正在生成{currentTask === 'thoughts' ? '内心OS' : '发言'}...
+            正在生成...
           </Status>
         )}
 

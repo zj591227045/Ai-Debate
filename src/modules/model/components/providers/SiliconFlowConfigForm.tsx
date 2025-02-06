@@ -3,7 +3,7 @@ import { PartialModelConfig, ModelParameters } from '../../types';
 import { BalanceChecker } from '../common/BalanceChecker';
 import '../common/styles.css';
 
-interface DeepseekConfigFormProps {
+interface SiliconFlowConfigFormProps {
   formData: PartialModelConfig;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
@@ -15,7 +15,7 @@ interface DeepseekConfigFormProps {
   onTest?: () => void;
 }
 
-export function DeepseekConfigForm({
+export function SiliconFlowConfigForm({
   formData,
   onBaseUrlChange,
   onApiKeyChange,
@@ -25,7 +25,9 @@ export function DeepseekConfigForm({
   isLoadingModels,
   onRefreshModels,
   onTest,
-}: DeepseekConfigFormProps) {
+}: SiliconFlowConfigFormProps) {
+  const baseUrl = formData.auth?.baseUrl || 'https://api.siliconflow.cn';
+
   return (
     <>
       <div className="form-group">
@@ -35,13 +37,14 @@ export function DeepseekConfigForm({
           id="baseUrl"
           value={formData.auth?.baseUrl || ''}
           onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder="请输入服务地址"
+          placeholder="请输入服务地址（默认：https://api.siliconflow.cn）"
+          className="api-key-input"
         />
       </div>
 
       <div className="form-group">
         <label htmlFor="apiKey">API 密钥</label>
-        <div className="api-key-group">
+        <div className="api-key-input-group">
           <input
             type="password"
             id="apiKey"
@@ -49,9 +52,10 @@ export function DeepseekConfigForm({
             onChange={(e) => onApiKeyChange(e.target.value)}
             placeholder="请输入 API 密钥"
             required
+            className="api-key-input"
           />
           <BalanceChecker
-            provider="deepseek"
+            provider="siliconflow"
             apiKey={formData.auth?.apiKey || ''}
             baseUrl={formData.auth?.baseUrl}
           />
@@ -66,6 +70,8 @@ export function DeepseekConfigForm({
             value={formData.model || ''}
             onChange={(e) => onModelChange(e.target.value)}
             required
+            className="model-select"
+            disabled={isLoadingModels}
           >
             <option value="">请选择模型</option>
             {isLoadingModels ? (
@@ -78,14 +84,16 @@ export function DeepseekConfigForm({
               ))
             )}
           </select>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onRefreshModels}
-            disabled={isLoadingModels}
-          >
-            {isLoadingModels ? '刷新中...' : '刷新'}
-          </button>
+          {onRefreshModels && (
+            <button
+              type="button"
+              onClick={onRefreshModels}
+              disabled={isLoadingModels}
+              className="refresh-button"
+            >
+              {isLoadingModels ? '加载中...' : '刷新'}
+            </button>
+          )}
           {onTest && (
             <button
               type="button"
@@ -109,6 +117,7 @@ export function DeepseekConfigForm({
           step="0.1"
           value={formData.parameters?.temperature || 0.7}
           onChange={onParameterChange('temperature')}
+          className="parameter-input"
         />
       </div>
 
@@ -122,6 +131,7 @@ export function DeepseekConfigForm({
           step="0.1"
           value={formData.parameters?.topP || 0.9}
           onChange={onParameterChange('topP')}
+          className="parameter-input"
         />
       </div>
 
@@ -131,8 +141,10 @@ export function DeepseekConfigForm({
           type="number"
           id="maxTokens"
           min="1"
+          max="4096"
           value={formData.parameters?.maxTokens || 2000}
           onChange={onParameterChange('maxTokens')}
+          className="parameter-input"
         />
       </div>
     </>

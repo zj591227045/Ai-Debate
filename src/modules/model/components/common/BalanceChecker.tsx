@@ -8,26 +8,64 @@ interface BalanceInfo {
   topped_up_balance?: string;
 }
 
-interface BalanceResponse {
+interface DeepseekBalanceResponse {
   is_available: boolean;
   balance_infos: BalanceInfo[];
 }
 
+interface SiliconFlowUserData {
+  id: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+  balance: string;
+  status: string;
+  introduction: string;
+  role: string;
+  chargeBalance: string;
+  totalBalance: string;
+  category: string;
+}
+
+interface SiliconFlowBalanceResponse {
+  code: number;
+  message: string;
+  status: boolean;
+  data: SiliconFlowUserData;
+}
+
 interface BalanceCheckerProps {
   apiKey: string;
-  endpoint: string;
   provider: string;
+  baseUrl?: string;
   customHeaders?: Record<string, string>;
 }
 
-export function BalanceChecker({ apiKey, endpoint, provider, customHeaders = {} }: BalanceCheckerProps) {
+export function BalanceChecker({ apiKey, provider, baseUrl, customHeaders = {} }: BalanceCheckerProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [balance, setBalance] = useState<BalanceInfo | null>(null);
 
+  const getEndpoint = () => {
+    switch (provider) {
+      case 'deepseek':
+        return `${baseUrl || 'https://api.deepseek.com'}/v1/user/balance`;
+      case 'siliconflow':
+        return `${baseUrl || 'https://api.siliconflow.cn'}/v1/user/info`;
+      default:
+        return '';
+    }
+  };
+
   const checkBalance = async () => {
     if (!apiKey) {
       setError('请先输入 API 密钥');
+      return;
+    }
+
+    const endpoint = getEndpoint();
+    if (!endpoint) {
+      setError('不支持的供应商');
       return;
     }
 
@@ -42,6 +80,12 @@ export function BalanceChecker({ apiKey, endpoint, provider, customHeaders = {} 
         ...customHeaders
       };
 
+      console.log('正在请求余额信息:', {
+        endpoint,
+        provider,
+        headers: { ...headers, Authorization: '(hidden)' }
+      });
+
       const response = await fetch(endpoint, {
         method: 'GET',
         headers
@@ -51,14 +95,36 @@ export function BalanceChecker({ apiKey, endpoint, provider, customHeaders = {} 
         throw new Error(`查询失败: ${response.statusText}`);
       }
 
-      const data: BalanceResponse = await response.json();
+      const data = await response.json();
+      console.log('API 响应数据:', data);
       
-      if (!data.is_available) {
-        throw new Error('账户不可用');
-      }
+      if (provider === 'siliconflow') {
+        const siliconFlowData = data as SiliconFlowBalanceResponse;
+        console.log('SiliconFlow 数据:', siliconFlowData);
+        
+        if (siliconFlowData.code !== 20000 || !siliconFlowData.status) {
+          throw new Error(siliconFlowData.message || '查询失败');
+        }
 
-      setBalance(data.balance_infos[0]);
+        if (siliconFlowData.data.status !== 'normal') {
+          throw new Error('账户状态异常');
+        }
+
+        setBalance({
+          currency: 'CNY', // SiliconFlow 默认使用人民币
+          total_balance: siliconFlowData.data.totalBalance,
+          granted_balance: siliconFlowData.data.balance,
+          topped_up_balance: siliconFlowData.data.chargeBalance
+        });
+      } else if (provider === 'deepseek') {
+        const deepseekData = data as DeepseekBalanceResponse;
+        if (!deepseekData.is_available) {
+          throw new Error('账户不可用');
+        }
+        setBalance(deepseekData.balance_infos[0]);
+      }
     } catch (err) {
+      console.error('查询余额失败:', err);
       setError(err instanceof Error ? err.message : '查询失败');
     } finally {
       setIsLoading(false);

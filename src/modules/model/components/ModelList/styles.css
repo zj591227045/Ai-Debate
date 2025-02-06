@@ -173,6 +173,34 @@
   background-color: #fff1f0;
 }
 
+.btn-secondary.success {
+  color: #52c41a;
+  border-color: #52c41a;
+}
+
+.btn-secondary.success:hover {
+  background-color: #f6ffed;
+}
+
+.btn-secondary.error {
+  color: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+.btn-secondary.error:hover {
+  background-color: #fff1f0;
+}
+
+.error-message {
+  margin-top: 8px;
+  padding: 8px;
+  color: #ff4d4f;
+  background-color: #fff1f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .model-list-container {

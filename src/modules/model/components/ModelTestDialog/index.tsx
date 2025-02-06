@@ -1,38 +1,69 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ModelConfig } from '../../types';
-import { providerFactory } from '../../services/providerFactory';
+import { useModelTest } from '../../../llm/hooks/useModelTest';
+import { adaptModelConfig } from '../../../llm/utils/adapters';
 import '../ModelTestDialog/styles.css';
 
 interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   reasoning_content?: string;
+  timestamp?: number;
 }
 
 interface ModelTestDialogProps {
   model: ModelConfig;
   onClose: () => void;
+  systemPrompt?: string;
+  placeholder?: string;
+  maxInputLength?: number;
+  showReasoning?: boolean;
+  showTimestamp?: boolean;
 }
 
-export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps) {
+export default function ModelTestDialog({ 
+  model, 
+  onClose,
+  systemPrompt = '你是一个有帮助的AI助手。',
+  placeholder = '输入消息...',
+  maxInputLength = 2000,
+  showReasoning = false,
+  showTimestamp = true
+}: ModelTestDialogProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [currentResponse, setCurrentResponse] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    console.log('接收到的模型配置:', {
-      provider: model.provider,
-      model: model.model,
-      parameters: model.parameters,
-      auth: {
-        ...model.auth,
-        apiKey: '***'
-      }
-    });
-  }, [model]);
+  // 适配模型配置
+  const adaptedConfig = adaptModelConfig(model);
+
+  // 添加调试信息
+  console.group('=== LLM Service Debug Info ===');
+  console.log('Original Model Config:', model);
+  console.log('Adapted Model Config:', adaptedConfig);
+  console.groupEnd();
+
+  // 使用测试Hook
+  const {
+    loading: isLoading,
+    error,
+    testStream
+  } = useModelTest({
+    modelConfig: adaptedConfig,
+    onStreamOutput: (chunk: string, isReasoning?: boolean) => {
+      console.log('LLM Service Stream Chunk:', chunk, isReasoning ? '(reasoning)' : '');
+      setCurrentResponse(prev => ({
+        role: 'assistant',
+        content: isReasoning ? prev?.content || '' : (prev ? prev.content + chunk : chunk),
+        reasoning_content: isReasoning ? (prev?.reasoning_content || '') + chunk : prev?.reasoning_content,
+        timestamp: Date.now()
+      }));
+    },
+    onError: (error: Error) => {
+      console.error('LLM Service Error:', error);
+    }
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,105 +75,49 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
-    const message = input.trim();
+    const userMessage = input.trim();
+    console.group('=== LLM Service Request ===');
+    console.log('Input Message:', userMessage);
+    console.log('Current Messages:', messages);
+    console.groupEnd();
+
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: message }]);
-    setIsLoading(true);
-    setError(null);
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage,
+      timestamp: Date.now()
+    }]);
     setCurrentResponse(null);
 
     try {
-      const providerSpecific: any = {};
-      
-      if (model.provider === 'ollama') {
-        providerSpecific.ollama = {
-          baseUrl: model.auth.baseUrl || 'http://localhost:11434',
-          model: model.model,
-        };
-      } else if (model.provider === 'deepseek') {
-        providerSpecific.deepseek = {
-          model: model.model,
-          options: {
-            temperature: model.parameters.temperature,
-            top_p: model.parameters.topP,
-            max_tokens: model.parameters.maxTokens,
-          }
-        };
-        console.log('Deepseek 配置:', {
-          provider: model.provider,
-          model: model.model,
-          providerSpecific
-        });
-      } else {
-        providerSpecific[model.provider] = {
-          ...model.providerSpecific?.[model.provider],
-          model: model.model,
-        };
-      }
+      // 构建系统提示词
+      const prompt = messages.length === 0 ? systemPrompt : messages
+        .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
+        .join('\n');
 
-      console.log('创建 provider 前的配置:', {
-        provider: model.provider,
-        endpoint: model.auth.baseUrl,
-        providerSpecific
-      });
-
-      const provider = await providerFactory.createProvider(model.provider, {
-        endpoint: model.auth.baseUrl || '',
-        apiKey: model.auth.apiKey || '',
-        organizationId: model.auth.organizationId || '',
-        providerSpecific
-      });
-
-      // 使用流式输出
-      const stream = provider.generateCompletionStream(
-        [...messages, { role: 'user', content: message }],
-        model.parameters
-      );
-
-      let responseContent = '';
-      let reasoningContent = '';
-
-      for await (const chunk of stream) {
-        // 如果是 deepseek-reasoner 模型，处理思考过程
-        if (model.provider === 'deepseek' && model.model === 'deepseek-reasoner') {
-          if ((chunk as any).delta?.content) {
-            responseContent += (chunk as any).delta.content;
-          }
-          if ((chunk as any).delta?.reasoning_content) {
-            reasoningContent += (chunk as any).delta.reasoning_content;
-          }
-        } else {
-          if (chunk.content) {
-            responseContent += chunk.content;
-          }
-        }
-
-        if (responseContent || reasoningContent) {
-          setCurrentResponse({
-            role: 'assistant',
-            content: responseContent,
-            ...(reasoningContent && { reasoning_content: reasoningContent })
-          });
-        }
-      }
+      console.log('LLM Service System Prompt:', prompt);
+      await testStream(userMessage, prompt);
 
       // 流式输出完成后，添加到消息列表
-      if (responseContent) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: responseContent,
-          ...(reasoningContent && { reasoning_content: reasoningContent })
-        }]);
+      if (currentResponse) {
+        console.log('LLM Service Complete Response:', currentResponse);
+        setMessages(prev => [...prev, currentResponse]);
       }
-    } catch (error) {
-      console.error('生成回复失败:', error);
-      setError((error as Error).message);
-    } finally {
-      setIsLoading(false);
-      setCurrentResponse(null);
+    } catch (err) {
+      console.error('LLM Service Error:', err);
     }
+  };
+
+  const formatTimestamp = (timestamp?: number) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('zh-CN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      second: '2-digit'
+    });
   };
 
   const renderMessage = (message: Message, index: number) => (
@@ -158,6 +133,11 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
           </div>
         )}
         {message.content}
+        {showTimestamp && message.timestamp && (
+          <div className="message-timestamp">
+            {formatTimestamp(message.timestamp)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -165,18 +145,32 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
   return (
     <div className="model-test-dialog">
       <div className="dialog-header">
-        <h2>测试对话 - {model.name}</h2>
-        <button className="close-button" onClick={onClose}>×</button>
+        <h2>测试对话 - {model.name || model.model}</h2>
+        <div className="dialog-header-info">
+          <span className="model-info">
+            {model.provider} / {model.model}
+          </span>
+          <button className="close-button" onClick={onClose}>×</button>
+        </div>
       </div>
 
       <div className="messages-container">
+        {messages.length === 0 && (
+          <div className="message system">
+            <div className="message-content">
+              <div className="system-prompt">
+                系统提示词：{systemPrompt}
+              </div>
+            </div>
+          </div>
+        )}
         {messages.map((message, index) => renderMessage(message, index))}
         {currentResponse && renderMessage(currentResponse, messages.length)}
         {error && (
           <div className="message system error">
             <div className="message-content">
               <span className="error-icon">⚠️</span>
-              {error}
+              {error.message}
             </div>
           </div>
         )}
@@ -188,7 +182,8 @@ export default function ModelTestDialog({ model, onClose }: ModelTestDialogProps
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="输入消息..."
+          placeholder={placeholder}
+          maxLength={maxInputLength}
           disabled={isLoading}
         />
         <button type="submit" disabled={isLoading || !input.trim()}>

@@ -22,6 +22,7 @@ export type AIModelConfig = {
 
 export type ProviderOptions = {
   model: string;
+  baseUrl?: string;
   options?: {
     temperature?: number;
     top_p?: number;

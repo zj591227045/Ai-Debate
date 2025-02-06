@@ -9,23 +9,73 @@ export class StateAdapter {
     gameConfig: GameConfigState,
     characterState: CharacterState
   ): UnifiedState {
-    console.log('========== StateAdapter.toUnified 开始 ==========');
-    console.log('输入状态:', {
-      gameConfig: {
-        topic: gameConfig.topic,
-        rules: gameConfig.rules,
-        playersCount: gameConfig.players.length,
-        hasDebateConfig: !!gameConfig.debate,
-        hasRuleConfig: !!gameConfig.ruleConfig,
-        players: gameConfig.players
-      },
-      characterState: {
-        charactersCount: characterState.characters.length,
-        hasTemplates: !!characterState.templates,
-        activeMode: characterState.activeMode,
-        characters: characterState.characters
-      }
+    console.group('=== StateAdapter.toUnified ===');
+    console.log('输入配置:', {
+      gameConfig,
+      characterState
     });
+
+    // 处理裁判配置
+    console.group('处理裁判配置');
+    const processedJudge = {
+      characterId: gameConfig.debate?.judging?.selectedJudge?.id || 'default_3',
+      name: gameConfig.debate?.judging?.selectedJudge?.name || '罗辑',
+      avatar: gameConfig.debate?.judging?.selectedJudge?.avatar || '',
+      modelConfig: gameConfig.debate?.judging?.selectedJudge?.modelConfig
+    };
+    console.log('处理后的裁判信息:', processedJudge);
+    console.groupEnd();
+
+    // 处理评分维度
+    console.group('处理评分维度');
+    const processedDimensions = (gameConfig.debate?.judging?.dimensions || []).map(dim => {
+      console.log('处理维度:', {
+        id: dim.id,
+        name: dim.name,
+        weight: dim.weight,
+        description: dim.description
+      });
+      
+      const processed = {
+        id: dim.id || crypto.randomUUID(),
+        name: dim.name || '',
+        weight: Number(dim.weight) || 0,  // 确保权重是数字
+        description: dim.description || '',
+        criteria: dim.criteria || []
+      };
+      
+      console.log('处理后的维度:', processed);
+      return processed;
+    });
+    
+    // 计算总分
+    const totalWeight = processedDimensions.reduce((sum, dim) => sum + (dim.weight || 0), 0);
+    console.log('维度总权重:', totalWeight);
+    
+    // 如果总权重不等于100，按比例调整
+    if (totalWeight !== 0 && totalWeight !== 100) {
+      console.log('调整维度权重以达到100分');
+      processedDimensions.forEach(dim => {
+        dim.weight = Math.round((dim.weight / totalWeight) * 100);
+      });
+    }
+    
+    console.log('最终处理后的评分维度:', processedDimensions);
+    console.groupEnd();
+
+    // 处理评分配置
+    console.group('处理评分配置');
+    const processedJudging = {
+      description: gameConfig.debate?.judging?.description || '正常评分',
+      dimensions: processedDimensions,
+      totalScore: 100,  // 固定总分为100
+      scoreRange: {
+        min: 0,
+        max: 100
+      }
+    };
+    console.log('处理后的评分配置:', processedJudging);
+    console.groupEnd();
 
     // 转换角色状态
     const characters = {
@@ -91,16 +141,7 @@ export class StateAdapter {
       },
       players: {
         byId: gameConfig.players.reduce((acc, player) => {
-          // 获取玩家的角色状态
           const status = 'waiting';
-          
-          console.log('设置玩家角色:', {
-            playerId: player.id,
-            characterId: player.characterId,
-            role: player.role,
-            status
-          });
-          
           return {
             ...acc,
             [player.id]: {
@@ -137,18 +178,23 @@ export class StateAdapter {
           requireEvidence: gameConfig.debate.rules.advancedRules.requireEvidence
         }
       },
-      // 添加裁判配置
-      judge: {
-        characterId: gameConfig.debate.judging.selectedJudge?.id || '',
-        name: gameConfig.debate.judging.selectedJudge?.name,
-        avatar: gameConfig.debate.judging.selectedJudge?.avatar
-      },
-      judging: {
-        description: gameConfig.debate.judging.description || '',
-        dimensions: gameConfig.debate.judging.dimensions || [],
-        totalScore: gameConfig.debate.judging.totalScore || 100
-      }
+      judge: processedJudge,
+      judging: processedJudging
     };
+
+    console.log('转换后的辩论状态:', {
+      hasJudge: !!debate.judge,
+      judgeConfig: {
+        characterId: debate.judge.characterId,
+        name: debate.judge.name,
+        avatar: debate.judge.avatar
+      },
+      judgingConfig: {
+        description: debate.judging.description,
+        dimensionsCount: debate.judging.dimensions.length,
+        totalScore: debate.judging.totalScore
+      }
+    });
 
     // 转换配置状态
     const config = {
@@ -174,7 +220,7 @@ export class StateAdapter {
       rules: unifiedState.debate.rules
     });
 
-    console.log('========== StateAdapter.toUnified 完成 ==========');
+    console.groupEnd();
     return unifiedState;
   }
 
@@ -183,9 +229,31 @@ export class StateAdapter {
     gameConfig: Partial<GameConfigState>;
     characterState: Partial<CharacterState>;
   } {
-    console.log('========== StateAdapter.fromUnified 开始 ==========');
+    console.group('=== StateAdapter.fromUnified ===');
+    console.log('输入状态:', state);
 
-    // 转换回游戏配置
+    // 处理裁判配置
+    console.group('处理裁判配置');
+    const processedJudging = {
+      description: state.debate.judging.description || '正常评分',
+      dimensions: state.debate.judging.dimensions.map(dim => ({
+        id: dim.id,
+        name: dim.name || '',
+        weight: dim.weight || 1,
+        description: dim.description || '',
+        criteria: dim.criteria || []
+      })),
+      totalScore: state.debate.judging.totalScore || 100,
+      selectedJudge: state.debate.judge ? {
+        id: state.debate.judge.characterId,
+        name: state.debate.judge.name || '未命名裁判',
+        avatar: state.debate.judge.avatar || '',
+        modelConfig: state.debate.judge.modelConfig
+      } : undefined
+    };
+    console.log('处理后的裁判配置:', processedJudging);
+    console.groupEnd();
+
     const gameConfig: Partial<GameConfigState> = {
       topic: {
         title: state.debate.topic.title,
@@ -196,7 +264,41 @@ export class StateAdapter {
         debateFormat: state.debate.rules.format
       },
       players: Object.values(state.debate.players.byId),
-      isConfiguring: state.debate.currentState.status === 'preparing'
+      isConfiguring: state.debate.currentState.status === 'preparing',
+      debate: {
+        topic: state.debate.topic,
+        rules: {
+          debateFormat: state.debate.rules.format,
+          description: '',
+          basicRules: {
+            speechLengthLimit: {
+              min: state.debate.rules.basicRules?.speechLengthLimit?.min || 100,
+              max: state.debate.rules.basicRules?.speechLengthLimit?.max || 1000
+            },
+            allowEmptySpeech: state.debate.rules.basicRules?.allowEmptySpeech ?? false,
+            allowRepeatSpeech: state.debate.rules.basicRules?.allowRepeatSpeech ?? false
+          },
+          advancedRules: {
+            allowQuoting: state.debate.rules.advancedRules?.allowQuoting ?? true,
+            requireResponse: state.debate.rules.advancedRules?.requireResponse ?? true,
+            allowStanceChange: state.debate.rules.advancedRules?.allowStanceChange ?? false,
+            requireEvidence: state.debate.rules.advancedRules?.requireEvidence ?? true
+          }
+        },
+        judging: processedJudging
+      },
+      ruleConfig: {
+        format: state.debate.rules.format,
+        description: '',
+        advancedRules: {
+          maxLength: state.debate.rules.basicRules?.speechLengthLimit?.max || 1000,
+          minLength: state.debate.rules.basicRules?.speechLengthLimit?.min || 100,
+          allowQuoting: state.debate.rules.advancedRules?.allowQuoting ?? true,
+          requireResponse: state.debate.rules.advancedRules?.requireResponse ?? true,
+          allowStanceChange: state.debate.rules.advancedRules?.allowStanceChange ?? false,
+          requireEvidence: state.debate.rules.advancedRules?.requireEvidence ?? true
+        }
+      }
     };
 
     // 转换回角色状态
@@ -206,6 +308,17 @@ export class StateAdapter {
       difyConfig: state.config.settings.dify,
       directConfig: state.config.settings.direct
     };
+
+    console.log('最终游戏配置:', {
+      hasDebateConfig: !!gameConfig.debate,
+      hasJudgingConfig: !!gameConfig.debate?.judging,
+      judgingConfig: gameConfig.debate?.judging ? {
+        hasSelectedJudge: !!gameConfig.debate.judging.selectedJudge,
+        description: gameConfig.debate.judging.description,
+        dimensionsCount: gameConfig.debate.judging.dimensions.length,
+        totalScore: gameConfig.debate.judging.totalScore
+      } : null
+    });
 
     console.log('转换回的原始状态:', {
       gameConfig: {
@@ -218,7 +331,8 @@ export class StateAdapter {
       }
     });
 
-    console.log('========== StateAdapter.fromUnified 完成 ==========');
+    console.groupEnd();
+
     return { gameConfig, characterState };
   }
 
@@ -296,12 +410,17 @@ export class StateAdapter {
         judge: {
           characterId: '',
           name: '',
-          avatar: ''
+          avatar: '',
+          modelConfig: undefined
         },
         judging: {
           description: '',
           dimensions: [],
-          totalScore: 100
+          totalScore: 100,
+          scoreRange: {
+            min: 0,
+            max: 100
+          }
         }
       },
       config: {

@@ -269,7 +269,7 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
       // 使用 UnifiedLLMService 测试连接
       const provider = await llmService.getInitializedProvider(completeModel);
       await provider.validateConfig();
-      setShowTestDialog(true);
+        setShowTestDialog(true);
     } catch (error) {
       alert(`连接测试失败：${(error as Error).message}`);
     } finally {
@@ -289,21 +289,21 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     }
 
     const completeModel = adaptModelConfig({
-      id: formData.id || uuidv4(),
+            id: formData.id || uuidv4(),
       name: formData.name || '未命名配置',
-      provider: formData.provider,
-      model: formData.model,
-      parameters: {
-        temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
-        topP: formData.parameters?.topP ?? defaultParameters.topP,
-        maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-      },
-      auth: {
-        apiKey: formData.auth?.apiKey || '',
-        organizationId: formData.auth?.organizationId || '',
-        baseUrl: formData.auth?.baseUrl || '',
-      },
-      isEnabled: true,
+            provider: formData.provider,
+            model: formData.model,
+            parameters: {
+              temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
+              topP: formData.parameters?.topP ?? defaultParameters.topP,
+              maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
+            },
+            auth: {
+              apiKey: formData.auth?.apiKey || '',
+              organizationId: formData.auth?.organizationId || '',
+              baseUrl: formData.auth?.baseUrl || '',
+            },
+            isEnabled: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -502,22 +502,24 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
 
         {renderProviderConfig()}
 
-        <div className="form-actions">
-          <Form.Item>
+        <div className="form-actions" style={{ display: 'flex', alignItems: 'center' }}>
+          <Form.Item style={{ flex: 'none', margin: 0 }}>
             <Button type="primary" htmlType="submit">
               保存
             </Button>
-            {onCancel && (
-              <Button type="default" onClick={onCancel} style={{ marginLeft: 8 }}>
-                取消
-              </Button>
-            )}
           </Form.Item>
+          {onCancel && (
+            <Form.Item style={{ flex: 'none', margin: 0, marginLeft: 8 }}>
+              <Button type="default" onClick={onCancel}>
+              取消
+              </Button>
+            </Form.Item>
+          )}
         </div>
       </Form>
 
       {showChatTestDialog && (
-        <ModelTestDialog
+            <ModelTestDialog
           model={adaptModelConfig({
             ...formData,
             id: formData.id || uuidv4(),

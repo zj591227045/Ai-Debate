@@ -21,12 +21,14 @@ import type { CharacterState } from '../modules/character/context/CharacterConte
 //import type { CharacterError } from '../modules/character/types/error';
 import { defaultTemplates, templateToCharacter } from '../modules/character/types/template';
 import { StateDebugger } from '../components/debug/StateDebugger';
-import { getStateManager } from '../store/unified';
+import { getStateManager, clearStateManager, updateStateManager } from '../store/unified';
 import type { UnifiedState } from '../store/unified/types';
 import { StateAdapter } from '../store/unified/adapters';
 import { AITestPanel } from '../components/debug/AITestPanel';
 import type { UnifiedPlayer, Speech } from '../types/adapters';
 import { createTimestamp } from '../utils/timestamp';
+import { DebugPanel } from '../components/debug/DebugPanel';
+import { AIPlayerList } from '../components/debug/AIPlayerList';
 
 // 主容器
 const Container = styled.div`
@@ -556,51 +558,52 @@ export const DebateRoom: React.FC = () => {
   // 添加环境变量检查
   const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === undefined;
 
+  // 添加调试相关状态
+  const [showDebugger, setShowDebugger] = useState(false);
+
+  // 监听游戏配置和角色状态变化
   useEffect(() => {
     if (!gameConfig || !characterState) {
       navigate('/');
       return;
     }
 
-    const manager = getStateManager(gameConfig, characterState);
+    console.log('游戏配置或角色状态发生变化:', {
+      gameConfig,
+      characterState
+    });
+
+    // 更新统一状态
+    updateStateManager(gameConfig, characterState);
+    
+    // 获取状态管理器实例
+    const manager = getStateManager();
     if (manager) {
       setStateManager(manager);
       const state = manager.getState();
       setUnifiedState(state);
       
-      // 找到第一个AI玩家并设置为当前发言者
-      const aiPlayers = Object.values(state.debate.players.byId).filter(p => p.isAI);
-      console.log('初始化时可用的AI玩家:', aiPlayers);
-      
-      if (aiPlayers.length > 0) {
-        const aiPlayer = aiPlayers[0];
-        console.log('选择初始AI发言者:', aiPlayer);
-        
-        // 更新状态管理器中的当前发言者
-        manager.dispatch({
-          type: 'DEBATE_STATE_UPDATED',
-          payload: {
-            ...state.debate.currentState,
-            currentSpeaker: aiPlayer.id
-          }
-        });
-        
-        // 直接更新currentSpeaker状态
-        setCurrentSpeaker({
-          ...aiPlayer,
-          role: aiPlayer.role as UnifiedPlayer['role']
-        });
-      }
-      
-      setIsLoading(false);
-      return manager.subscribe(newState => {
+      // 订阅状态更新
+      const unsubscribe = manager.subscribe(newState => {
+        console.log('状态更新:', newState);
         setUnifiedState(newState);
       });
+
+      return () => {
+        unsubscribe();
+      };
     } else {
-      console.error('状态管理器初始化失败');
+      console.error('状态管理器获取失败');
       navigate('/');
     }
   }, [gameConfig, characterState, navigate]);
+
+  // 组件卸载时清理状态管理器
+  useEffect(() => {
+    return () => {
+      clearStateManager();
+    };
+  }, []);
 
   useEffect(() => {
     if (unifiedState?.debate.currentState.currentSpeaker) {
@@ -690,32 +693,36 @@ export const DebateRoom: React.FC = () => {
     return null;
   };
 
-  // AI生成回调
-  const handleSpeechGenerated = useCallback((content: string) => {
-    if (currentSpeaker) {
-      console.log('生成发言:', content);
-      // TODO: 添加到发言历史
-      setHistory(prev => ({
-        ...prev,
-        speeches: [
-          ...prev.speeches,
-          {
-            id: `speech_${Date.now()}`,
-            playerId: currentSpeaker?.id || '',
-            content,
-            timestamp: createTimestamp(),
-            round: progress.currentRound,
-            references: []
-          }
-        ]
-      }));
-    }
-  }, [currentSpeaker, progress.currentRound]);
+  // 获取当前辩论状态
+  const { currentState, topic, players } = unifiedState?.debate || {
+    currentState: { round: 1, status: 'preparing' },
+    topic: { title: '', description: '' },
+    players: { byId: {} }
+  };
 
-  // AI错误处理
+  // 处理 AI 发言生成成功
+  const handleSpeechGenerated = useCallback((content: string) => {
+    if (!currentSpeaker) return;
+
+    const speech: Speech = {
+      id: crypto.randomUUID(),
+      playerId: currentSpeaker.id,
+      content,
+      timestamp: createTimestamp(),
+      round: currentState.round,
+      references: []
+    };
+
+    dispatch({
+      type: 'ADD_SPEECH',
+      payload: speech
+    });
+  }, [currentSpeaker, currentState?.round, dispatch]);
+
+  // 处理 AI 错误
   const handleAIError = useCallback((error: Error) => {
-    console.error('AI生成错误:', error);
-    // TODO: 显示错误提示
+    console.error('AI 发言生成失败:', error);
+    // TODO: 添加错误提示
   }, []);
 
   // 添加调试信息
@@ -737,8 +744,6 @@ export const DebateRoom: React.FC = () => {
     return <div>状态初始化失败，请返回重试</div>;
   }
 
-  // 获取当前辩论状态
-  const { currentState, topic, players } = unifiedState.debate;
   const isDebating = currentState.status === 'ongoing';
 
   return (
@@ -1050,98 +1055,62 @@ export const DebateRoom: React.FC = () => {
 
       <StateDebugger />
 
-      {/* 添加调试面板 */}
-      {isDevelopment && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 20, 
-          right: 20, 
-          zIndex: 1000,
-          background: 'white',
-          padding: '20px',
-          borderRadius: '8px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          maxWidth: '400px',
-          maxHeight: '80vh',
-          overflow: 'auto'
-        }}>
-          <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>调试信息</div>
-          <div style={{ marginBottom: '10px' }}>
-            <div>环境：{process.env.NODE_ENV || '未设置'}</div>
-            <div>当前发言者：{currentSpeaker?.name || '未设置'}</div>
-            <div>是否AI：{currentSpeaker?.isAI ? '是' : '否'}</div>
-            <div>角色：{currentSpeaker?.role || '未设置'}</div>
-          </div>
-          <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>AI玩家列表</div>
-          <div>
-            {unifiedState && Object.values(unifiedState.debate.players.byId)
-              .filter(p => p.isAI)
-              .map(player => (
-                <div key={player.id} style={{ 
-                  padding: '8px', 
-                  margin: '4px 0', 
-                  background: player.id === currentSpeaker?.id ? '#e6f7ff' : '#f5f5f5',
-                  borderRadius: '4px'
-                }}>
-                  <div>名称：{player.name}</div>
-                  <div>角色：{player.role}</div>
-                  <div>状态：{player.status}</div>
-                  {player.characterId && (
-                    <div>角色ID：{player.characterId}</div>
-                  )}
-                  <button 
-                    onClick={() => {
-                      if (stateManager) {
-                        stateManager.dispatch({
-                          type: 'DEBATE_STATE_UPDATED',
-                          payload: {
-                            ...unifiedState.debate.currentState,
-                            currentSpeaker: player.id
-                          }
-                        });
-                        setCurrentSpeaker({
-                          ...player,
-                          role: player.role as UnifiedPlayer['role']
-                        });
-                      }
-                    }}
-                    style={{
-                      marginTop: '8px',
-                      padding: '4px 8px',
-                      background: '#1890ff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    设为当前发言者
-                  </button>
-                </div>
-              ))
-            }
-          </div>
-        </div>
+      {/* 调试面板 */}
+      {isDevelopment && showDebugger && (
+        <DebugPanel title="辩论室调试面板">
+          <div>玩家数量: {Object.keys(players.byId).length}</div>
+          <div>当前状态: {currentState.status}</div>
+          <div>当前发言者：{currentSpeaker?.name}</div>
+          <div>是否AI：{currentSpeaker?.isAI ? '是' : '否'}</div>
+          
+          {/* AI玩家列表 */}
+          <AIPlayerList
+            players={Object.values(players.byId).filter(p => p.isAI)}
+            currentSpeakerId={currentSpeaker?.id}
+            onSelectPlayer={(player) => {
+              setCurrentSpeaker(player);
+              if (stateManager) {
+                stateManager.dispatch({
+                  type: 'DEBATE_STATE_UPDATED',
+                  payload: {
+                    ...currentState,
+                    currentSpeaker: player.id
+                  }
+                });
+              }
+            }}
+            disabled={currentState.status !== 'ongoing'}
+          />
+
+          {/* AI测试面板 */}
+          {currentSpeaker?.isAI && (
+            <AITestPanel
+              player={currentSpeaker}
+              context={{
+                topic: {
+                  title: topic.title,
+                  background: topic.description
+                },
+                currentRound: currentState.round,
+                totalRounds: debate.rules.totalRounds,
+                previousSpeeches: history.speeches
+              }}
+              onGenerateSuccess={handleSpeechGenerated}
+              onError={handleAIError}
+            />
+          )}
+
+          {/* 状态调试器 */}
+          <StateDebugger />
+        </DebugPanel>
       )}
 
-      {/* 仅在调试模式下显示AI测试面板 */}
-      {isDevelopment && currentSpeaker?.isAI && (
-        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 1000 }}>
-          <AITestPanel
-            player={currentSpeaker}
-            context={{
-              topic: {
-                title: unifiedState?.debate.topic.title || '',
-                background: unifiedState?.debate.topic.description || ''
-              },
-              currentRound: unifiedState?.debate.currentState.round || 1,
-              totalRounds: unifiedState?.debate.rules.totalRounds || 4,
-              previousSpeeches: history.speeches
-            }}
-            onGenerateSuccess={handleSpeechGenerated}
-            onError={handleAIError}
-          />
-        </div>
+      {/* 调试开关 */}
+      {isDevelopment && (
+        <ToolButton onClick={() => setShowDebugger(!showDebugger)}>
+          {showDebugger ? <BulbFilled /> : <BulbOutlined />}
+          {showDebugger ? '关闭调试' : '开启调试'}
+        </ToolButton>
       )}
     </Container>
   );

@@ -83,16 +83,22 @@ export interface UnifiedDebateState {
     characterId: string;
     name?: string;
     avatar?: string;
+    modelConfig?: any;
   };
   judging: {
     description: string;
     dimensions: Array<{
+      id: string;
       name: string;
       weight: number;
       description: string;
       criteria: string[];
     }>;
     totalScore: number;
+    scoreRange: {
+      min: number;
+      max: number;
+    };
   };
 }
 

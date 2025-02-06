@@ -101,13 +101,20 @@ export interface DebateConfig {
   judging: {
     description: string;          
     dimensions: Array<{
+      id: string;
       name: string;              
       weight: number;            
       description: string;       
       criteria: string[];        
     }>;
     totalScore: number;          
-    selectedJudge?: Judge;
+    selectedJudge?: Judge & {
+      modelConfig?: any;
+    };
+    scoreRange?: {
+      min: number;
+      max: number;
+    };
   };
   // 参与者配置
   participants?: {

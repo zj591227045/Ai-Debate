@@ -1,0 +1,104 @@
+.debate-player {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+}
+
+.player-info {
+  margin-bottom: 1rem;
+}
+
+.player-info h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.player-model {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.player-thinking {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.thinking-icon {
+  margin-right: 0.5rem;
+}
+
+.thinking-content {
+  white-space: pre-wrap;
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.player-speech {
+  background: #e3f2fd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.speech-content {
+  white-space: pre-wrap;
+  color: #333;
+  line-height: 1.6;
+}
+
+.speech-timestamp {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+  text-align: right;
+}
+
+.player-error {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  color: #ff4d4f;
+  padding: 0.8rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.player-controls {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.generate-button {
+  padding: 0.5rem 1rem;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.generate-button:hover:not(:disabled) {
+  background: #40a9ff;
+}
+
+.generate-button:disabled {
+  background: #d9d9d9;
+  cursor: not-allowed;
+} 

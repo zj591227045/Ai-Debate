@@ -84,10 +84,39 @@ const FormItem = styled.div`
 `;
 
 const DimensionItem = styled.div`
+  margin-bottom: 16px;
+  background: white;
+  border-radius: 6px;
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+`;
+
+const DimensionHeader = styled.div`
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 8px;
+
+  .dimension-name {
+    flex: 1;
+  }
+
+  .dimension-weight {
+    width: 120px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .weight-label {
+      color: rgba(0, 0, 0, 0.45);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+  }
+`;
+
+const DimensionDescription = styled.div`
+  width: 100%;
 `;
 
 const BonusItem = styled.div`
@@ -244,16 +273,71 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   };
 
   const handleJudgeConfigChange = (judging: Partial<DebateConfig['judging']>) => {
+    console.group('=== 裁判配置更新 ===');
+    console.log('当前配置:', debateConfig.judging);
+    console.log('更新内容:', judging);
+    
+    // 保持现有维度的权重和描述
+    const updatedDimensions = judging.dimensions || debateConfig.judging.dimensions.map(dim => ({
+      ...dim,
+      weight: Number(dim.weight) || 0,  // 确保权重是数字
+      description: dim.description || ''
+    }));
+
     const updatedJudging = {
       description: judging.description || debateConfig.judging.description,
-      dimensions: judging.dimensions || debateConfig.judging.dimensions,
+      dimensions: updatedDimensions,
       totalScore: judging.totalScore || debateConfig.judging.totalScore,
-      selectedJudge: judging.selectedJudge
+      selectedJudge: judging.selectedJudge || debateConfig.judging.selectedJudge
     };
     
+    console.log('更新后的配置:', updatedJudging);
+    console.groupEnd();
+    
+    // 更新本地状态
     onDebateConfigChange({
       judging: updatedJudging
     });
+
+    // 同时更新 Redux store
+    dispatch(updateDebateConfig({
+      ...debateConfig,
+      judging: updatedJudging
+    }));
+  };
+
+  // 计算总分
+  const calculateTotalScore = (dimensions: DebateConfig['judging']['dimensions']) => {
+    return dimensions.reduce((total, dim) => total + (Number(dim.weight) || 0), 0);
+  };
+
+  const handleDimensionWeightChange = (index: number, weight: number) => {
+    console.group('=== 评分维度权重更新 ===');
+    console.log('维度索引:', index);
+    console.log('新权重:', weight);
+    console.log('当前维度:', debateConfig.judging.dimensions[index]);
+
+    const updatedDimensions = [...debateConfig.judging.dimensions];
+    updatedDimensions[index] = {
+      ...updatedDimensions[index],
+      weight: Number(weight)
+    };
+
+    const totalScore = calculateTotalScore(updatedDimensions);
+    console.log('更新后的总分:', totalScore);
+    console.log('更新后的维度:', updatedDimensions);
+
+    const updatedJudging = {
+      ...debateConfig.judging,
+      dimensions: updatedDimensions,
+      totalScore
+    };
+
+    console.log('更新后的裁判配置:', updatedJudging);
+    console.groupEnd();
+
+    // 更新本地状态和 Redux store
+    handleJudgeConfigChange(updatedJudging);
   };
 
   const handleTopicChange = (topic: Partial<DebateConfig['topic']>) => {
@@ -446,8 +530,28 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           <CardHeader>
             <CardTitle>裁判配置</CardTitle>
             <ButtonGroup>
-              <StyledButton>重置</StyledButton>
-              <StyledButton type="primary">保存</StyledButton>
+              <StyledButton onClick={() => {
+                console.log('重置裁判配置:', {
+                  current: debateConfig.judging,
+                  default: {
+                    description: '',
+                    dimensions: [],
+                    totalScore: 100,
+                    selectedJudge: undefined
+                  }
+                });
+                handleJudgeConfigChange({
+                  description: '',
+                  dimensions: [],
+                  totalScore: 100,
+                  selectedJudge: undefined
+                });
+              }}>重置</StyledButton>
+              <StyledButton type="primary" onClick={() => {
+                console.log('保存裁判配置:', debateConfig.judging);
+                // 这里可以添加保存前的验证逻辑
+                handleJudgeConfigChange(debateConfig.judging);
+              }}>保存</StyledButton>
             </ButtonGroup>
           </CardHeader>
 
@@ -458,6 +562,10 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               placeholder="选择裁判"
               value={debateConfig.judging.selectedJudge?.id}
               onChange={(value: string) => {
+                console.log('选择裁判:', {
+                  selectedId: value,
+                  availableCharacters: characterState.characters
+                });
                 const selectedJudge = characterState.characters.find(
                   (c: CharacterConfig) => c.id === value
                 );
@@ -465,7 +573,8 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                   handleJudgeConfigChange({
                     selectedJudge: {
                       id: selectedJudge.id,
-                      name: selectedJudge.name
+                      name: selectedJudge.name,
+                      avatar: selectedJudge.avatar
                     }
                   });
                 }
@@ -510,72 +619,88 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             >
               评分维度配置（高级）
             </ExpandButton>
-            <ScoreText>总分：{getTotalScore()} 分</ScoreText>
+            <ScoreText>总分：{calculateTotalScore(debateConfig.judging.dimensions)} 分</ScoreText>
           </ScoreHeader>
 
           <DimensionSection $visible={showDimensions}>
             <ScoreConfigContent>
-              <ScoreDimensions>
-                <DimensionItem>
-                  <span>逻辑性：</span>
-                  <InputNumber
-                    min={0}
-                    max={100}
-                    value={judgeConfig.dimensionScores.logic}
-                    onChange={(value) => {
-                      handleDimensionChange('logic', value || 0);
-                      const dimensions = [...(debateConfig.judging.dimensions || [])];
-                      const logicIndex = dimensions.findIndex(d => d.name === '逻辑性');
-                      if (logicIndex >= 0) {
-                        dimensions[logicIndex] = { ...dimensions[logicIndex], weight: value || 0 };
-                      } else {
-                        dimensions.push({
-                          name: '逻辑性',
-                          weight: value || 0,
-                          description: '论证的逻辑严密程度',
-                          criteria: ['论点清晰', '论证充分', '结构完整']
+              {debateConfig.judging.dimensions.map((dimension, index) => (
+                <DimensionItem key={dimension.id || index}>
+                  <DimensionHeader>
+                    <div className="dimension-name">
+                      <Input
+                        value={dimension.name}
+                        onChange={e => {
+                          const updatedDimensions = [...debateConfig.judging.dimensions];
+                          updatedDimensions[index] = {
+                            ...dimension,
+                            name: e.target.value
+                          };
+                          handleJudgeConfigChange({
+                            ...debateConfig.judging,
+                            dimensions: updatedDimensions
+                          });
+                        }}
+                        placeholder="维度名称"
+                      />
+                    </div>
+                    <div className="dimension-weight">
+                      <span className="weight-label">权重:</span>
+                      <InputNumber
+                        value={dimension.weight}
+                        onChange={value => handleDimensionWeightChange(index, Number(value))}
+                        min={0}
+                        max={100}
+                        formatter={value => `${value}分`}
+                        parser={value => Number(value?.replace('分', '') || 0)}
+                      />
+                    </div>
+                  </DimensionHeader>
+                  <DimensionDescription>
+                    <Input
+                      value={dimension.description}
+                      onChange={e => {
+                        const updatedDimensions = [...debateConfig.judging.dimensions];
+                        updatedDimensions[index] = {
+                          ...dimension,
+                          description: e.target.value
+                        };
+                        handleJudgeConfigChange({
+                          ...debateConfig.judging,
+                          dimensions: updatedDimensions
                         });
-                      }
-                      handleJudgeConfigChange({
-                        ...debateConfig.judging,
-                        dimensions
-                      });
-                    }}
-                  />
+                      }}
+                      placeholder="请输入评分说明"
+                    />
+                  </DimensionDescription>
                 </DimensionItem>
-                <DimensionItem>
-                  <span>拟人程度：</span>
-                  <InputNumber
-                    min={0}
-                    max={100}
-                    value={judgeConfig.dimensionScores.humanness}
-                    onChange={(value) => handleDimensionChange('humanness', value || 0)}
-                  />
-                </DimensionItem>
-                <DimensionItem>
-                  <span>规则遵守：</span>
-                  <InputNumber
-                    min={0}
-                    max={100}
-                    value={judgeConfig.dimensionScores.compliance}
-                    onChange={(value) => handleDimensionChange('compliance', value || 0)}
-                  />
-                </DimensionItem>
-              </ScoreDimensions>
-
-              {judgeConfig.customScoreRules.map(rule => (
-                <CustomScoreItem key={rule.id}>
-                  <span>{rule.name}：</span>
-                  <span>{rule.score}分</span>
-                  <Button 
-                    type="text" 
-                    danger 
-                    onClick={() => removeCustomScoreRule(rule.id)}
-                  >
-                    删除
-                  </Button>
-                </CustomScoreItem>
               ))}
+              <Button 
+                type="dashed" 
+                onClick={() => {
+                  const newDimension = {
+                    id: crypto.randomUUID(),
+                    name: '',
+                    weight: 0,
+                    description: '',
+                    criteria: []
+                  };
+                  const updatedDimensions = [...debateConfig.judging.dimensions, newDimension];
+                  const totalScore = calculateTotalScore(updatedDimensions);
+                  
+                  const updatedJudging = {
+                    ...debateConfig.judging,
+                    dimensions: updatedDimensions,
+                    totalScore
+                  };
+
+                  // 更新本地状态和 Redux store
+                  handleJudgeConfigChange(updatedJudging);
+                }}
+                style={{ width: '100%', marginTop: '8px' }}
+              >
+                添加评分维度
+              </Button>
             </ScoreConfigContent>
           </DimensionSection>
         </Card>

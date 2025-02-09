@@ -3,6 +3,8 @@
  */
 
 import { BaseProviderConfig } from './index';
+import { Message } from './common';
+import { ApiConfig, ModelConfig } from './config';
 
 /**
  * Ollama供应商配置
@@ -54,14 +56,16 @@ export interface SiliconFlowConfig extends BaseProviderConfig {
 }
 
 /**
- * 供应商类型枚举
+ * 供应商常量定义
  */
-export enum ProviderType {
-  OLLAMA = 'ollama',
-  DEEPSEEK = 'deepseek',
-  VOLCENGINE = 'volcengine',
-  SILICONFLOW = 'siliconflow'
-}
+export const PROVIDERS = {
+  OLLAMA: 'ollama',
+  DEEPSEEK: 'deepseek',
+  SILICONFLOW: 'siliconflow',
+  VOLCENGINE: 'volcengine'
+} as const;
+
+export type ProviderType = typeof PROVIDERS[keyof typeof PROVIDERS];
 
 /**
  * 供应商工厂接口
@@ -78,4 +82,19 @@ export type ProviderSpecificConfig =
   | OllamaConfig
   | DeepseekConfig
   | VolcengineConfig
-  | SiliconFlowConfig; 
+  | SiliconFlowConfig;
+
+export interface ModelProvider {
+  initialize(): Promise<void>;
+  validateConfig(): Promise<void>;
+  listModels(): Promise<string[]>;
+  chat(messages: Message[], config?: Partial<ModelConfig>): Promise<Message>;
+  streamChat(messages: Message[], config?: Partial<ModelConfig>): AsyncGenerator<Message>;
+  getCapabilities(): Promise<{
+    streaming: boolean;
+    functionCalling: boolean;
+    maxContextTokens: number;
+    maxResponseTokens: number;
+    multipleCompletions: boolean;
+  }>;
+} 

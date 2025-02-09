@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Form, Select, Input, Checkbox, Space, Card, Button } from 'antd';
 import { UserOutlined, BulbOutlined, BookOutlined, HeartOutlined, ExperimentOutlined, PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import styled from '@emotion/styled';
-import { CharacterConfig } from '../../types';
+import { CharacterConfig, OPTIONS } from '../../types';
 import {
   personalityOptions,
   speakingStyleOptions,
@@ -240,6 +240,10 @@ interface PersonaConfigProps {
   onChange: (data: Partial<CharacterConfig>) => void;
 }
 
+const personalityOpts = [...OPTIONS.personality];
+const valueOpts = [...OPTIONS.values];
+const argumentationStyleOpts = [...OPTIONS.argumentationStyle];
+
 export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
   const handlePersonaChange = (field: keyof CharacterConfig['persona'], value: any) => {
     const updatedPersona = {
@@ -259,11 +263,11 @@ export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
   };
 
   return (
-    <div>
+    <div className="persona-config">
       <MultiSelectSection
         title="性格特征（可多选）"
         icon={<UserOutlined />}
-        options={personalityOptions}
+        options={personalityOpts}
         value={data.persona?.personality || []}
         onChange={value => handlePersonaChange('personality', value)}
         customPlaceholder="输入自定义性格特征"
@@ -298,7 +302,7 @@ export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
       <MultiSelectSection
         title="价值观（可多选）"
         icon={<HeartOutlined />}
-        options={valueOptions}
+        options={valueOpts}
         value={data.persona?.values || []}
         onChange={value => handlePersonaChange('values', value)}
         customPlaceholder="输入自定义价值观"
@@ -307,7 +311,7 @@ export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
       <MultiSelectSection
         title="论证风格（可多选）"
         icon={<ExperimentOutlined />}
-        options={argumentationStyleOptions}
+        options={argumentationStyleOpts}
         value={data.persona?.argumentationStyle || []}
         onChange={value => handlePersonaChange('argumentationStyle', value)}
         customPlaceholder="输入自定义论证风格"

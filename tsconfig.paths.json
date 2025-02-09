@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "paths": {
+      "@/*": ["*"],
+      "@debate/*": ["modules/debate/*"],
+      "@gameConfig/*": ["modules/gameConfig/*"],
+      "@character/*": ["modules/character/*"],
+      "@shared/*": ["shared/*"],
+      "@core/*": ["core/*"],
+      "@llm/*": ["modules/llm/*"],
+      "@store/*": ["store/*"],
+      "@model/*": ["modules/model/*"],
+      "@components/*": ["components/*"],
+      "@hooks/*": ["hooks/*"],
+      "@utils/*": ["utils/*"],
+      "@types/*": ["types/*"],
+      "@contexts/*": ["contexts/*"],
+      "@styles/*": ["styles/*"]
+    }
+  }
+} 

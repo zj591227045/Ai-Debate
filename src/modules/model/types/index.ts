@@ -1,3 +1,6 @@
+import { PROVIDERS } from '../../llm/types/providers';
+import type { ProviderType } from '../../llm/types/providers';
+
 // 模型配置
 export interface ModelConfig {
   id: string;
@@ -18,10 +21,13 @@ export interface ModelConfig {
 export interface ProviderConfig {
   id: string;
   name: string;
-  type: 'openai' | 'anthropic' | 'volcengine' | 'deepseek' | 'xunfei' | 'aliyun' | 'baidu' | 'ollama' | 'localai';
+  type: ProviderType;
   apiKey?: string;
   baseUrl?: string;
   models: string[];
+  defaultBaseUrl?: string;
+  requiresOrganization?: boolean;
+  isEnabled: boolean;
 }
 
 // 模型参数范围
@@ -36,59 +42,29 @@ export interface ModelParameterRange {
 // 预设的供应商配置
 export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   {
-    id: 'openai',
-    name: 'OpenAI',
-    type: 'openai',
-    models: ['gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'],
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    type: 'anthropic',
-    models: ['claude-3-opus', 'claude-3-sonnet', 'claude-2.1'],
-  },
-  {
-    id: 'volcengine',
-    name: '火山引擎',
-    type: 'volcengine',
-    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
-  },
-  {
-    id: 'deepseek',
-    name: 'Deepseek',
-    type: 'deepseek',
-    models: ['deepseek-chat', 'deepseek-coder'],
-  },
-  {
-    id: 'xunfei',
-    name: '讯飞星火',
-    type: 'xunfei',
-    models: ['spark-v3', 'spark-v2', 'spark-v1.5'],
-  },
-  {
-    id: 'aliyun',
-    name: '通义千问',
-    type: 'aliyun',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max'],
-  },
-  {
-    id: 'baidu',
-    name: '文心一言',
-    type: 'baidu',
-    models: ['ernie-4.0', 'ernie-3.5-turbo', 'ernie-3.5'],
-  },
-  {
-    id: 'ollama',
+    id: PROVIDERS.OLLAMA,
     name: 'Ollama',
-    type: 'ollama',
-    models: ['llama2', 'mistral', 'mixtral'],
+    type: PROVIDERS.OLLAMA,
+    models: ['llama2', 'codellama', 'mistral'],
+    defaultBaseUrl: 'http://localhost:11434',
+    isEnabled: true
   },
   {
-    id: 'localai',
-    name: 'LocalAI',
-    type: 'localai',
-    models: ['llama2', 'mistral', 'mixtral'],
+    id: PROVIDERS.DEEPSEEK,
+    name: 'DeepSeek',
+    type: PROVIDERS.DEEPSEEK,
+    models: ['deepseek-chat'],
+    defaultBaseUrl: 'https://api.deepseek.com',
+    isEnabled: true
   },
+  {
+    id: PROVIDERS.SILICONFLOW,
+    name: 'SiliconFlow',
+    type: PROVIDERS.SILICONFLOW,
+    models: ['silicon-chat'],
+    defaultBaseUrl: 'https://api.siliconflow.cn',
+    isEnabled: true
+  }
 ];
 
 // 默认参数范围

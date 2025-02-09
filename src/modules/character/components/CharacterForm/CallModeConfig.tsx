@@ -3,11 +3,20 @@ import { Form, Radio, Input, Select, Space } from 'antd';
 import { CharacterConfig } from '../../types';
 import { useModel } from '../../../model/context/ModelContext';
 import './styles.css';
+import { PROVIDERS } from '../../../llm/types/providers';
 
 interface CallModeConfigProps {
   data: Partial<CharacterConfig>;
   onChange: (data: Partial<CharacterConfig>) => void;
 }
+
+const defaultDirectConfig = {
+  direct: { 
+    provider: PROVIDERS.OLLAMA, 
+    modelId: '', 
+    model: '' 
+  }
+};
 
 export default function CallModeConfig({ data, onChange }: CallModeConfigProps) {
   const { state } = useModel();

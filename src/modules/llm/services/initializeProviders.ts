@@ -1,36 +1,23 @@
-import { ProviderManager } from './ProviderManager';
-import { ProviderType } from '../types/providers';
-import { OllamaAdapter } from '../adapters/ollama';
-import { DeepseekAdapter } from '../adapters/deepseek';
-import { VolcengineAdapter } from '../adapters/volcengine';
-import { SiliconFlowAdapter } from '../adapters/siliconflow';
+import { moduleStore } from './store';
+import { ProviderFactory } from './provider/factory';
+import type { ModelConfig } from '../types/config';
 
-export function initializeProviders() {
-  console.log('=== 初始化 LLM 服务提供者 ===');
+export async function initializeProviders(configs: ModelConfig[] = []): Promise<void> {
+  const providers = new Map();
   
-  // 注册 Ollama 提供者
-  ProviderManager.getInstance().registerProvider(
-    ProviderType.OLLAMA,
-    new OllamaAdapter()
-  );
-  
-  // 注册 Deepseek 提供者
-  ProviderManager.getInstance().registerProvider(
-    ProviderType.DEEPSEEK,
-    new DeepseekAdapter()
-  );
-  
-  // 注册 Volcengine 提供者
-  ProviderManager.getInstance().registerProvider(
-    ProviderType.VOLCENGINE,
-    new VolcengineAdapter()
-  );
+  for (const config of configs) {
+    try {
+      const provider = ProviderFactory.createProvider(config);
+      await provider.initialize();
+      providers.set(config.model, provider);
+    } catch (error) {
+      console.error(`初始化供应商失败 ${config.provider}:`, error);
+    }
+  }
 
-  // 注册 SiliconFlow 提供者
-  ProviderManager.getInstance().registerProvider(
-    ProviderType.SILICONFLOW,
-    new SiliconFlowAdapter()
-  );
-  
-  console.log('已注册的提供者:', Array.from(ProviderManager.getInstance().getProviders().keys()));
-} 
+  moduleStore.setState({
+    providers,
+    currentModelId: '',
+    isReady: true
+  });
+}

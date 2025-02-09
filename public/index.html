@@ -7,6 +7,29 @@
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="AI辩论系统" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <meta name="format-detection" content="telephone=no,email=no,address=no">
+    <meta name="autoFillService" content="off">
+    <script>
+      // 禁用所有自动填充相关功能
+      window.__disableAutofill = true;
+      window.__disableAutofillOverlay = true;
+      window.__disableBootstrapLegacyAutofill = true;
+      
+      // 阻止相关脚本加载
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            const scripts = document.querySelectorAll('script[src*="autofill"]');
+            scripts.forEach(script => script.remove());
+          }
+        });
+      });
+      
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    </script>
     <title>AI辩论系统</title>
   </head>
   <body>

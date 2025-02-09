@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Global, css } from '@emotion/react';
 import { ThemeProvider } from './styles/ThemeContext';
@@ -8,6 +8,10 @@ import './App.css';
 import { Provider } from 'react-redux';
 import { store } from './store';
 import { DebateProvider } from './contexts/DebateContext';
+import { moduleEventBus } from './modules/llm/services/events';
+import { moduleStore } from './modules/llm/services/store';
+import { initializeContainer } from './modules/llm/services/container';
+import { StoreManager } from './modules/store/StoreManager';
 
 const globalStyles = css`
   :root {
@@ -48,6 +52,25 @@ const globalStyles = css`
 `;
 
 const App: React.FC = () => {
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // 初始化存储管理器
+        const storeManager = StoreManager.getInstance();
+        await storeManager.initialize();
+        
+        // 初始化 LLM 服务容器
+        initializeContainer(moduleEventBus, moduleStore);
+        
+        console.log('应用初始化完成');
+      } catch (error) {
+        console.error('应用初始化失败:', error);
+      }
+    };
+    
+    initializeApp();
+  }, []);
+
   return (
     <Provider store={store}>
       <DebateProvider>

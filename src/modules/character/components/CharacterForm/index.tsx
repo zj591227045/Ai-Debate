@@ -9,6 +9,7 @@ import { useCharacter } from '../../context/CharacterContext';
 import { ModelProvider } from '../../../model/context/ModelContext';
 import { v4 as uuidv4 } from 'uuid';
 import './styles.css';
+import { PROVIDERS } from '../../../llm/types/providers';
 
 const { TabPane } = Tabs;
 
@@ -39,9 +40,9 @@ export default function CharacterForm({
         customDescription: '',
       },
       callConfig: {
-        type: 'direct',
+        type: 'direct' as const,
         direct: {
-          provider: 'ollama',
+          provider: PROVIDERS.OLLAMA,
           modelId: '',
           model: ''
         }

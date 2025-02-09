@@ -1,0 +1,86 @@
+.model-test-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.dialog-header h3 {
+  margin: 0;
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-section {
+  display: flex;
+  gap: 10px;
+}
+
+.input-section textarea {
+  flex: 1;
+  min-height: 100px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+}
+
+.input-section button {
+  padding: 0 20px;
+  height: 40px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.input-section button:disabled {
+  background: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #ff4d4f;
+  padding: 10px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+}
+
+.response-section {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+.response-section h4 {
+  margin: 0 0 10px 0;
+  color: #666;
+}
+
+.response-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+} 

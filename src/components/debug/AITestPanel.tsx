@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import type { UnifiedPlayer, Speech } from '../../types/adapters';
 import { useModelTest } from '../../modules/llm/hooks/useModelTest';
@@ -6,72 +6,9 @@ import { adaptModelConfig } from '../../modules/llm/utils/adapters';
 import { useModel } from '../../modules/model/context/ModelContext';
 import { convertToISOString } from '../../utils/timestamp';
 
-const Container = styled.div`
-  padding: 16px;
-  background: var(--color-bg-white);
-  border-radius: 8px;
-  box-shadow: var(--shadow-md);
-`;
-
-const Section = styled.div`
-  margin-bottom: 16px;
-`;
-
-const Title = styled.h3`
-  margin: 0 0 8px;
-  color: var(--color-text-primary);
-`;
-
-const Button = styled.button<{ variant?: 'primary' | 'danger' }>`
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  background: ${props => 
-    props.variant === 'primary' ? 'var(--color-primary)' :
-    props.variant === 'danger' ? 'var(--color-error)' :
-    'var(--color-bg-light)'
-  };
-  color: ${props => 
-    props.variant ? 'white' : 'var(--color-text-primary)'
-  };
-  cursor: pointer;
-  margin-right: 8px;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const Status = styled.div<{ type: 'success' | 'error' | 'info' }>`
-  padding: 8px;
-  margin-top: 8px;
-  border-radius: 4px;
-  background: ${props =>
-    props.type === 'success' ? 'var(--color-success-light)' :
-    props.type === 'error' ? 'var(--color-error-light)' :
-    'var(--color-bg-light)'
-  };
-  color: ${props =>
-    props.type === 'success' ? 'var(--color-success)' :
-    props.type === 'error' ? 'var(--color-error)' :
-    'var(--color-text-secondary)'
-  };
-`;
-
-const Output = styled.pre`
-  padding: 12px;
-  background: var(--color-bg-light);
-  border-radius: 4px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 8px 0;
-`;
-
 interface AITestPanelProps {
   player: UnifiedPlayer;
-  context: {
+  context?: {
     topic: {
       title: string;
       background: string;
@@ -80,156 +17,181 @@ interface AITestPanelProps {
     totalRounds: number;
     previousSpeeches: Speech[];
   };
-  onGenerateSuccess?: (content: string) => void;
+  onSpeechGenerated?: (speech: Speech) => void;
   onError?: (error: Error) => void;
 }
 
-export const AITestPanel: React.FC<AITestPanelProps> = ({
-  player,
+export const AITestPanel: React.FC<AITestPanelProps> = ({ 
+  player, 
   context,
-  onGenerateSuccess,
-  onError
+  onSpeechGenerated, 
+  onError 
 }) => {
-  const [output, setOutput] = useState<string>('');
-  const { state: modelState } = useModel();
-
-  // 获取模型配置
-  const modelConfig = modelState.models.find(m => m.id === player.modelId);
+  const [input, setInput] = useState('');
+  const [output, setOutput] = useState<string[]>([]);
+  const { state } = useModel();
+  
+  const modelConfig = state.models.find(m => m.id === player.modelId);
   if (!modelConfig) {
-    return (
-      <Container>
-        <Status type="error">
-          未找到模型配置 (ID: {player.modelId})
-        </Status>
-      </Container>
-    );
+    return <div>未找到模型配置</div>;
   }
 
-  // 使用测试Hook
-  const {
-    loading: isGenerating,
-    error,
-    testStream
-  } = useModelTest({
+  // 构建系统提示词
+  const buildSystemPrompt = () => {
+    if (!context) return '';
+
+    const parts = [
+      `当前辩论主题：${context.topic.title}`,
+      `背景信息：${context.topic.background}`,
+      `当前是第 ${context.currentRound}/${context.totalRounds} 轮辩论`
+    ];
+
+    if (context.previousSpeeches.length > 0) {
+      parts.push('历史发言：\n' + context.previousSpeeches
+        .map(speech => `[${speech.timestamp}] ${speech.content}`)
+        .join('\n')
+      );
+    }
+
+    return parts.join('\n\n');
+  };
+
+  const { loading, error, testStream } = useModelTest({
     modelConfig: adaptModelConfig(modelConfig),
-    context: {
-      topic: context.topic,
-      currentRound: context.currentRound,
-      totalRounds: context.totalRounds,
-      previousSpeeches: context.previousSpeeches.map(speech => ({
-        ...speech,
-        timestamp: typeof speech.timestamp === 'number' 
-          ? convertToISOString(speech.timestamp)
-          : speech.timestamp
-      }))
+    onStreamOutput: (response) => {
+      setOutput(prev => [...prev, response.content]);
+      if (onSpeechGenerated) {
+        onSpeechGenerated({
+          id: crypto.randomUUID(),
+          playerId: player.id,
+          content: response.content,
+          timestamp: convertToISOString(Date.now()),
+          round: context?.currentRound || 1,
+          references: []
+        });
+      }
     },
-    onStreamOutput: (chunk: string) => {
-      setOutput(prev => prev + chunk);
-    },
-    onError
+    onError: (error) => {
+      setOutput(prev => [...prev, `错误: ${error.message}`]);
+      if (onError) {
+        onError(error);
+      }
+    }
   });
 
-  // 生成内心OS
-  const generateThoughts = useCallback(async () => {
-    setOutput('');
+  const handleSubmit = async () => {
+    if (!input.trim() || loading) return;
     
-    const prompt = `
-你现在扮演一个辩论选手，需要针对当前的辩论主题和场景，生成内心的思考过程。
-
-角色信息：
-姓名：${player.name}
-背景：${player.background || '未指定'}
-性格：${player.personality || '未指定'}
-说话风格：${player.speakingStyle || '未指定'}
-价值观：${player.values || '未指定'}
-论证风格：${player.argumentationStyle || '未指定'}
-
-请基于以上信息，结合当前辩论主题和进展，生成一段内心独白，展现你的思考过程。
-`.trim();
-
-    try {
-      await testStream('', prompt);
-      if (output) {
-        onGenerateSuccess?.(output);
-      }
-    } catch (err) {
-      console.error('生成内心OS失败:', err);
-    }
-  }, [player, testStream, output, onGenerateSuccess]);
-
-  // 生成发言
-  const generateSpeech = useCallback(async () => {
-    if (!output) return;
-    
-    const prompt = `
-你现在扮演一个辩论选手，需要基于之前的思考，生成一段正式的辩论发言。
-
-角色信息：
-姓名：${player.name}
-背景：${player.background || '未指定'}
-性格：${player.personality || '未指定'}
-说话风格：${player.speakingStyle || '未指定'}
-价值观：${player.values || '未指定'}
-论证风格：${player.argumentationStyle || '未指定'}
-
-你之前的思考过程是：
-${output}
-
-请基于以上信息，生成一段正式的辩论发言。
-`.trim();
-
-    try {
-      await testStream('', prompt);
-      if (output) {
-        onGenerateSuccess?.(output);
-      }
-    } catch (err) {
-      console.error('生成发言失败:', err);
-    }
-  }, [player, output, testStream, onGenerateSuccess]);
+    setOutput([]);
+    await testStream(input.trim(), buildSystemPrompt());
+  };
 
   return (
     <Container>
-      <Section>
-        <Title>AI测试面板</Title>
-        <div>
-          <Button
-            variant="primary"
-            onClick={generateThoughts}
-            disabled={isGenerating}
+      <Header>
+        <Title>{player.name} 测试面板</Title>
+      </Header>
+      
+      <Content>
+        <InputSection>
+          <TextArea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="输入测试内容..."
+            disabled={loading}
+          />
+          <Button 
+            onClick={handleSubmit}
+            disabled={loading || !input.trim()}
           >
-            生成内心OS
+            {loading ? '生成中...' : '发送'}
           </Button>
-          <Button
-            variant="primary"
-            onClick={generateSpeech}
-            disabled={isGenerating || !output}
-          >
-            生成发言
-          </Button>
-        </div>
+        </InputSection>
 
-        {isGenerating && (
-          <Status type="info">
-            正在生成...
-          </Status>
-        )}
-
-        {error && (
-          <Status type="error">
-            生成失败: {error.message}
-          </Status>
-        )}
-
-        {output && !error && (
-          <>
-            <Status type="success">
-              生成成功
-            </Status>
-            <Output>{output}</Output>
-          </>
-        )}
-      </Section>
+        <OutputSection>
+          {output.map((text, index) => (
+            <OutputLine key={index}>
+              {text}
+            </OutputLine>
+          ))}
+          {error && (
+            <ErrorMessage>
+              {error.message}
+            </ErrorMessage>
+          )}
+        </OutputSection>
+      </Content>
     </Container>
   );
-}; 
+};
+
+const Container = styled.div`
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px;
+  background: white;
+`;
+
+const Header = styled.div`
+  margin-bottom: 16px;
+`;
+
+const Title = styled.h3`
+  margin: 0;
+`;
+
+const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+const InputSection = styled.div`
+  display: flex;
+  gap: 8px;
+`;
+
+const TextArea = styled.textarea`
+  flex: 1;
+  min-height: 100px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+`;
+
+const Button = styled.button`
+  padding: 8px 16px;
+  background: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:disabled {
+    background: #d9d9d9;
+    cursor: not-allowed;
+  }
+`;
+
+const OutputSection = styled.div`
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 16px;
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+`;
+
+const OutputLine = styled.div`
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+`;
+
+const ErrorMessage = styled.div`
+  color: #ff4d4f;
+  margin-top: 8px;
+`;
+
+export default AITestPanel; 

@@ -12,7 +12,7 @@ interface Message {
 }
 
 interface ModelTestDialogProps {
-  model: ModelConfig;
+  modelConfig: ModelConfig;
   onClose: () => void;
   systemPrompt?: string;
   placeholder?: string;
@@ -21,19 +21,20 @@ interface ModelTestDialogProps {
   showTimestamp?: boolean;
 }
 
-export default function ModelTestDialog({ 
-  model, 
+export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({ 
+  modelConfig: model, 
   onClose,
   systemPrompt = '你是一个有帮助的AI助手。',
   placeholder = '输入消息...',
   maxInputLength = 2000,
   showReasoning = false,
   showTimestamp = true
-}: ModelTestDialogProps) {
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [currentResponse, setCurrentResponse] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   // 适配模型配置
   const adaptedConfig = adaptModelConfig(model);
@@ -47,16 +48,14 @@ export default function ModelTestDialog({
   // 使用测试Hook
   const {
     loading: isLoading,
-    error,
     testStream
   } = useModelTest({
     modelConfig: adaptedConfig,
-    onStreamOutput: (chunk: string, isReasoning?: boolean) => {
-      console.log('LLM Service Stream Chunk:', chunk, isReasoning ? '(reasoning)' : '');
+    onStreamOutput: (response) => {
+      console.log('LLM Service Stream Chunk:', response.content);
       setCurrentResponse(prev => ({
         role: 'assistant',
-        content: isReasoning ? prev?.content || '' : (prev ? prev.content + chunk : chunk),
-        reasoning_content: isReasoning ? (prev?.reasoning_content || '') + chunk : prev?.reasoning_content,
+        content: prev ? prev.content + response.content : response.content,
         timestamp: Date.now()
       }));
     },
@@ -73,7 +72,7 @@ export default function ModelTestDialog({
     scrollToBottom();
   }, [messages, currentResponse]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -107,6 +106,7 @@ export default function ModelTestDialog({
       }
     } catch (err) {
       console.error('LLM Service Error:', err);
+      setError(err instanceof Error ? err : new Error('未知错误'));
     }
   };
 
@@ -177,7 +177,7 @@ export default function ModelTestDialog({
         <div ref={messagesEndRef} />
       </div>
 
-      <form className="input-container" onSubmit={handleSubmit}>
+      <div className="input-container">
         <input
           type="text"
           value={input}
@@ -185,11 +185,22 @@ export default function ModelTestDialog({
           placeholder={placeholder}
           maxLength={maxInputLength}
           disabled={isLoading}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
         />
-        <button type="submit" disabled={isLoading || !input.trim()}>
+        <button 
+          onClick={handleSubmit}
+          disabled={isLoading || !input.trim()}
+        >
           {isLoading ? '发送中...' : '发送'}
         </button>
-      </form>
+      </div>
     </div>
   );
-} 
+};
+
+export default ModelTestDialog; 

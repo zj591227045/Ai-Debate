@@ -2,6 +2,30 @@ import { BaseStore, StoreState, BaseEntity } from './BaseStore';
 import { ModelConfig } from '../model/types';
 import { z } from 'zod';
 import { generateId } from '../storage/utils';
+import { EventBus } from '../../core/events/EventBus';
+
+// 验证模式
+const ModelConfigSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  model: z.string(),
+  parameters: z.object({
+    temperature: z.number().min(0).max(2),
+    maxTokens: z.number().min(1).max(4096),
+    topP: z.number().min(0).max(1)
+  }),
+  auth: z.object({
+    baseUrl: z.string(),
+    apiKey: z.string().optional(),
+    organizationId: z.string().optional()
+  }),
+  providerSpecific: z.record(z.unknown()).optional(),
+  isEnabled: z.boolean(),
+  isDefault: z.boolean().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number()
+});
 
 // 扩展 ModelConfig 以包含基础实体字段
 export interface StoredModelConfig extends Omit<ModelConfig, 'id'>, BaseEntity {
@@ -13,50 +37,22 @@ export interface StoredModelConfig extends Omit<ModelConfig, 'id'>, BaseEntity {
 // 创建模型配置参数类型
 export type CreateModelConfigParams = Omit<StoredModelConfig, keyof BaseEntity>;
 
-// 参数配置验证模式
-const ParametersSchema = z.object({
-  temperature: z.number(),
-  topP: z.number(),
-  maxTokens: z.number(),
-  presencePenalty: z.number().optional(),
-  frequencyPenalty: z.number().optional(),
-  stop: z.array(z.string()).optional(),
-});
-
-// 认证配置验证模式
-const AuthConfigSchema = z.object({
-  baseUrl: z.string(),
-  apiKey: z.string().optional(),
-  organizationId: z.string().optional(),
-});
-
-// 模型配置验证模式
-const ModelConfigSchema = z.object({
-  // 基础实体字段
-  id: z.string(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-  
-  // ModelConfig 字段
-  name: z.string(),
-  provider: z.string(),
-  model: z.string(),
-  parameters: ParametersSchema,
-  auth: AuthConfigSchema,
-  
-  // 扩展字段
-  isEnabled: z.boolean(),
-  isDefault: z.boolean().optional(),
-  providerSpecific: z.record(z.any()).optional(),
-});
-
 export class ModelStore extends BaseStore<StoredModelConfig> {
   protected storageKey = 'model_configs';
   protected schema = ModelConfigSchema;
   protected state: StoreState<StoredModelConfig> = {};
+  private eventBus: EventBus;
 
-  protected setState(state: StoreState<StoredModelConfig>): void {
+  constructor() {
+    super();
+    this.eventBus = EventBus.getInstance();
+  }
+
+  protected async setState(state: StoreState<StoredModelConfig>): Promise<void> {
     this.state = state;
+    await this.save(); // 保存到 localStorage
+    const models = await this.getAll();
+    this.eventBus.emit<StoredModelConfig[]>('model_store:changed', models);
   }
 
   protected getState(): StoreState<StoredModelConfig> {
@@ -77,10 +73,10 @@ export class ModelStore extends BaseStore<StoredModelConfig> {
       updatedAt: now,
       isEnabled: config.isEnabled ?? true,
       providerSpecific: config.providerSpecific ?? {},
-      auth: config.auth ?? {
-        baseUrl: '',
-        apiKey: '',
-        organizationId: '',
+      auth: {
+        baseUrl: config.auth?.baseUrl || '',
+        apiKey: config.auth?.apiKey || '',
+        organizationId: config.auth?.organizationId || '',
       }
     };
 
@@ -145,5 +141,14 @@ export class ModelStore extends BaseStore<StoredModelConfig> {
         isDefault: config.id === id
       });
     }
+  }
+
+  /**
+   * 订阅状态变更
+   */
+  subscribe(listener: (models: StoredModelConfig[]) => void): () => void {
+    const handler = (models: StoredModelConfig[]) => listener(models);
+    this.eventBus.on<StoredModelConfig[]>('model_store:changed', handler);
+    return () => this.eventBus.off<StoredModelConfig[]>('model_store:changed', handler);
   }
 } 

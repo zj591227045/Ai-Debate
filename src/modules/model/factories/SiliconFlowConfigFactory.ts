@@ -1,6 +1,18 @@
 import { ModelConfig, PartialModelConfig } from '../types';
-import { ProviderOptions } from '../../ai-model/types/model';
+import { ModelCapabilities } from '../../llm/types/common';
+import { PROVIDERS } from '../../llm/types/providers';
 import { v4 as uuidv4 } from 'uuid';
+
+interface ProviderOptions {
+  model: string;
+  options?: {
+    temperature?: number;
+    top_p?: number;
+    num_predict?: number;
+    stop?: string[];
+  };
+  baseUrl?: string;
+}
 
 const DEFAULT_PARAMETERS = {
   temperature: 0.7,
@@ -13,7 +25,7 @@ export class SiliconFlowConfigFactory {
     return {
       id: uuidv4(),
       name: '',
-      provider: 'siliconflow',
+      provider: PROVIDERS.SILICONFLOW,
       model: '',
       parameters: { ...DEFAULT_PARAMETERS },
       auth: {

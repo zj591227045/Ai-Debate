@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CharacterConfig } from './character';
+import { PROVIDERS } from '../../llm/types/providers';
 
 // 角色模板验证模式
 export const characterTemplateSchema = z.object({
@@ -49,7 +50,7 @@ export const defaultTemplates: CharacterTemplate[] = [
     callConfig: {
       type: 'direct',
       direct: {
-        provider: 'ollama',
+        provider: PROVIDERS.OLLAMA,
         modelId: 'default',
         model: 'default'
       }
@@ -136,4 +137,13 @@ export const templateToCharacter = (template: CharacterTemplate): Partial<Charac
     persona: template.persona,
     callConfig: template.callConfig,
   };
+};
+
+const defaultCallConfig = {
+  type: 'direct' as const,
+  direct: {
+    provider: PROVIDERS.OLLAMA,
+    modelId: '',
+    model: ''
+  }
 };

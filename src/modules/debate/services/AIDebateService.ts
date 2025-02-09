@@ -1,11 +1,10 @@
-import { ModelProvider } from '../../ai-model/types/providers';
-import { Message } from '../../ai-model/types/common';
-import { ApiConfig } from '../../ai-model/types/config';
-import { providerFactory } from '../../model/services/providerFactory';
-import { useModel } from '../../model/context/ModelContext';
+import { ModelProvider } from '../../llm/types/providers';
+import { Message } from '../../llm/types/common';
+import { ApiConfig } from '../../llm/types/config';
 import { Character } from '../types/character';
 import { DebateState } from '../types/debate';
-import { ModelConfigService } from '../../storage/services/ModelConfigService';
+import { UnifiedLLMService } from '../../llm/services/UnifiedLLMService';
+import { StoreManager } from '../../store/StoreManager';
 
 interface DebugError {
   name?: string;
@@ -69,10 +68,12 @@ const PROVIDER_CONFIG_REQUIREMENTS: Record<string, ConfigValidation> = {
 };
 
 export class AIDebateService {
-  private modelConfigService: ModelConfigService;
+  private llmService: UnifiedLLMService;
+  private storeManager: StoreManager;
 
   constructor() {
-    this.modelConfigService = new ModelConfigService();
+    this.llmService = UnifiedLLMService.getInstance();
+    this.storeManager = StoreManager.getInstance();
   }
 
   private async getProviderForCharacter(character: Character) {
@@ -85,7 +86,9 @@ export class AIDebateService {
     });
 
     // 2. 获取模型配置
-    const modelConfig = await this.modelConfigService.getById(character.config.modelId);
+    const modelStore = this.storeManager.getModelStore();
+    const modelConfig = await modelStore.getById(character.config.modelId);
+    
     console.log('【URL追踪】2. 模型配置获取结果:', {
       searchedModelId: character.config.modelId,
       found: !!modelConfig,
@@ -158,59 +161,38 @@ export class AIDebateService {
       updatedUrl: baseUrl
     });
 
-    // 5. 构建API配置
-    const apiConfig: ApiConfig = {
-      endpoint: baseUrl,
-      apiKey: modelConfig.auth.apiKey || '', // 对于 ollama，可以是空字符串
-      organizationId: modelConfig.auth.organizationId,
-      providerSpecific: {
-        openai: modelConfig.auth.organizationId ? {
-          organizationId: modelConfig.auth.organizationId
-        } : undefined,
-        ollama: modelConfig.provider === 'ollama' ? {
-          model: modelConfig.model || 'deepseek-r1:7b',
-          options: {
-            temperature: modelConfig.parameters?.temperature,
-            top_p: modelConfig.parameters?.topP,
-            num_predict: modelConfig.parameters?.maxTokens
-          },
-          useLocalEndpoint: true
-        } : undefined
-      }
-    };
-
-    console.log('【URL追踪】5. 最终API配置:', {
-      endpoint: apiConfig.endpoint,
-      hasApiKey: !!apiConfig.apiKey,
-      hasOrgId: !!apiConfig.organizationId,
-      provider: modelConfig.provider,
-      ollamaConfig: apiConfig.providerSpecific?.ollama,
-      fullUrl: new URL('api/ai', apiConfig.endpoint + '/').toString()
-    });
-    
-    // 6. 创建Provider
+    // 5. 更新配置并获取 provider
     try {
-      console.log('【URL追踪】6. 开始创建Provider');
-      const provider = await providerFactory.createProvider(modelConfig.provider, apiConfig);
-      console.log('【URL追踪】6.1 Provider创建成功:', {
+      console.log('【URL追踪】5. 开始创建Provider');
+      const updatedConfig = {
+        ...modelConfig,
+        auth: {
+          ...modelConfig.auth,
+          baseUrl
+        }
+      };
+      
+      const provider = await this.llmService.getInitializedProvider(updatedConfig);
+      
+      console.log('【URL追踪】5.1 Provider创建成功:', {
         providerType: provider.constructor.name,
-        endpoint: apiConfig.endpoint,
-        fullUrl: new URL('api/ai', apiConfig.endpoint).toString()
+        endpoint: baseUrl,
+        fullUrl: new URL('api/ai', baseUrl).toString()
       });
+      
       return provider;
     } catch (err) {
       const error = err as DebugError;
-      console.error('【URL追踪】6.2 Provider创建失败:', {
+      console.error('【URL追踪】5.2 Provider创建失败:', {
         errorName: error.name,
         errorMessage: error.message,
         errorStack: error.stack,
         cause: error.cause,
-        endpoint: apiConfig.endpoint,
-        fullUrl: new URL('api/ai', apiConfig.endpoint).toString(),
+        endpoint: baseUrl,
+        fullUrl: new URL('api/ai', baseUrl).toString(),
         providerConfig: {
           provider: modelConfig.provider,
-          baseUrl: apiConfig.endpoint,
-          ollamaConfig: apiConfig.providerSpecific?.ollama
+          baseUrl: baseUrl
         }
       });
       throw error;
@@ -244,7 +226,9 @@ export class AIDebateService {
         }
       });
 
-      const response = await provider.generateCompletion(messages, {
+      const response = await provider.chat({
+        message: messages[messages.length - 1].content,
+        systemPrompt: messages[0].content,
         temperature: 0.8,
         maxTokens: 500
       });
@@ -274,30 +258,36 @@ export class AIDebateService {
   }
 
   async generateSpeech(character: Character, debateState: DebateState, innerThoughts: string) {
-    const provider = await this.getProviderForCharacter(character);
-    const messages = this.buildSpeechPrompt(character, debateState, innerThoughts);
-    
     try {
-      const response = await provider.generateCompletion(messages, {
+      const provider = await this.getProviderForCharacter(character);
+      const messages = this.buildSpeechPrompt(character, debateState, innerThoughts);
+      
+      const response = await provider.chat({
+        message: messages[messages.length - 1].content,
+        systemPrompt: messages[0].content,
         temperature: 0.6,
         maxTokens: 800
       });
+
       return response.content;
     } catch (error) {
-      console.error('生成正式发言失败:', error);
+      console.error('生成发言失败:', error);
       throw error;
     }
   }
 
   async generateScore(judge: Character, debateState: DebateState) {
-    const provider = await this.getProviderForCharacter(judge);
-    const messages = this.buildScoringPrompt(judge, debateState);
-    
     try {
-      const response = await provider.generateCompletion(messages, {
+      const provider = await this.getProviderForCharacter(judge);
+      const messages = this.buildScoringPrompt(judge, debateState);
+      
+      const response = await provider.chat({
+        message: messages[messages.length - 1].content,
+        systemPrompt: messages[0].content,
         temperature: 0.3,
         maxTokens: 500
       });
+
       return response.content;
     } catch (error) {
       console.error('生成评分失败:', error);

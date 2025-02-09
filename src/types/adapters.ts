@@ -3,6 +3,7 @@ import type { Player as RoomPlayer } from './index';
 import type { RuleConfig } from './rules';
 import type { DebateConfig, Topic as LegacyTopic } from './debate';
 import type { CSSProperties } from 'react';
+import { Message } from '../modules/llm/types/common';
 
 // AI角色特征接口
 export interface AICharacteristics {
@@ -15,11 +16,21 @@ export interface AICharacteristics {
 
 // 扩展现有的Player类型
 declare module './player' {
-  interface Player extends AICharacteristics {}
+  interface Player extends AICharacteristics {
+    aiConfig?: {
+      enabled: boolean;
+      settings?: Record<string, unknown>;
+    };
+  }
 }
 
 declare module './index' {
-  interface Player extends AICharacteristics {}
+  interface Player extends AICharacteristics {
+    aiConfig?: {
+      enabled: boolean;
+      settings?: Record<string, unknown>;
+    };
+  }
 }
 
 // 自定义样式类型
@@ -203,28 +214,36 @@ export const reverseRoleMap: Record<RoomPlayer['role'], 'affirmative' | 'negativ
   neutral: 'unassigned'
 };
 
-export interface Speech {
+// 基础类型定义
+export interface BaseDebateSpeech {
   id: string;
   playerId: string;
   content: string;
-  timestamp: string;  // 统一使用 ISO 字符串格式
+  timestamp: string;
   round: number;
+  role?: 'user' | 'assistant';  // 设为可选
   type?: 'speech' | 'innerThought';
   references: string[];
-  scores?: Score[];
+  scores?: BaseDebateScore[];
 }
 
-export interface Score {
+export interface BaseDebateScore {
   id: string;
   judgeId: string;
   playerId: string;
   speechId: string;
   round: number;
-  timestamp: string;  // 修改为 string 类型
+  timestamp: string;
   dimensions: Record<string, number>;
   totalScore: number;
   comment: string;
+  value?: number;  // 设为可选
+  criteria?: string;  // 设为可选
 }
+
+// 使用类型别名重新导出
+export type Speech = BaseDebateSpeech;
+export type Score = BaseDebateScore;
 
 export interface DebateRoomLayout {
   grid: {
@@ -287,31 +306,6 @@ export interface DebateRoomLayout {
 // 基础类型定义
 export type DebateStatus = 'preparing' | 'ongoing' | 'paused' | 'finished';
 
-// 统一发言类型
-export interface Speech {
-  id: string;
-  playerId: string;
-  content: string;
-  timestamp: string;
-  round: number;
-  type?: 'speech' | 'innerThought';
-  references: string[];
-  scores?: Score[];
-}
-
-// 统一评分类型
-export interface Score {
-  id: string;
-  judgeId: string;
-  playerId: string;
-  speechId: string;
-  round: number;
-  timestamp: string;  // 修改为 string 类型
-  dimensions: Record<string, number>;
-  totalScore: number;
-  comment: string;
-}
-
 // 统一事件类型
 export interface DebateEvent {
   type: DebateEventType;
@@ -343,4 +337,18 @@ export interface DebateHistory {
   speeches: Speech[];
   scores: Score[];
   events: DebateEvent[];
-} 
+}
+
+export interface BaseAdapter {
+  initialize(): Promise<void>;
+  validate(): Promise<void>;
+  process(input: Message[]): Promise<Message>;
+}
+
+export type IDebateAdapter = BaseAdapter & {
+  processDebate?: (context: any) => Promise<any>;
+};
+
+export type ICharacterAdapter = BaseAdapter & {
+  processCharacter?: (context: any) => Promise<any>;
+}; 

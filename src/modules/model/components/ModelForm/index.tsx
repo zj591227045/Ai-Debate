@@ -5,21 +5,21 @@ import { testModelConfig } from '../../utils/modelValidation';
 import ModelTestDialog from '../ModelTestDialog';
 import { v4 as uuidv4 } from 'uuid';
 import './styles.css';
-import { ModelProvider as NewModelProvider } from '../../../ai-model/types/providers';
-import { AIModelProviderFactory } from '../../../ai-model/services/provider-factory';
+import type { LLMProvider } from '../../../llm/services/provider/base';
+import { ProviderFactory } from '../../../llm/services/provider/factory';
 import { OllamaConfigForm } from '../providers/OllamaConfigForm';
 import { OllamaConfigFactory } from '../../factories/OllamaConfigFactory';
 import { DeepseekConfigForm } from '../providers/DeepseekConfigForm';
 import { DeepseekConfigFactory } from '../../factories/DeepseekConfigFactory';
-import { ModelConfigService } from '../../../storage/services/ModelConfigService';
 import { UnifiedLLMService } from '../../../llm/services/UnifiedLLMService';
 import { adaptModelConfig } from '../../../llm/utils/adapters';
 import { ModelConfig as LLMModelConfig } from '@/modules/llm/types';
 import { message } from 'antd';
-import { Form, Input, FormInstance, Button } from 'antd';
+import { Form, Input, FormInstance, Button, Select, Slider, Space, Spin } from 'antd';
 import { ProviderSelect } from '../providers/ProviderSelect';
 import { SiliconFlowConfigForm } from '../providers/SiliconFlowConfigForm';
 import { ModelParameters } from '../../types';
+import { DEFAULT_PROVIDERS } from '../../types';
 
 interface ModelFormProps {
   initialValues?: ModelConfig;
@@ -33,41 +33,61 @@ interface ProviderConfigProps {
   onChange: (values: Partial<ModelConfig>) => void;
 }
 
+interface OllamaConfigFormProps {
+  formData: ModelConfig;
+  onChange: (values: Partial<ModelConfig>) => void;
+}
+
+interface DeepseekConfigFormProps {
+  formData: ModelConfig;
+  onChange: (values: Partial<ModelConfig>) => void;
+}
+
 const defaultParameters = {
   temperature: DEFAULT_PARAMETER_RANGES.temperature.default,
   topP: DEFAULT_PARAMETER_RANGES.topP.default,
   maxTokens: DEFAULT_PARAMETER_RANGES.maxTokens.default,
 };
 
-const createInitialState = (model?: ModelConfig): PartialModelConfig => {
-  if (model) {
-    return { ...model };
-  }
-  return {
-    id: uuidv4(),
-    name: '',
-    provider: '',
-    model: '',
-    parameters: defaultParameters,
-    auth: {
-      apiKey: '',
-      organizationId: '',
-      baseUrl: '',
-    },
-    isEnabled: true,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-};
+const createInitialState = (model?: ModelConfig): PartialModelConfig => ({
+  provider: model?.provider || DEFAULT_PROVIDERS[0].id,
+  parameters: {
+    temperature: model?.parameters?.temperature || 0.7,
+    maxTokens: model?.parameters?.maxTokens || 2000,
+    topP: model?.parameters?.topP || 0.9
+  },
+  auth: {
+    baseUrl: model?.auth?.baseUrl || '',
+    apiKey: model?.auth?.apiKey || '',
+    organizationId: model?.auth?.organizationId || ''
+  },
+  isEnabled: model?.isEnabled ?? true
+});
 
 export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, onCancel }) => {
   const { dispatch } = useModel();
   const [form] = Form.useForm();
   const [provider, setProvider] = useState<string>(initialValues?.provider || '');
+  const initialState = initialValues || {
+    name: '',
+    provider: 'ollama',
+    model: '',
+    parameters: {
+      temperature: 0.7,
+      topP: 0.9,
+      maxTokens: 2000
+    },
+    auth: {
+      baseUrl: 'http://localhost:11434',
+      apiKey: '',
+      organizationId: ''
+    }
+  };
+
   const [formData, setFormData] = useState<ModelConfig>({
     id: initialValues?.id || '',
     name: initialValues?.name || '',
-    provider: initialValues?.provider || '',
+    provider: initialValues?.provider || 'ollama',
     model: initialValues?.model || '',
     parameters: initialValues?.parameters || {
       temperature: 0.7,
@@ -77,7 +97,7 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     auth: initialValues?.auth || {
       apiKey: '',
       organizationId: '',
-      baseUrl: ''
+      baseUrl: 'http://localhost:11434'
     },
     isEnabled: initialValues?.isEnabled ?? true,
     createdAt: initialValues?.createdAt || Date.now(),
@@ -88,115 +108,97 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
   const [showChatTestDialog, setShowChatTestDialog] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
-  const providerFactory = new AIModelProviderFactory();
-  const modelService = new ModelConfigService();
-  const llmService = new UnifiedLLMService();
+  const llmService = UnifiedLLMService.getInstance();
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentTestConfig, setCurrentTestConfig] = useState<ModelConfig | null>(null);
 
-  const handleProviderChange = (value: string) => {
-    setProvider(value);
+  const handleProviderChange = async (value: string) => {
+    console.log('Provider changing to:', value);
+    
+    // 验证供应商是否支持
+    if (!ProviderFactory.isProviderSupported(value)) {
+      message.error(`不支持的供应商: ${value}`);
+      return;
+    }
+
+    const defaultBaseUrl = DEFAULT_PROVIDERS.find(p => p.id === value)?.defaultBaseUrl || '';
+    
+    // 更新 formData
     setFormData(prev => ({
       ...prev,
       provider: value,
       model: '',
       auth: {
-        apiKey: '',
-        organizationId: '',
-        baseUrl: value === 'ollama' ? 'http://localhost:11434' : 
-                value === 'siliconflow' ? 'https://api.siliconflow.cn' : '',
-      },
+        ...prev.auth,
+        baseUrl: defaultBaseUrl
+      }
     }));
-    // 当切换提供商时，重置模型列表并触发刷新
-    setAvailableModels([]);
-    if (value) {
-      refreshModelList();
-    }
+    
+    // 更新表单字段
+    form.setFieldsValue({
+      provider: value,
+      model: undefined,
+      auth: {
+        baseUrl: defaultBaseUrl
+      }
+    });
+
+    // 等待表单更新完成后刷新模型列表
+    setTimeout(refreshModelList, 0);
   };
 
   const refreshModelList = async () => {
-    console.group('=== 刷新模型列表 ===');
-    console.log('表单数据:', formData);
-    setIsLoadingModels(true);
-
+    setRefreshing(true);
+    setError(null);
+    
     try {
-      if (!formData.provider) {
-        throw new Error('供应商未选择');
-      }
-
-      // 构建临时配置用于获取模型列表
-      const tempConfig: LLMModelConfig = {
-        id: formData.id || '',
-        name: formData.name || '',
-        provider: formData.provider,
-        model: '',  // 获取模型列表时不需要指定具体模型
-        isEnabled: true,
+      const tempConfig = {
+        id: 'temp',
+        name: 'temp',
+        provider: form.getFieldValue('provider'),
+        model: '',
         parameters: {
           temperature: 0.7,
-          maxTokens: 2000,
-          topP: 1
+          topP: 0.9,
+          maxTokens: 2000
         },
         auth: {
-          baseUrl: formData.auth?.baseUrl || '',
-          apiKey: formData.auth?.apiKey || '',
-          organizationId: formData.auth?.organizationId || ''
+          baseUrl: form.getFieldValue(['auth', 'baseUrl'])
         },
-        providerSpecific: {
-          baseUrl: formData.auth?.baseUrl || '',
-          apiKey: formData.auth?.apiKey || '',
-          model: ''  // 获取模型列表时不需要指定具体模型
-        },
+        isEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
-      console.log('临时配置:', tempConfig);
 
-      // 获取初始化后的供应商实例
       const provider = await llmService.getInitializedProvider(tempConfig, true);
-      console.log('获取到供应商实例');
-
-      if (!provider.listModels) {
-        throw new Error('供应商不支持获取模型列表');
-      }
-
-      // 获取模型列表
       const models = await provider.listModels();
-      console.log('获取到模型列表:', models);
       
-      // 更新状态
       setAvailableModels(models);
-      console.log('模型列表已更新到状态');
-      
-      // 如果当前选择的模型不在列表中，清空选择
-      if (formData.model && !models.includes(formData.model)) {
-        setFormData(prev => ({
-          ...prev,
-          model: ''
-        }));
+
+      // 如果当前选中的模型不在新的模型列表中，清空选择
+      if (!models.includes(formData.model)) {
+        handleModelChange('');
       }
+
+      message.success('模型列表已更新');
     } catch (error) {
-      console.error('刷新模型列表失败:', error);
-      const errorMessage = error instanceof Error ? error.message : '未知错误';
-      message.error(`获取模型列表失败: ${errorMessage}`);
-      setAvailableModels([]);
+      console.error('\n 获取模型列表失败:', error);
+      setError(error instanceof Error ? error.message : '获取模型列表失败');
+      message.error('获取模型列表失败');
     } finally {
-      setIsLoadingModels(false);
-      console.groupEnd();
+      setRefreshing(false);
     }
   };
 
-  // 当 API 密钥或服务地址改变时,自动刷新模型列表
+  // 当 provider 改变时刷新模型列表
   useEffect(() => {
-    console.log('=== 触发模型列表刷新 ===');
-    console.log('provider:', formData.provider);
-    console.log('apiKey:', formData.auth?.apiKey);
-    console.log('baseUrl:', formData.auth?.baseUrl);
-    
-    if (formData.provider && (formData.auth?.apiKey || formData.provider === 'ollama')) {
-      console.log('满足刷新条件，开始刷新模型列表');
+    if (formData.provider && formData.auth?.baseUrl) {
+      console.log('Provider changed, refreshing models list');
       refreshModelList();
-    } else {
-      console.log('不满足刷新条件，跳过刷新');
     }
-  }, [formData.provider, formData.auth?.apiKey, formData.auth?.baseUrl]);
+  }, [formData.provider]);
 
   const handleInputChange = (field: keyof ModelConfig, value: any) => {
     setFormData((prev: ModelConfig) => ({
@@ -215,6 +217,31 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     }));
   };
 
+  const handleBaseUrlChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      auth: {
+        ...prev.auth,
+        baseUrl: value
+      }
+    }));
+  };
+
+  const handleModelChange = (value: string) => {
+    // 同时更新 formData 和表单值
+    setFormData(prev => ({
+      ...prev,
+      model: value
+    }));
+    
+    form.setFieldsValue({
+      model: value
+    });
+
+    // 触发表单验证
+    form.validateFields(['model']);
+  };
+
   const handleParameterChange = (parameter: keyof ModelParameters) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
     setFormData(prev => ({
@@ -222,6 +249,16 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
       parameters: {
         ...prev.parameters,
         [parameter]: value
+      }
+    }));
+  };
+
+  const handleApiKeyChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      auth: {
+        ...prev.auth,
+        apiKey: value
       }
     }));
   };
@@ -234,304 +271,249 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
   };
 
   const handleTestConnection = async () => {
-    if (!formData.provider || !formData.model) {
-      alert('请先选择供应商和模型');
-      return;
-    }
-
-    if (formData.provider !== 'ollama' && !formData.auth?.apiKey) {
-      alert('请输入API密钥');
-      return;
-    }
-
-    const completeModel = adaptModelConfig({
-      id: formData.id || uuidv4(),
-      name: formData.name || '未命名配置',
-      provider: formData.provider,
-      model: formData.model,
-      parameters: {
-        temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
-        topP: formData.parameters?.topP ?? defaultParameters.topP,
-        maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-      },
-      auth: {
-        apiKey: formData.auth?.apiKey || '',
-        organizationId: formData.auth?.organizationId || '',
-        baseUrl: formData.auth?.baseUrl || '',
-      },
-      isEnabled: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    setIsTesting(true);
     try {
-      // 使用 UnifiedLLMService 测试连接
-      const provider = await llmService.getInitializedProvider(completeModel);
+      const config = adaptModelConfig({
+        ...formData,
+        id: formData.id || uuidv4(),
+        name: formData.name || '未命名配置',
+        isEnabled: true,
+        createdAt: formData.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const provider = await llmService.getInitializedProvider(config);
       await provider.validateConfig();
-        setShowTestDialog(true);
+      
+      message.success('连接测试成功！');
     } catch (error) {
-      alert(`连接测试失败：${(error as Error).message}`);
-    } finally {
-      setIsTesting(false);
+      console.error('连接测试失败:', error);
+      message.error('连接测试失败: ' + (error instanceof Error ? error.message : '未知错误'));
     }
   };
 
   const handleChatTest = () => {
-    if (!formData.provider || !formData.model) {
-      message.error('请先选择供应商和模型');
-      return;
-    }
-
-    if (formData.provider !== 'ollama' && !formData.auth?.apiKey) {
-      message.error('请输入API密钥');
-      return;
-    }
-
-    const completeModel = adaptModelConfig({
-            id: formData.id || uuidv4(),
-      name: formData.name || '未命名配置',
-            provider: formData.provider,
-            model: formData.model,
-            parameters: {
-              temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
-              topP: formData.parameters?.topP ?? defaultParameters.topP,
-              maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-            },
-            auth: {
-              apiKey: formData.auth?.apiKey || '',
-              organizationId: formData.auth?.organizationId || '',
-              baseUrl: formData.auth?.baseUrl || '',
-            },
-            isEnabled: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    setShowChatTestDialog(true);
-  };
-
-  const renderProviderConfig = () => {
-    const commonProps = {
-      formData,
-      onBaseUrlChange: handleAuthChange.bind(null, 'baseUrl'),
-      onApiKeyChange: handleAuthChange.bind(null, 'apiKey'),
-      onModelChange: handleInputChange.bind(null, 'model'),
-      onParameterChange: handleParameterChange,
-      availableModels,
-      isLoadingModels,
-      onRefreshModels: refreshModelList,
-      onTest: handleChatTest
+    const config: ModelConfig = {
+      id: formData.id || uuidv4(),
+      name: formData.name,
+      provider: formData.provider,
+      model: formData.model,
+      parameters: formData.parameters,
+      auth: formData.auth,
+      isEnabled: formData.isEnabled,
+      createdAt: formData.createdAt,
+      updatedAt: formData.updatedAt
     };
-
-    switch (formData.provider) {
-      case 'ollama':
-        return <OllamaConfigForm {...commonProps} />;
-      case 'deepseek':
-        return <DeepseekConfigForm {...commonProps} />;
-      case 'siliconflow':
-        return <SiliconFlowConfigForm {...commonProps} />;
-      default:
-        return null;
-    }
+    setCurrentTestConfig(config);
+    setShowTestDialog(true);
   };
 
   const handleSubmit = async (values: any) => {
     try {
-      // 合并表单数据
-      const submitData = {
+      setLoading(true);
+      
+      // 合并表单值和 formData
+      const mergedConfig = {
         ...formData,
         ...values,
-        parameters: {
-          temperature: formData.parameters?.temperature ?? defaultParameters.temperature,
-          topP: formData.parameters?.topP ?? defaultParameters.topP,
-          maxTokens: formData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-        },
-        auth: {
-          ...formData.auth,
-          apiKey: formData.auth?.apiKey || '',
-          organizationId: formData.auth?.organizationId || '',
-          baseUrl: formData.auth?.baseUrl || '',
-        }
+        id: formData.id || uuidv4(),
+        createdAt: formData.createdAt || Date.now(),
+        updatedAt: Date.now(),
       };
 
-      // 验证必填字段
-      if (!submitData.name?.trim()) {
-        message.error('请输入模型名称');
-        return;
-      }
-      if (!submitData.provider) {
-        message.error('请选择供应商');
-        return;
-      }
-      if (!submitData.model) {
-        message.error('请选择模型');
-        return;
-      }
-      if (submitData.provider !== 'ollama' && !submitData.auth?.apiKey) {
-        message.error('请输入API密钥');
-        return;
-      }
+      // 适配配置
+      const config = adaptModelConfig(mergedConfig);
 
-      let completeModel: ModelConfig;
-      switch (submitData.provider) {
-        case 'ollama':
-          completeModel = OllamaConfigFactory.createConfig(submitData);
-          break;
-        case 'deepseek':
-          completeModel = DeepseekConfigFactory.createConfig(submitData);
-          break;
-        case 'siliconflow':
-          completeModel = {
-            id: submitData.id || uuidv4(),
-            name: submitData.name.trim(),
-            provider: submitData.provider,
-            model: submitData.model,
-            parameters: {
-              temperature: submitData.parameters?.temperature ?? defaultParameters.temperature,
-              topP: submitData.parameters?.topP ?? defaultParameters.topP,
-              maxTokens: submitData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-            },
-            auth: {
-              apiKey: submitData.auth?.apiKey || '',
-              organizationId: submitData.auth?.organizationId || '',
-              baseUrl: submitData.auth?.baseUrl || '',
-            },
-            isEnabled: true,
-            createdAt: submitData.createdAt || Date.now(),
-            updatedAt: Date.now(),
-          };
-          break;
-        default:
-          completeModel = {
-            id: submitData.id || uuidv4(),
-            name: submitData.name.trim(),
-            provider: submitData.provider,
-            model: submitData.model,
-            parameters: {
-              temperature: submitData.parameters?.temperature ?? defaultParameters.temperature,
-              topP: submitData.parameters?.topP ?? defaultParameters.topP,
-              maxTokens: submitData.parameters?.maxTokens ?? defaultParameters.maxTokens,
-            },
-            auth: {
-              apiKey: submitData.auth?.apiKey || '',
-              organizationId: submitData.auth?.organizationId || '',
-              baseUrl: submitData.auth?.baseUrl || '',
-            },
-            isEnabled: true,
-            createdAt: submitData.createdAt || Date.now(),
-            updatedAt: Date.now(),
-          };
-      }
-
-      try {
-        if (initialValues) {
-          // 更新现有配置
-          await modelService.update(completeModel.id, {
-            ...completeModel,
-            createdAt: initialValues.createdAt, // 保持原有的创建时间
-          });
-          dispatch({ type: 'UPDATE_MODEL', payload: completeModel });
-          message.success('更新成功');
-        } else {
-          // 创建新配置
-          const now = Date.now();
-          const newModel = {
-            ...completeModel,
-            createdAt: now,
-            updatedAt: now,
-          };
-          await modelService.create(newModel);
-          dispatch({ type: 'ADD_MODEL', payload: newModel });
-          message.success('创建成功');
-        }
-        onSubmit(completeModel);
-      } catch (error) {
-        console.error('保存失败:', error);
-        if ((error as Error).message === 'Item not found') {
-          // 如果是更新时找不到记录，尝试创建新记录
-          const now = Date.now();
-          const newModel = {
-            ...completeModel,
-            createdAt: now,
-            updatedAt: now,
-          };
-          await modelService.create(newModel);
-          dispatch({ type: 'ADD_MODEL', payload: newModel });
-          message.success('创建成功');
-          onSubmit(newModel);
-        } else {
-          throw error;
-        }
-      }
+      // 验证配置
+      const provider = await llmService.getInitializedProvider(config);
+      await provider.validateConfig();
+      
+      // 提交配置
+      onSubmit(config);
+      message.success('配置保存成功');
     } catch (error) {
-      console.error('表单提交失败:', error);
-      message.error(`保存失败: ${(error as Error).message}`);
+      console.error('保存配置失败:', error);
+      message.error('保存配置失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderProviderConfig = () => {
+    const provider = formData.provider;
+    if (!provider) return null;
+
+    const providerConfig = DEFAULT_PROVIDERS.find(p => p.id === provider);
+    if (!providerConfig) return null;
+
+    switch (provider) {
+      case 'ollama':
+        return (
+          <OllamaConfigForm
+            formData={formData}
+            onBaseUrlChange={handleBaseUrlChange}
+            onModelChange={handleModelChange}
+            onParameterChange={handleParameterChange}
+            availableModels={availableModels}
+            isLoadingModels={isLoadingModels}
+            onRefreshModels={refreshModelList}
+            onTest={handleChatTest}
+          />
+        );
+      case 'deepseek':
+        return (
+          <DeepseekConfigForm
+            formData={formData}
+            onBaseUrlChange={handleBaseUrlChange}
+            onApiKeyChange={handleApiKeyChange}
+            onModelChange={handleModelChange}
+            onParameterChange={handleParameterChange}
+            availableModels={availableModels}
+            isLoadingModels={isLoadingModels}
+            onRefreshModels={refreshModelList}
+            onTest={handleChatTest}
+          />
+        );
+      default:
+        return (
+          <>
+            <Form.Item
+              label="服务地址"
+              name={['auth', 'baseUrl']}
+              rules={[{ required: true, message: '请输入服务地址' }]}
+            >
+              <Input placeholder="例如: http://localhost:11434" />
+            </Form.Item>
+            
+            {providerConfig.requiresOrganization && (
+              <Form.Item
+                label="组织ID"
+                name={['auth', 'organizationId']}
+                rules={[{ required: true, message: '请输入组织ID' }]}
+              >
+                <Input placeholder="请输入组织ID" />
+              </Form.Item>
+            )}
+
+            <Form.Item
+              label="API密钥"
+              name={['auth', 'apiKey']}
+              rules={[{ required: true, message: '请输入API密钥' }]}
+            >
+              <Input.Password placeholder="请输入API密钥" />
+            </Form.Item>
+          </>
+        );
     }
   };
 
   return (
-    <>
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={formData}
-        onFinish={handleSubmit}
-        className="model-form"
+    <Form form={form} onFinish={handleSubmit} initialValues={initialState}>
+      <Form.Item
+        label="名称"
+        name="name"
+        rules={[{ required: true, message: '请输入名称' }]}
       >
-        <Form.Item
-          name="name"
-          label="模型名称"
-          rules={[{ required: true, message: '请输入模型名称' }]}
-        >
-          <Input placeholder="请输入模型名称" />
-        </Form.Item>
+        <Input />
+      </Form.Item>
 
-        <Form.Item
-          name="provider"
-          label="选择供应商"
-          rules={[{ required: true, message: '请选择供应商' }]}
-        >
-          <ProviderSelect
-            value={provider}
-            onChange={(value: string) => {
-              handleProviderChange(value);
-            }}
-          />
-        </Form.Item>
+      <Form.Item
+        label="供应商"
+        name="provider"
+        rules={[{ required: true, message: '请选择供应商' }]}
+      >
+        <ProviderSelect onChange={handleProviderChange} />
+      </Form.Item>
 
-        {renderProviderConfig()}
+      <Form.Item
+        label="服务地址"
+        name={['auth', 'baseUrl']}
+        rules={[{ required: true, message: '请输入服务地址' }]}
+      >
+        <Input placeholder="例如: http://localhost:11434" />
+      </Form.Item>
 
-        <div className="form-actions" style={{ display: 'flex', alignItems: 'center' }}>
-          <Form.Item style={{ flex: 'none', margin: 0 }}>
-            <Button type="primary" htmlType="submit">
-              保存
-            </Button>
-          </Form.Item>
-          {onCancel && (
-            <Form.Item style={{ flex: 'none', margin: 0, marginLeft: 8 }}>
-              <Button type="default" onClick={onCancel}>
-              取消
-              </Button>
-            </Form.Item>
-          )}
-        </div>
-      </Form>
+      <Form.Item
+        label="模型"
+        name="model"
+        rules={[{ required: true, message: '请选择模型' }]}
+      >
+        <Space>
+          <Select
+            placeholder="请选择模型"
+            loading={refreshing}
+            notFoundContent={refreshing ? <Spin size="small" /> : null}
+            onChange={handleModelChange}
+            value={formData.model}
+            style={{ width: '200px' }}
+          >
+            {availableModels.map(model => (
+              <Select.Option key={model} value={model}>
+                {model}
+              </Select.Option>
+            ))}
+          </Select>
+          <Button 
+            onClick={refreshModelList}
+            loading={refreshing}
+          >
+            刷新
+          </Button>
+        </Space>
+      </Form.Item>
 
-      {showChatTestDialog && (
-            <ModelTestDialog
-          model={adaptModelConfig({
-            ...formData,
-            id: formData.id || uuidv4(),
-            name: formData.name || '未命名配置',
-            isEnabled: true,
-            createdAt: formData.createdAt || Date.now(),
-            updatedAt: Date.now(),
-          })}
-          onClose={() => setShowChatTestDialog(false)}
+      {/* 参数配置部分 */}
+      <Form.Item label="Temperature" name={['parameters', 'temperature']}>
+        <Slider
+          min={0}
+          max={2}
+          step={0.1}
+          defaultValue={0.7}
+        />
+      </Form.Item>
+
+      <Form.Item label="Top P" name={['parameters', 'topP']}>
+        <Slider
+          min={0}
+          max={1}
+          step={0.1}
+          defaultValue={0.9}
+        />
+      </Form.Item>
+
+      <Form.Item label="最大Token数" name={['parameters', 'maxTokens']}>
+        <Slider
+          min={100}
+          max={4000}
+          step={100}
+          defaultValue={2000}
+        />
+      </Form.Item>
+
+      <Form.Item>
+        <Space>
+          <Button type="primary" htmlType="submit">
+            保存
+          </Button>
+          <Button onClick={onCancel}>
+            取消
+          </Button>
+          <Button onClick={handleTestConnection} loading={isLoadingModels}>
+            测试连接
+          </Button>
+          <Button onClick={handleChatTest} loading={isLoadingModels}>
+            对话测试
+          </Button>
+        </Space>
+      </Form.Item>
+
+      {showTestDialog && currentTestConfig && (
+        <ModelTestDialog
+          modelConfig={currentTestConfig}
+          onClose={() => setShowTestDialog(false)}
+          systemPrompt="你是一个有帮助的AI助手。"
         />
       )}
-    </>
+    </Form>
   );
 };
 

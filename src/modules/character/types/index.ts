@@ -78,41 +78,35 @@ export interface CharacterTemplate {
   callConfig: CharacterConfig['callConfig'];
 }
 
-// 性格特征选项
-export const personalityOptions = [
-  '严谨', '幽默', '激进', '保守', '理性', '感性', '务实',
-  '理想主义', '创新', '传统'
-] as string[];
-
-// 说话风格选项
-export const speakingStyleOptions = [
-  '平民化', '学术派', '专业化', '通俗易懂', '严肃正式', '轻松活泼'
-] as string[];
-
-// 专业背景选项
-export const backgroundOptions = [
-  '法律', '经济', '科技', '医学', '教育', '艺术', '哲学',
-  '社会学', '心理学', '环境科学'
-] as string[];
-
-// 价值观选项
-export const valueOptions = [
-  '功利主义', '人文主义', '环保主义', '科技进步', '传统价值',
-  '创新精神', '社会公平', '个人自由'
-] as string[];
-
-// 论证风格选项
-export const argumentationStyleOptions = [
-  '数据驱动', '案例引用', '类比论证', '逻辑推理', '经验总结',
-  '权威引用', '实验论证', '历史分析'
-] as string[];
+// 选项常量
+export const OPTIONS = {
+  personality: [
+    '严谨', '幽默', '激进', '保守', '理性', '感性', '务实',
+    '理想主义', '创新', '传统'
+  ],
+  speakingStyle: [
+    '平民化', '学术派', '专业化', '通俗易懂', '严肃正式', '轻松活泼'
+  ],
+  background: [
+    '法律', '经济', '科技', '医学', '教育', '艺术', '哲学',
+    '社会学', '心理学', '环境科学'
+  ],
+  values: [
+    '功利主义', '人文主义', '环保主义', '科技进步', '传统价值',
+    '创新精神', '社会公平', '个人自由'
+  ],
+  argumentationStyle: [
+    '数据驱动', '案例引用', '类比论证', '逻辑推理', '经验总结',
+    '权威引用', '实验论证', '历史分析'
+  ]
+} as const;
 
 // 类型
-export type Personality = typeof personalityOptions[number];
-export type SpeakingStyle = typeof speakingStyleOptions[number];
-export type Background = typeof backgroundOptions[number];
-export type Value = typeof valueOptions[number];
-export type ArgumentationStyle = typeof argumentationStyleOptions[number];
+export type Personality = typeof OPTIONS.personality[number];
+export type SpeakingStyle = typeof OPTIONS.speakingStyle[number];
+export type Background = typeof OPTIONS.background[number];
+export type Value = typeof OPTIONS.values[number];
+export type ArgumentationStyle = typeof OPTIONS.argumentationStyle[number];
 
 export * from './character';
 export * from './template'; 

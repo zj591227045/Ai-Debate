@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { ModelConfig } from '../types';
-import { ModelConfigService } from '../../storage/services/ModelConfigService';
+import { StoreManager } from '../../store/StoreManager';
 
 interface ModelState {
   models: ModelConfig[];
@@ -20,35 +20,46 @@ type ModelAction =
 const initialState: ModelState = {
   models: [],
   isLoading: false,
-  error: null,
+  error: null
 };
-
-const ModelContext = createContext<{
-  state: ModelState;
-  dispatch: React.Dispatch<ModelAction>;
-} | undefined>(undefined);
 
 function modelReducer(state: ModelState, action: ModelAction): ModelState {
   switch (action.type) {
     case 'LOAD_MODELS_START':
-      return { ...state, isLoading: true, error: null };
+      return {
+        ...state,
+        isLoading: true,
+        error: null
+      };
     case 'LOAD_MODELS_SUCCESS':
-      return { ...state, models: action.payload, isLoading: false };
+      return {
+        ...state,
+        models: action.payload,
+        isLoading: false,
+        error: null
+      };
     case 'LOAD_MODELS_ERROR':
-      return { ...state, error: action.payload, isLoading: false };
+      return {
+        ...state,
+        isLoading: false,
+        error: action.payload
+      };
     case 'ADD_MODEL':
-      return { ...state, models: [...state.models, action.payload] };
+      return {
+        ...state,
+        models: [...state.models, action.payload]
+      };
     case 'UPDATE_MODEL':
       return {
         ...state,
         models: state.models.map(model =>
           model.id === action.payload.id ? action.payload : model
-        ),
+        )
       };
     case 'DELETE_MODEL':
       return {
         ...state,
-        models: state.models.filter(model => model.id !== action.payload),
+        models: state.models.filter(model => model.id !== action.payload)
       };
     case 'TOGGLE_MODEL':
       return {
@@ -57,50 +68,55 @@ function modelReducer(state: ModelState, action: ModelAction): ModelState {
           model.id === action.payload.id
             ? { ...model, isEnabled: action.payload.isEnabled }
             : model
-        ),
+        )
       };
     default:
       return state;
   }
 }
 
+const ModelContext = createContext<{
+  state: ModelState;
+  dispatch: React.Dispatch<ModelAction>;
+}>({
+  state: initialState,
+  dispatch: () => null
+});
+
 export function ModelProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(modelReducer, initialState);
-  const modelService = new ModelConfigService();
+  const storeManager = StoreManager.getInstance();
 
-  // 初始加载
-  useEffect(() => {
-    async function loadModels() {
+  // 加载模型配置
+  const loadModels = useCallback(async () => {
+    try {
       dispatch({ type: 'LOAD_MODELS_START' });
-      try {
-        const models = await modelService.getAll();
-        dispatch({ type: 'LOAD_MODELS_SUCCESS', payload: models });
-      } catch (error) {
-        dispatch({
-          type: 'LOAD_MODELS_ERROR',
-          payload: (error as Error).message,
-        });
-      }
+      const modelStore = storeManager.getModelStore();
+      const models = await modelStore.getAll();
+      dispatch({ type: 'LOAD_MODELS_SUCCESS', payload: models });
+    } catch (error) {
+      console.error('加载模型配置失败:', error);
+      dispatch({
+        type: 'LOAD_MODELS_ERROR',
+        payload: error instanceof Error ? error.message : '加载模型配置失败'
+      });
     }
-    loadModels();
   }, []);
 
-  // 数据变更时保存
+  // 监听存储变化
   useEffect(() => {
-    async function saveModels() {
-      try {
-        // 只在有数据时保存，避免覆盖初始加载
-        if (state.models.length > 0) {
-          await Promise.all(
-            state.models.map(model => modelService.update(model.id, model))
-          );
-        }
-      } catch (error) {
-        console.error('保存模型配置失败:', error);
-      }
-    }
-    saveModels();
-  }, [state.models]);
+    const modelStore = storeManager.getModelStore();
+    const unsubscribe = modelStore.subscribe(() => {
+      loadModels();
+    });
+
+    // 初始加载
+    loadModels();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [loadModels]);
 
   return (
     <ModelContext.Provider value={{ state, dispatch }}>
@@ -111,8 +127,63 @@ export function ModelProvider({ children }: { children: React.ReactNode }) {
 
 export function useModel() {
   const context = useContext(ModelContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useModel must be used within a ModelProvider');
   }
-  return context;
+
+  const { state, dispatch } = context;
+  const storeManager = StoreManager.getInstance();
+
+  const addModel = async (model: ModelConfig) => {
+    try {
+      const modelStore = storeManager.getModelStore();
+      await modelStore.addModel(model);
+      dispatch({ type: 'ADD_MODEL', payload: model });
+    } catch (error) {
+      console.error('添加模型失败:', error);
+      throw error;
+    }
+  };
+
+  const updateModel = async (model: ModelConfig) => {
+    try {
+      const modelStore = storeManager.getModelStore();
+      await modelStore.updateModel(model.id, model);
+      dispatch({ type: 'UPDATE_MODEL', payload: model });
+    } catch (error) {
+      console.error('更新模型失败:', error);
+      throw error;
+    }
+  };
+
+  const deleteModel = async (id: string) => {
+    try {
+      const modelStore = storeManager.getModelStore();
+      await modelStore.deleteModel(id);
+      dispatch({ type: 'DELETE_MODEL', payload: id });
+    } catch (error) {
+      console.error('删除模型失败:', error);
+      throw error;
+    }
+  };
+
+  const toggleModel = async (id: string, isEnabled: boolean) => {
+    try {
+      const modelStore = storeManager.getModelStore();
+      await modelStore.toggleEnabled(id, isEnabled);
+      dispatch({ type: 'TOGGLE_MODEL', payload: { id, isEnabled } });
+    } catch (error) {
+      console.error('切换模型状态失败:', error);
+      throw error;
+    }
+  };
+
+  return {
+    state,
+    dispatch,
+    addModel,
+    updateModel,
+    deleteModel,
+    toggleModel
+  };
 } 

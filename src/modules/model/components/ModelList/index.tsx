@@ -120,7 +120,7 @@ export default function ModelList() {
 
     try {
       console.log('创建 UnifiedLLMService 实例...');
-      const llmService = new UnifiedLLMService();
+      const llmService = UnifiedLLMService.getInstance();
       
       console.log('适配模型配置...');
       const adaptedConfig = adaptModelConfig(model);

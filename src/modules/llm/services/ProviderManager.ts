@@ -2,54 +2,116 @@
  * LLM供应商管理器
  */
 
-import { LLMProvider, ModelConfig } from '../types';
-import { ProviderType } from '../types/providers';
+import type { ModelConfig } from '../types/config';
+import type { LLMProvider } from './provider/base';
+import { ProviderFactory } from './provider/factory';
 import { LLMError, LLMErrorCode } from '../types/error';
+import { StoreManager } from '../../store/StoreManager';
 
 export class ProviderManager {
-  private static instance: ProviderManager;
-  private providers: Map<ProviderType, LLMProvider>;
+  private providers: Map<string, LLMProvider>;
+  private modelConfigs: Map<string, ModelConfig>;
+  private storeManager: StoreManager;
 
-  private constructor() {
+  constructor() {
     this.providers = new Map();
+    this.modelConfigs = new Map();
+    this.storeManager = StoreManager.getInstance();
   }
 
-  /**
-   * 获取单例实例
-   */
-  public static getInstance(): ProviderManager {
-    if (!ProviderManager.instance) {
-      ProviderManager.instance = new ProviderManager();
-    }
-    return ProviderManager.instance;
-  }
-
-  /**
-   * 注册供应商
-   */
-  public registerProvider(type: ProviderType, provider: LLMProvider): void {
-    this.providers.set(type, provider);
-  }
-
-  /**
-   * 获取供应商实例
-   */
-  public getProvider(type: ProviderType): LLMProvider {
-    const provider = this.providers.get(type);
-    if (!provider) {
+  async getProvider(config: ModelConfig, skipModelValidation = false): Promise<LLMProvider> {
+    console.group('=== ProviderManager.getProvider ===');
+    console.log('Input config:', config);
+    
+    // 验证供应商是否支持
+    if (!ProviderFactory.isProviderSupported(config.provider)) {
+      console.error('Provider not supported:', config.provider);
+      console.groupEnd();
       throw new LLMError(
-        `不支持的供应商类型: ${type}`,
-        LLMErrorCode.INVALID_CONFIG,
-        type
+        LLMErrorCode.PROVIDER_NOT_FOUND,
+        config.provider,
+        new Error(`不支持的供应商: ${config.provider}`)
       );
     }
-    return provider;
+
+    // 使用完整的缓存键
+    const cacheKey = `${config.provider}:${config.model}:${config.auth.baseUrl}`;
+    console.log('Cache key:', cacheKey);
+    
+    // 只有在不跳过模型验证时才保存配置到本地存储
+    if (!skipModelValidation) {
+      const modelStore = this.storeManager.getModelStore();
+      const configId = config.id;
+      if (configId) {
+        const existingConfig = await modelStore.getById(configId);
+        if (existingConfig) {
+          await modelStore.updateModel(configId, config);
+        } else {
+          const id = await modelStore.addModel(config);
+          config.id = id;
+        }
+      } else {
+        const id = await modelStore.addModel(config);
+        config.id = id;
+      }
+    }
+    
+    // 如果已经有初始化的 provider，直接返回
+    let provider = this.providers.get(cacheKey);
+    console.log('Existing provider:', provider?.constructor.name);
+
+    try {
+      if (!provider) {
+        console.log('Creating new provider for:', cacheKey);
+        provider = ProviderFactory.createProvider(config);
+        
+        // 初始化 provider
+        console.log('Initializing provider');
+        await provider.initialize(skipModelValidation);
+        
+        // 如果需要验证模型
+        if (!skipModelValidation) {
+          console.log('Validating provider config');
+          await provider.validateConfig();
+        }
+        
+        // 缓存 provider
+        this.providers.set(cacheKey, provider);
+        console.log('Provider cached:', cacheKey);
+      }
+      
+      console.groupEnd();
+      return provider;
+    } catch (error) {
+      console.error('Failed to get provider:', error);
+      console.groupEnd();
+      throw new LLMError(
+        LLMErrorCode.PROVIDER_NOT_FOUND,
+        config.provider,
+        error instanceof Error ? error : new Error('Failed to initialize provider')
+      );
+    }
   }
 
-  /**
-   * 获取所有已注册的供应商
-   */
-  public getProviders(): Map<ProviderType, LLMProvider> {
-    return this.providers;
+  async getModelConfig(modelId: string): Promise<ModelConfig | null> {
+    // 首先尝试从内存缓存获取
+    const config = this.modelConfigs.get(modelId);
+    if (config) {
+      return config;
+    }
+
+    // 如果内存中没有，从存储中获取
+    const modelStore = this.storeManager.getModelStore();
+    const storedConfig = await modelStore.getById(modelId);
+    
+    // 如果找到了配置，缓存到内存中
+    if (storedConfig) {
+      this.modelConfigs.set(modelId, storedConfig);
+      return storedConfig;
+    }
+    
+    return null;
   }
-} 
+}
+
+export default ProviderManager; 

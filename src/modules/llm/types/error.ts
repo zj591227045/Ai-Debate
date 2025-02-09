@@ -6,11 +6,14 @@
  * LLM错误码枚举
  */
 export enum LLMErrorCode {
+  UNKNOWN = 'UNKNOWN',
+  INITIALIZATION_FAILED = 'INITIALIZATION_FAILED',
   INVALID_CONFIG = 'INVALID_CONFIG',
   API_ERROR = 'API_ERROR',
-  RATE_LIMIT = 'RATE_LIMIT',
-  TIMEOUT = 'TIMEOUT',
-  UNKNOWN = 'UNKNOWN'
+  MODEL_NOT_FOUND = 'MODEL_NOT_FOUND',
+  PROVIDER_NOT_FOUND = 'PROVIDER_NOT_FOUND',
+  STREAM_ERROR = 'STREAM_ERROR',
+  TEST_FAILED = 'TEST_FAILED'
 }
 
 /**
@@ -18,13 +21,51 @@ export enum LLMErrorCode {
  */
 export class LLMError extends Error {
   constructor(
-    message: string,
     public code: LLMErrorCode,
     public provider: string,
-    public cause?: Error
+    public originalError?: Error
   ) {
-    super(message);
+    super(code);
     this.name = 'LLMError';
+  }
+
+  static modelNotFound(modelId: string): LLMError {
+    return new LLMError(
+      LLMErrorCode.MODEL_NOT_FOUND,
+      'unknown',
+    );
+  }
+
+  static providerError(provider: string, details: any): LLMError {
+    return new LLMError(
+      LLMErrorCode.PROVIDER_NOT_FOUND,
+      provider,
+      details
+    );
+  }
+
+  static networkError(details: any): LLMError {
+    return new LLMError(
+      LLMErrorCode.STREAM_ERROR,
+      'unknown',
+      details
+    );
+  }
+
+  static timeout(timeoutMs: number): LLMError {
+    return new LLMError(
+      LLMErrorCode.STREAM_ERROR,
+      'unknown',
+      new Error(`Request timed out after ${timeoutMs}ms`)
+    );
+  }
+
+  static invalidRequest(message: string): LLMError {
+    return new LLMError(
+      LLMErrorCode.API_ERROR,
+      'unknown',
+      new Error(message)
+    );
   }
 
   /**
@@ -34,7 +75,7 @@ export class LLMError extends Error {
     return {
       code: this.code,
       provider: this.provider,
-      cause: this.cause?.message,
+      originalError: this.originalError,
       stack: this.stack
     };
   }
@@ -43,8 +84,8 @@ export class LLMError extends Error {
    * 格式化错误信息
    */
   toString(): string {
-    return `[${this.code}] ${this.message} (Provider: ${this.provider})${
-      this.cause ? `\nCaused by: ${this.cause.message}` : ''
-    }`;
+    return `[${this.code}] ${this.message}`;
   }
 }
+
+export default LLMError;

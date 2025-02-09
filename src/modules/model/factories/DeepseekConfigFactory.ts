@@ -1,6 +1,18 @@
 import { ModelConfig, PartialModelConfig } from '../types';
-import { ProviderOptions } from '../../ai-model/types/model';
+import { ModelCapabilities } from '../../llm/types/common';
+import { PROVIDERS } from '../../llm/types/providers';
 import { v4 as uuidv4 } from 'uuid';
+
+interface ProviderOptions {
+  model: string;
+  options?: {
+    temperature?: number;
+    top_p?: number;
+    num_predict?: number;
+    stop?: string[];
+  };
+  baseUrl?: string;
+}
 
 const DEFAULT_PARAMETERS = {
   temperature: 0.7,
@@ -13,7 +25,7 @@ export class DeepseekConfigFactory {
     return {
       id: uuidv4(),
       name: '',
-      provider: 'deepseek',
+      provider: PROVIDERS.DEEPSEEK,
       model: '',
       parameters: { ...DEFAULT_PARAMETERS },
       auth: {
@@ -40,7 +52,7 @@ export class DeepseekConfigFactory {
     return {
       id: partial.id || uuidv4(),
       name: partial.name || '未命名配置',
-      provider: 'deepseek',
+      provider: PROVIDERS.DEEPSEEK,
       model: partial.model || '',
       parameters: {
         temperature: partial.parameters?.temperature ?? DEFAULT_PARAMETERS.temperature,

@@ -2,159 +2,131 @@
  * 统一的LLM服务类
  */
 
-import { LLMRequest, LLMResponse, LLMService, ModelConfig } from '../types';
+import { LLMProvider } from './provider/base';
 import { ProviderManager } from './ProviderManager';
 import { LLMError, LLMErrorCode } from '../types/error';
-import { ProviderType } from '../types/providers';
-import { ProviderAdapter } from '../adapters/base';
+import type { ChatRequest, ChatResponse, ServiceStatus } from '../api/types';
+import { ModelConfig } from '../types/config';
+import { moduleEventBus } from './events';
+import { LLMEvents } from '../api/events';
+import { moduleStore, type IStateStore, type LLMState } from './store';
+import { ProviderFactory } from './provider/factory';
 
-export class UnifiedLLMService implements LLMService {
-  private providerManager: ProviderManager;
-  private initializedProviders: Map<string, boolean>;
+export class UnifiedLLMService {
+  private static instance: UnifiedLLMService;
+  private currentConfig: ModelConfig | null = null;
+  private readonly providerManager: ProviderManager;
+  private readonly store: IStateStore<LLMState>;
+  private readonly eventBus = moduleEventBus;
 
-  constructor() {
-    this.providerManager = ProviderManager.getInstance();
-    this.initializedProviders = new Map();
+  constructor(providerManager: ProviderManager, store: IStateStore<LLMState>) {
+    this.providerManager = providerManager;
+    this.store = store;
   }
 
-  /**
-   * 获取并初始化供应商实例
-   * @param config 模型配置
-   * @param skipModelValidation 是否跳过模型验证
-   */
-  public async getInitializedProvider(config: ModelConfig, skipModelValidation = false): Promise<ProviderAdapter> {
-    console.group('=== 获取供应商实例 ===');
-    console.log('配置信息:', config);
-    console.log('跳过模型验证:', skipModelValidation);
-    
-    const provider = this.providerManager.getProvider(config.provider as ProviderType) as ProviderAdapter;
-    console.log('获取到供应商:', config.provider);
-    
-    const providerId = `${config.provider}-${config.id}`;
-    console.log('供应商ID:', providerId);
-    console.log('是否已初始化:', this.initializedProviders.get(providerId));
+  public static getInstance(): UnifiedLLMService {
+    if (!UnifiedLLMService.instance) {
+      UnifiedLLMService.instance = new UnifiedLLMService(
+        new ProviderManager(), 
+        moduleStore
+      );
+    }
+    return UnifiedLLMService.instance;
+  }
 
-    // 检查是否已经初始化过
-    if (!this.initializedProviders.get(providerId)) {
-      console.log('供应商未初始化，开始初始化...');
-      if (!config.providerSpecific) {
-        console.error('供应商配置缺失');
-        throw new LLMError(
-          '供应商配置缺失',
-          LLMErrorCode.INVALID_CONFIG,
-          config.provider
-        );
-      }
-      
-      try {
-        console.log('初始化配置:', config.providerSpecific);
-        await provider.initialize(config.providerSpecific, skipModelValidation);
-        console.log('供应商初始化成功');
-        this.initializedProviders.set(providerId, true);
-      } catch (error) {
-        console.error('供应商初始化失败:', error);
-        throw error;
-      }
-    } else {
-      console.log('供应商已初始化，跳过初始化步骤');
+  async setModel(modelId: string): Promise<void> {
+    console.log('Setting model:', modelId);
+    const config = await this.getModelConfig(modelId);
+    if (!config) {
+      throw new LLMError(
+        LLMErrorCode.MODEL_NOT_FOUND,
+        modelId,
+        new Error('Model config not found')
+      );
     }
 
-    console.groupEnd();
-    return provider;
+    this.currentConfig = config;
+    this.store.setState({
+      currentModelId: modelId,
+      isReady: true,
+      error: undefined
+    });
+    this.eventBus.emit(LLMEvents.MODEL_CHANGED, modelId);
+    console.log('Model config set:', config);
   }
 
-  /**
-   * 生成完成响应
-   */
-  public async generateCompletion(request: LLMRequest): Promise<LLMResponse> {
-    try {
-      // 获取并初始化供应商实例
-      const provider = await this.getInitializedProvider(request.modelConfig);
-
-      // 格式化请求
-      const formattedRequest = this.formatRequest(request);
-
-      // 调用供应商API
-      const response = await provider.generateCompletion(formattedRequest);
-
-      // 格式化响应
-      return this.formatResponse(response, request.modelConfig);
-    } catch (error) {
-      throw this.handleError(error, request.modelConfig);
+  private async getProvider(): Promise<LLMProvider> {
+    if (!this.currentConfig) {
+      throw new LLMError(
+        LLMErrorCode.MODEL_NOT_FOUND,
+        'unknown',
+        new Error('No model selected')
+      );
     }
-  }
 
-  /**
-   * 生成流式响应
-   */
-  public async *generateStream(request: LLMRequest): AsyncGenerator<string> {
-    try {
-      // 获取并初始化供应商实例
-      const provider = await this.getInitializedProvider(request.modelConfig);
-      
-      if (!provider.generateStream) {
-        throw new LLMError(
-          '供应商不支持流式输出',
-          LLMErrorCode.API_ERROR,
-          request.modelConfig.provider
-        );
-      }
-
-      const formattedRequest = this.formatRequest(request);
-      const stream = await provider.generateStream(formattedRequest);
-
-      for await (const chunk of stream) {
-        yield chunk;
-      }
-    } catch (error) {
-      throw this.handleError(error, request.modelConfig);
+    if (!ProviderFactory.isProviderSupported(this.currentConfig.provider)) {
+      throw new LLMError(
+        LLMErrorCode.PROVIDER_NOT_FOUND,
+        this.currentConfig.provider,
+        new Error(`不支持的供应商: ${this.currentConfig.provider}`)
+      );
     }
+
+    return this.providerManager.getProvider(this.currentConfig);
   }
 
-  /**
-   * 格式化请求
-   */
-  private formatRequest(request: LLMRequest): LLMRequest {
+  async getInitializedProvider(config: ModelConfig, skipModelValidation = false): Promise<LLMProvider> {
+    if (!ProviderFactory.isProviderSupported(config.provider)) {
+      throw new LLMError(
+        LLMErrorCode.PROVIDER_NOT_FOUND,
+        config.provider,
+        new Error(`不支持的供应商: ${config.provider}`)
+      );
+    }
+    return this.providerManager.getProvider(config, skipModelValidation);
+  }
+
+  async chat(request: ChatRequest): Promise<ChatResponse> {
+    console.log('Chat request:', request);
+    const provider = await this.getProvider();
+    return provider.chat(request);
+  }
+
+  async *stream(request: ChatRequest): AsyncGenerator<ChatResponse> {
+    console.log('Stream request:', request);
+    const provider = await this.getProvider();
+    yield* provider.stream(request);
+  }
+
+  getStatus(): ServiceStatus {
+    const state = this.store.getState();
     return {
-      ...request,
-      parameters: {
-        ...request.modelConfig.parameters,  // 默认参数
-        ...request.parameters,             // 请求特定参数
-      }
+      isReady: state.isReady,
+      currentModel: state.currentModelId,
+      provider: this.currentConfig?.provider || '',
+      error: state.error
     };
   }
 
-  /**
-   * 格式化响应
-   */
-  private formatResponse(
-    response: LLMResponse,
-    config: ModelConfig
-  ): LLMResponse {
-    return {
-      content: response.content,
-      usage: response.usage,
-      metadata: {
-        ...response.metadata,
-        provider: config.provider,
-        model: config.model,
-      }
-    };
+  private async getModelConfig(modelId: string): Promise<ModelConfig | null> {
+    // 从 store 或其他配置源获取模型配置
+    const config = await this.providerManager.getModelConfig(modelId);
+    if (!config) {
+      console.warn(`未找到模型配置: ${modelId}`);
+      return null;
+    }
+    return config;
   }
 
-  /**
-   * 处理错误
-   */
-  private handleError(error: unknown, config: ModelConfig): LLMError {
-    if (error instanceof LLMError) {
-      return error;
-    }
-
-    return new LLMError(
-      error instanceof Error ? error.message : '未知错误',
-      LLMErrorCode.UNKNOWN,
-      config.provider,
-      error instanceof Error ? error : undefined
-    );
+  // 添加一个新方法用于直接设置配置
+  public async setModelConfig(config: ModelConfig): Promise<void> {
+    this.currentConfig = config;
+    this.store.setState({
+      currentModelId: config.model,
+      isReady: true,
+      error: undefined
+    });
+    this.eventBus.emit(LLMEvents.MODEL_CHANGED, config.model);
+    console.log('Model config set:', config);
   }
 } 

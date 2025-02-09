@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import styled from '@emotion/styled';
-import { Tooltip, Divider } from 'antd';
+import { Tooltip, Divider, message } from 'antd';
 import { 
   ArrowLeftOutlined,
   SaveOutlined,
@@ -529,7 +529,8 @@ const adaptStateFromStorage = (parsedState: any): CharacterState => ({
     model: '',
     parameters: {},
     ...parsedState.directConfig
-  }
+  },
+  loading: false
 });
 
 export const DebateRoom: React.FC = () => {
@@ -699,31 +700,6 @@ export const DebateRoom: React.FC = () => {
     topic: { title: '', description: '' },
     players: { byId: {} }
   };
-
-  // 处理 AI 发言生成成功
-  const handleSpeechGenerated = useCallback((content: string) => {
-    if (!currentSpeaker) return;
-
-    const speech: Speech = {
-      id: crypto.randomUUID(),
-      playerId: currentSpeaker.id,
-      content,
-      timestamp: createTimestamp(),
-      round: currentState.round,
-      references: []
-    };
-
-    dispatch({
-      type: 'ADD_SPEECH',
-      payload: speech
-    });
-  }, [currentSpeaker, currentState?.round, dispatch]);
-
-  // 处理 AI 错误
-  const handleAIError = useCallback((error: Error) => {
-    console.error('AI 发言生成失败:', error);
-    // TODO: 添加错误提示
-  }, []);
 
   // 添加调试信息
   useEffect(() => {
@@ -1092,11 +1068,18 @@ export const DebateRoom: React.FC = () => {
                   background: topic.description
                 },
                 currentRound: currentState.round,
-                totalRounds: debate.rules.totalRounds,
+                totalRounds: unifiedState.debate.rules.totalRounds,
                 previousSpeeches: history.speeches
               }}
-              onGenerateSuccess={handleSpeechGenerated}
-              onError={handleAIError}
+              onSpeechGenerated={(speech) => {
+                dispatch({
+                  type: 'ADD_SPEECH',
+                  payload: speech
+                });
+              }}
+              onError={(error) => {
+                message.error(`生成失败: ${error.message}`);
+              }}
             />
           )}
 

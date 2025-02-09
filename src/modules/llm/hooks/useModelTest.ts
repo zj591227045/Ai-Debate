@@ -1,117 +1,96 @@
 import { useState, useCallback } from 'react';
-import { TestService, TestRequest, TestContext } from '../services/TestService';
-import { ModelConfig } from '../types';
-import { LLMError, LLMErrorCode } from '../types/error';
+import type { ChatRequest, ChatResponse } from '../api/types';
+import type { ModelConfig } from '../types/config';
+import { LLMError } from '../types/error';
+import { LLMService } from '../services/LLMService';
 
 interface UseModelTestProps {
   modelConfig: ModelConfig;
-  context?: TestContext;
-  onSuccess?: (content: string) => void;
+  onSuccess?: (response: ChatResponse) => void;
   onError?: (error: Error) => void;
-  onStreamOutput?: (chunk: string, isReasoning?: boolean) => void;
+  onStreamOutput?: (response: ChatResponse) => void;
 }
 
 interface UseModelTestResult {
   loading: boolean;
   error: Error | null;
-  test: (input: string, prompt?: string) => Promise<void>;
-  testStream: (input: string, prompt?: string) => Promise<void>;
+  test: (message: string, systemPrompt?: string) => Promise<void>;
+  testStream: (message: string, systemPrompt?: string) => Promise<void>;
 }
 
 export function useModelTest({
   modelConfig,
-  context,
   onSuccess,
   onError,
   onStreamOutput
 }: UseModelTestProps): UseModelTestResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const testService = TestService.getInstance();
-
-  console.log('=== useModelTest Hook Initialized ===');
-  console.log('Model Config:', modelConfig);
-  console.log('Context:', context);
+  const llmService = LLMService.getInstance();
 
   const handleError = useCallback((error: unknown) => {
-    console.error('=== useModelTest Error ===', error);
-    const llmError = error instanceof LLMError ? error : new LLMError(
-      error instanceof Error ? error.message : '未知错误',
-      LLMErrorCode.UNKNOWN,
-      modelConfig.provider,
-      error instanceof Error ? error : undefined
+    console.error('Model test error:', error);
+    const llmError = error instanceof LLMError ? error : new Error(
+      error instanceof Error ? error.message : '未知错误'
     );
     setError(llmError);
     onError?.(llmError);
-  }, [modelConfig.provider, onError]);
+    throw llmError;
+  }, [onError]);
 
-  const test = useCallback(async (input: string, prompt?: string) => {
-    console.group('=== useModelTest Test Request ===');
-    console.log('Input:', input);
-    console.log('Prompt:', prompt);
-    console.groupEnd();
-
+  const test = useCallback(async (message: string, systemPrompt?: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const request: TestRequest = {
-        input,
-        prompt,
-        modelConfig,
-        context
-      };
+      // 初始化 provider 并设置模型
+      await llmService.testModel(modelConfig);
 
-      const response = await testService.test(request);
-      console.log('=== useModelTest Test Response ===', response);
-      onSuccess?.(response.content);
+      // 发送测试消息
+      const response = await llmService.chat({
+        message,
+        systemPrompt,
+        temperature: modelConfig.parameters.temperature,
+        maxTokens: modelConfig.parameters.maxTokens,
+        topP: modelConfig.parameters.topP,
+        model: modelConfig.model
+      });
+
+      onSuccess?.(response);
     } catch (error) {
       handleError(error);
     } finally {
       setLoading(false);
     }
-  }, [modelConfig, context, onSuccess, handleError]);
+  }, [modelConfig, onSuccess, handleError, llmService]);
 
-  const testStream = useCallback(async (input: string, prompt?: string) => {
-    console.group('=== useModelTest Stream Request ===');
-    console.log('Input:', input);
-    console.log('Prompt:', prompt);
-    console.groupEnd();
-
+  const testStream = useCallback(async (message: string, systemPrompt?: string) => {
     setLoading(true);
     setError(null);
 
     try {
-      const request: TestRequest = {
-        input,
-        prompt,
-        modelConfig,
-        context,
-        stream: true
-      };
+      // 初始化 provider 并设置模型
+      await llmService.testModel(modelConfig);
 
-      let isReasoningMode = false;
-      for await (const chunk of testService.testStream(request)) {
-        console.log('Stream Chunk:', chunk);
-        
-        // 检查是否包含推理标记
-        if (chunk.startsWith('[[REASONING_START]]')) {
-          isReasoningMode = true;
-          continue;
-        }
-        if (chunk.startsWith('[[REASONING_END]]')) {
-          isReasoningMode = false;
-          continue;
-        }
-        
-        onStreamOutput?.(chunk, isReasoningMode);
+      const stream = llmService.stream({
+        message,
+        systemPrompt,
+        temperature: modelConfig.parameters.temperature,
+        maxTokens: modelConfig.parameters.maxTokens,
+        topP: modelConfig.parameters.topP,
+        model: modelConfig.model,
+        stream: true
+      });
+
+      for await (const response of stream) {
+        onStreamOutput?.(response);
       }
     } catch (error) {
       handleError(error);
     } finally {
       setLoading(false);
     }
-  }, [modelConfig, context, onStreamOutput, handleError]);
+  }, [modelConfig, onStreamOutput, handleError, llmService]);
 
   return {
     loading,
@@ -119,4 +98,6 @@ export function useModelTest({
     test,
     testStream
   };
-} 
+}
+
+export default useModelTest; 

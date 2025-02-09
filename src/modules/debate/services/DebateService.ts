@@ -3,8 +3,8 @@
  */
 
 import { UnifiedLLMService } from '../../llm/services/UnifiedLLMService';
-import { LLMRequest } from '../../llm/types';
-import { DebateService as IDebateService, DebateRequest, DebateResponse } from '../types';
+import type { ChatRequest } from '../../llm/api/types';
+import type { DebateService as IDebateService, DebateRequest, DebateResponse } from '../types';
 import { adaptModelConfig } from '../../llm/utils/adapters';
 
 export class DebateService implements IDebateService {
@@ -12,7 +12,7 @@ export class DebateService implements IDebateService {
   private llmService: UnifiedLLMService;
 
   private constructor() {
-    this.llmService = new UnifiedLLMService();
+    this.llmService = UnifiedLLMService.getInstance();
   }
 
   public static getInstance(): DebateService {
@@ -91,14 +91,15 @@ ${context.topic.description ? `描述：${context.topic.description}` : ''}`);
       const adaptedConfig = adaptModelConfig(request.debater.modelConfig);
       console.log('适配后的模型配置:', adaptedConfig);
 
-      const llmRequest: LLMRequest = {
-        prompt: this.generateSystemPrompt(request),
-        input: this.generateInputPrompt(),
-        modelConfig: adaptedConfig
-      };
+      const provider = await this.llmService.getInitializedProvider(adaptedConfig);
+      const response = await provider.chat({
+        message: this.generateInputPrompt(),
+        systemPrompt: this.generateSystemPrompt(request),
+        temperature: adaptedConfig.parameters.temperature,
+        maxTokens: adaptedConfig.parameters.maxTokens,
+        topP: adaptedConfig.parameters.topP
+      });
 
-      console.log('LLM请求:', llmRequest);
-      const response = await this.llmService.generateCompletion(llmRequest);
       console.log('LLM响应:', response);
 
       // 解析响应内容
@@ -128,25 +129,17 @@ ${context.topic.description ? `描述：${context.topic.description}` : ''}`);
       const adaptedConfig = adaptModelConfig(request.debater.modelConfig);
       console.log('适配后的模型配置:', adaptedConfig);
 
-      const llmRequest: LLMRequest = {
-        prompt: this.generateSystemPrompt(request),
-        input: this.generateInputPrompt(),
-        modelConfig: adaptedConfig,
-        parameters: {
-          ...adaptedConfig.parameters,
-          stream: true
-        }
-      };
+      const provider = await this.llmService.getInitializedProvider(adaptedConfig);
+      const stream = provider.stream({
+        message: this.generateInputPrompt(),
+        systemPrompt: this.generateSystemPrompt(request),
+        temperature: adaptedConfig.parameters.temperature,
+        maxTokens: adaptedConfig.parameters.maxTokens,
+        topP: adaptedConfig.parameters.topP
+      });
 
-      console.log('LLM流式请求:', llmRequest);
-      const stream = await this.llmService.generateStream(llmRequest);
-
-      if (!stream) {
-        throw new Error('模型不支持流式输出');
-      }
-
-      for await (const chunk of stream) {
-        yield chunk;
+      for await (const response of stream) {
+        yield response.content;
       }
     } catch (error) {
       console.error('生成流式发言失败:', error);

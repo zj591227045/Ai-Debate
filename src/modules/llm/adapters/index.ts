@@ -1,24 +1,23 @@
 import { OllamaAdapter } from './ollama';
 import { DeepseekAdapter } from './deepseek';
 import { SiliconFlowAdapter } from './siliconflow';
-import { BaseProviderAdapter } from './base';
-import { ProviderType } from '../types/providers';
+import type { BaseProviderAdapter } from '../types/adapter';
 
-const adapters: Record<string, new () => BaseProviderAdapter<any>> = {
-  [ProviderType.OLLAMA]: OllamaAdapter,
-  [ProviderType.DEEPSEEK]: DeepseekAdapter,
-  [ProviderType.SILICONFLOW]: SiliconFlowAdapter,
+export const adapters: Record<string, new () => BaseProviderAdapter> = {
+  'ollama': OllamaAdapter,
+  'deepseek': DeepseekAdapter,
+  'siliconflow': SiliconFlowAdapter
 };
 
-export function createAdapter(provider: string): BaseProviderAdapter<any> {
+export function getAdapter(provider: string): BaseProviderAdapter {
   const AdapterClass = adapters[provider];
   if (!AdapterClass) {
-    throw new Error(`未找到供应商 ${provider} 的适配器`);
+    throw new Error(`未找到适配器: ${provider}`);
   }
   return new AdapterClass();
 }
 
-export * from './base';
+export * from '../types/adapter';
 export * from './ollama';
 export * from './deepseek';
 export * from './siliconflow'; 

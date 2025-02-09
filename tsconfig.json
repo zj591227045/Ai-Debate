@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "target": "es2015",
     "lib": ["dom", "dom.iterable", "esnext"],
@@ -17,11 +18,7 @@
     "jsx": "react-jsx",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "downlevelIteration": true,
-    "baseUrl": "src",
-    "paths": {
-      "@/*": ["*"]
-    }
+    "downlevelIteration": true
   },
-  "include": ["src"]
+  "include": ["src", "docs/archive"]
 } 

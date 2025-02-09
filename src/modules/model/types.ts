@@ -1,4 +1,4 @@
-import type { ModelParameters, AIModelConfig, ApiConfig } from '../ai-model/types/model';
+import type { ModelParameters, AIModelConfig, ApiConfig } from '../llm/types/model';
 import { BaseEntity } from '../storage/validation/schemas/base.schema';
 
 export type { ModelParameters };

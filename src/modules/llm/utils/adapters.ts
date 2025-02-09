@@ -1,6 +1,6 @@
 import { ModelConfig as LLMModelConfig, ModelParameters, AuthConfig, ProviderSpecificConfig, BaseProviderConfig } from '../types';
 import { ModelConfig as UIModelConfig } from '../../model/types';
-import { ProviderType, OllamaConfig, DeepseekConfig, VolcengineConfig } from '../types/providers';
+import { PROVIDERS } from '../types/providers';
 
 /**
  * 适配模型参数
@@ -22,23 +22,27 @@ function adaptModelParameters(params: Partial<ModelParameters> = {}): ModelParam
  * 将UI模型配置转换为LLM服务模型配置
  */
 export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
+  console.group('=== adaptModelConfig ===');
+  console.log('Input UI config:', uiConfig);
+  
   // 基础配置转换
   const baseConfig = {
     id: uiConfig.id,
     name: uiConfig.name,
-    provider: uiConfig.provider,
+    provider: uiConfig.provider.toLowerCase(), // 确保小写
     model: uiConfig.model,
     isEnabled: uiConfig.isEnabled,
     createdAt: uiConfig.createdAt || Date.now(),
     updatedAt: uiConfig.updatedAt || Date.now()
   };
+  console.log('Base config:', baseConfig);
 
   // 转换参数配置
   const parameters = adaptModelParameters(uiConfig.parameters);
 
   // 转换认证配置
   const auth: AuthConfig = {
-    baseUrl: uiConfig.auth?.baseUrl || '',
+    baseUrl: uiConfig.auth?.baseUrl || 'http://localhost:11434',
     apiKey: uiConfig.auth?.apiKey || '',
     organizationId: uiConfig.auth?.organizationId,
   };
@@ -46,35 +50,32 @@ export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
   // 转换供应商特定配置
   let providerSpecific: ProviderSpecificConfig;
   
-  switch (uiConfig.provider) {
-    case ProviderType.OLLAMA:
+  switch (uiConfig.provider.toLowerCase()) {
+    case PROVIDERS.OLLAMA:
       providerSpecific = {
         baseUrl: auth.baseUrl,
         model: uiConfig.model,
-        useLocalEndpoint: true,
-      } as OllamaConfig;
+        options: {
+          temperature: parameters.temperature,
+          top_p: parameters.topP,
+          num_predict: parameters.maxTokens
+        }
+      };
       break;
     
-    case ProviderType.DEEPSEEK:
+    case PROVIDERS.DEEPSEEK:
       providerSpecific = {
         baseUrl: auth.baseUrl,
         model: uiConfig.model,
-        apiKey: auth.apiKey,
-        organizationId: auth.organizationId,
-      } as DeepseekConfig;
+        options: {
+          temperature: parameters.temperature,
+          maxTokens: parameters.maxTokens,
+          topP: parameters.topP
+        }
+      };
       break;
     
-    case ProviderType.VOLCENGINE:
-      providerSpecific = {
-        baseUrl: auth.baseUrl,
-        model: uiConfig.model,
-        apiKey: auth.apiKey,
-        apiSecret: uiConfig.providerSpecific?.apiSecret || '',
-        endpointId: uiConfig.providerSpecific?.endpointId || '',
-      } as VolcengineConfig;
-      break;
-    
-    case 'siliconflow':
+    case PROVIDERS.SILICONFLOW:
       providerSpecific = {
         baseUrl: auth.baseUrl || 'https://api.siliconflow.cn',
         model: uiConfig.model,
@@ -95,12 +96,16 @@ export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
       } as BaseProviderConfig;
   }
 
-  return {
+  const result = {
     ...baseConfig,
     parameters,
     auth,
     providerSpecific,
   };
+  
+  console.log('Adapted config:', result);
+  console.groupEnd();
+  return result;
 }
 
 /**

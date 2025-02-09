@@ -29,12 +29,16 @@ export class CharacterConfigService extends BaseStorageService<CharacterStorage>
       throw new Error('Template not found');
     }
 
+    // 生成唯一的角色ID
+    const uniqueId = `char_${templateId.replace('template_', '')}_${Date.now()}`;
+    
     const newCharacter = {
       ...defaultCharacterConfig,
       ...template,
       ...overrides,
-      id: `char_${Date.now()}`,
+      id: uniqueId,
       isTemplate: false,
+      templateId: templateId, // 保存原模板ID的引用
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -104,6 +108,32 @@ export class CharacterConfigService extends BaseStorageService<CharacterStorage>
     } catch (error) {
       console.error('验证过程出错:', error);
       return false;
+    }
+  }
+
+  // 删除角色
+  async deleteCharacter(characterId: string): Promise<void> {
+    console.log('删除角色, characterId:', characterId);
+    try {
+      const character = await this.getById(characterId);
+      if (!character) {
+        throw new Error('Character not found');
+      }
+      
+      // 如果是模板，检查是否有依赖此模板的角色
+      if (character.isTemplate) {
+        const allCharacters = await this.getAll();
+        const hasDependent = allCharacters.some(char => char.templateId === characterId);
+        if (hasDependent) {
+          throw new Error('Cannot delete template: it has dependent characters');
+        }
+      }
+      
+      await this.delete(characterId);
+      console.log('角色删除成功');
+    } catch (error) {
+      console.error('删除角色失败:', error);
+      throw error;
     }
   }
 } 

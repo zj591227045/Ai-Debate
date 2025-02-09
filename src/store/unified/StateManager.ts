@@ -16,18 +16,56 @@ export class StateManager {
   private static instance: StateManager | null = null;
 
   constructor(initialState: UnifiedState) {
+    this.validateState(initialState);
     this.state = initialState;
-    console.log('StateManager 初始化状态:', initialState);
+    console.log('StateManager 初始化状态:', {
+      hasCharacters: !!initialState.characters,
+      charactersCount: Object.keys(initialState.characters.byId).length,
+      hasDebate: !!initialState.debate,
+      debateStatus: initialState.debate.currentState.status
+    });
+  }
+
+  private validateState(state: UnifiedState): void {
+    if (!state) {
+      throw new Error('状态不能为空');
+    }
+
+    if (!state.characters || !state.characters.byId || !state.characters.allIds) {
+      throw new Error('角色状态不完整');
+    }
+
+    if (!state.debate || !state.debate.players || !state.debate.currentState) {
+      throw new Error('辩论状态不完整');
+    }
+
+    if (!state.config || !state.config.settings) {
+      throw new Error('配置状态不完整');
+    }
   }
 
   public static getInstance(initialState?: UnifiedState): StateManager {
-    if (!StateManager.instance && initialState) {
-      StateManager.instance = new StateManager(initialState);
-    } else if (initialState) {
-      // 如果已经存在实例但传入了新的初始状态，则更新状态
-      StateManager.instance?.updateState(initialState);
+    try {
+      if (!StateManager.instance && initialState) {
+        console.log('创建新的状态管理器实例');
+        StateManager.instance = new StateManager(initialState);
+      } else if (initialState) {
+        console.log('更新现有状态管理器实例');
+        StateManager.instance?.updateState(initialState);
+      } else if (!StateManager.instance) {
+        console.log('创建默认状态管理器实例');
+        StateManager.instance = new StateManager(StateAdapter.createInitialState());
+      }
+      
+      if (!StateManager.instance) {
+        throw new Error('状态管理器初始化失败');
+      }
+      
+      return StateManager.instance;
+    } catch (error) {
+      console.error('状态管理器初始化失败:', error);
+      throw error;
     }
-    return StateManager.instance as StateManager;
   }
 
   public static clearInstance(): void {
@@ -36,9 +74,21 @@ export class StateManager {
 
   // 更新整个状态树
   public updateState(newState: UnifiedState): void {
-    console.log('StateManager 更新状态:', newState);
-    this.state = newState;
-    this.notifySubscribers();
+    try {
+      console.log('StateManager 更新状态:', {
+        hasCharacters: !!newState.characters,
+        charactersCount: Object.keys(newState.characters.byId).length,
+        hasDebate: !!newState.debate,
+        debateStatus: newState.debate.currentState.status
+      });
+
+      this.validateState(newState);
+      this.state = newState;
+      this.notifySubscribers();
+    } catch (error) {
+      console.error('状态更新失败:', error);
+      throw error;
+    }
   }
 
   // 获取当前状态
@@ -59,9 +109,14 @@ export class StateManager {
     };
   }
 
-  // 通知所有订阅者
   private notifySubscribers(): void {
-    this.subscribers.forEach(callback => callback(this.state));
+    this.subscribers.forEach(callback => {
+      try {
+        callback(this.state);
+      } catch (error) {
+        console.error('通知订阅者失败:', error);
+      }
+    });
   }
 
   // 分发动作

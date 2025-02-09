@@ -11,15 +11,24 @@ export class StateAdapter {
   ): UnifiedState {
     console.group('=== StateAdapter.toUnified ===');
     console.log('输入配置:', {
-      gameConfig,
-      characterState
+      gameConfig: {
+        playersCount: gameConfig.players.length,
+        hasDebate: !!gameConfig.debate,
+        hasRules: !!gameConfig.ruleConfig
+      },
+      characterState: {
+        charactersCount: characterState.characters.length,
+        templatesCount: characterState.templates.length,
+        activeMode: characterState.activeMode
+      }
     });
 
+    try {
     // 处理裁判配置
     console.group('处理裁判配置');
     const processedJudge = {
-      characterId: gameConfig.debate?.judging?.selectedJudge?.id || 'default_3',
-      name: gameConfig.debate?.judging?.selectedJudge?.name || '罗辑',
+        characterId: gameConfig.debate?.judging?.selectedJudge?.id || '',
+        name: gameConfig.debate?.judging?.selectedJudge?.name || '',
       avatar: gameConfig.debate?.judging?.selectedJudge?.avatar || '',
       modelConfig: gameConfig.debate?.judging?.selectedJudge?.modelConfig
     };
@@ -29,46 +38,22 @@ export class StateAdapter {
     // 处理评分维度
     console.group('处理评分维度');
     const processedDimensions = (gameConfig.debate?.judging?.dimensions || []).map(dim => {
-      console.log('处理维度:', {
-        id: dim.id,
-        name: dim.name,
-        weight: dim.weight,
-        description: dim.description
-      });
-      
       const processed = {
         id: dim.id || crypto.randomUUID(),
         name: dim.name || '',
-        weight: Number(dim.weight) || 0,  // 确保权重是数字
+          weight: Number(dim.weight) || 0,
         description: dim.description || '',
         criteria: dim.criteria || []
       };
-      
-      console.log('处理后的维度:', processed);
       return processed;
     });
     
     // 计算总分
     const totalWeight = processedDimensions.reduce((sum, dim) => sum + (dim.weight || 0), 0);
-    console.log('维度总权重:', totalWeight);
-    
-    // 如果总权重不等于100，按比例调整
-    if (totalWeight !== 0 && totalWeight !== 100) {
-      console.log('调整维度权重以达到100分');
-      processedDimensions.forEach(dim => {
-        dim.weight = Math.round((dim.weight / totalWeight) * 100);
-      });
-    }
-    
-    console.log('最终处理后的评分维度:', processedDimensions);
-    console.groupEnd();
-
-    // 处理评分配置
-    console.group('处理评分配置');
     const processedJudging = {
-      description: gameConfig.debate?.judging?.description || '正常评分',
+        description: gameConfig.debate?.judging?.description || '',
       dimensions: processedDimensions,
-      totalScore: 100,  // 固定总分为100
+        totalScore: totalWeight || 100,
       scoreRange: {
         min: 0,
         max: 100
@@ -78,62 +63,178 @@ export class StateAdapter {
     console.groupEnd();
 
     // 转换角色状态
+      console.group('处理角色状态');
     const characters = {
-      byId: {
-        // 首先添加所有现有的角色
-        ...characterState.characters.reduce<Record<string, CharacterConfig>>((acc, char) => {
-          console.log('添加现有角色:', char.id, char.name);
-          acc[char.id] = char;
-          return acc;
-        }, {}),
-        // 然后添加默认角色配置（如果玩家没有分配角色）
-        ...gameConfig.players
-          .filter(p => p.isAI && !characterState.characters.find(c => c.id === p.characterId))
-          .reduce<Record<string, CharacterConfig>>((acc, player) => {
-            // 使用玩家现有的 characterId 或生成新的
-            const characterId = player.characterId || `default_char_${player.id}`;
-            console.log('为玩家创建默认角色:', player.id, characterId);
-            acc[characterId] = {
-              id: characterId,
-              name: player.name,
-              description: '默认AI角色',
-              avatar: '',
-              persona: {
-                personality: [],
-                speakingStyle: '',
-                background: '',
-                values: [],
-                argumentationStyle: []
-              },
-              callConfig: {
-                type: 'direct'
-              },
-              createdAt: Date.now(),
-              updatedAt: Date.now()
-            };
-            return acc;
-          }, {})
-      },
+        byId: {} as Record<string, CharacterConfig>,
       allIds: [] as string[],
-      activeCharacters: gameConfig.players
-        .filter(p => p.isAI)
-        .map(p => {
-          const characterId = p.characterId || `default_char_${p.id}`;
-          console.log('激活角色:', p.id, characterId);
-          return characterId;
-        }),
+        activeCharacters: [] as string[],
       meta: {
         lastModified: Date.now(),
         version: '1.0.0'
       }
     };
 
-    // 设置 allIds
-    characters.allIds = Object.keys(characters.byId);
-    console.log('角色ID列表:', characters.allIds);
+      // 记录输入状态
+      console.log('输入状态:', {
+        gameConfigPlayers: gameConfig.players,
+        characterStateCharacters: characterState.characters,
+        localStorageKeys: Object.keys(localStorage)
+      });
+
+      // 首先尝试从 localStorage 加载角色数据
+      try {
+        const savedCharacterState = localStorage.getItem('characterState');
+        if (savedCharacterState) {
+          console.log('从localStorage读取到characterState:', savedCharacterState);
+          const parsedState = JSON.parse(savedCharacterState);
+          if (Array.isArray(parsedState.characters) && parsedState.characters.length > 0) {
+            console.log('从localStorage加载到角色数据:', {
+              count: parsedState.characters.length,
+              characters: parsedState.characters.map((c: CharacterConfig) => ({ id: c.id, name: c.name }))
+            });
+            parsedState.characters.forEach((char: CharacterConfig) => {
+              if (char && char.id) {
+                console.log('添加已保存角色:', { id: char.id, name: char.name });
+                characters.byId[char.id] = {
+                  ...char,
+                  createdAt: char.createdAt || Date.now(),
+                  updatedAt: Date.now()
+                };
+                characters.allIds.push(char.id);
+              }
+            });
+          } else {
+            console.warn('localStorage中的characterState格式不正确或为空');
+          }
+        } else {
+          console.log('localStorage中没有找到characterState');
+        }
+      } catch (error) {
+        console.error('从localStorage加载角色数据失败:', error);
+      }
+
+      // 如果localStorage中没有数据，再尝试从characterState加载
+      if (Object.keys(characters.byId).length === 0) {
+        console.log('尝试从characterState加载:', {
+          hasCharacters: Array.isArray(characterState.characters),
+          count: characterState.characters?.length || 0,
+          characters: characterState.characters?.map((c: CharacterConfig) => ({ id: c.id, name: c.name }))
+        });
+        
+        if (Array.isArray(characterState.characters)) {
+          characterState.characters.forEach(char => {
+            if (char && char.id) {
+              console.log('添加现有角色:', { id: char.id, name: char.name });
+              characters.byId[char.id] = {
+                ...char,
+                createdAt: char.createdAt || Date.now(),
+                updatedAt: Date.now()
+              };
+              characters.allIds.push(char.id);
+            }
+          });
+        } else {
+          console.warn('characterState.characters不是数组');
+        }
+      }
+
+      // 记录活跃角色
+      const activeCharacterIds = (Object.values(gameConfig.players) || [])
+        .filter(p => p.isAI && p.characterId)
+        .map(p => p.characterId as string);
+      
+      console.log('活跃角色ID列表:', activeCharacterIds);
+
+      // 如果仍然没有找到角色数据，尝试从unifiedState加载
+      if (Object.keys(characters.byId).length === 0) {
+        try {
+          const savedUnifiedState = localStorage.getItem('unifiedState');
+          if (savedUnifiedState) {
+            console.log('从localStorage读取到unifiedState');
+            const parsedState = JSON.parse(savedUnifiedState);
+            if (parsedState.characters && Object.keys(parsedState.characters.byId).length > 0) {
+              console.log('从unifiedState加载角色数据:', {
+                count: Object.keys(parsedState.characters.byId).length,
+                characters: Object.values(parsedState.characters.byId as Record<string, CharacterConfig>)
+                  .map(c => ({ id: c.id, name: c.name }))
+              });
+              Object.assign(characters, parsedState.characters);
+            } else {
+              console.warn('unifiedState中没有有效的角色数据');
+            }
+          } else {
+            console.log('localStorage中没有找到unifiedState');
+          }
+        } catch (error) {
+          console.error('从unifiedState加载角色数据失败:', error);
+        }
+      }
+
+      // 确保所有活跃角色都存在于 characters.byId 中
+      activeCharacterIds.forEach(charId => {
+        if (!characters.byId[charId]) {
+          // 尝试从characterState中找到对应的角色
+          const existingChar = characterState.characters.find(c => c.id === charId);
+          if (existingChar) {
+            console.log('找到并添加活跃角色:', { id: existingChar.id, name: existingChar.name });
+            characters.byId[charId] = {
+              ...existingChar,
+              updatedAt: Date.now()
+            };
+            if (!characters.allIds.includes(charId)) {
+              characters.allIds.push(charId);
+            }
+          } else {
+            console.warn(`未找到角色 ${charId} 的信息，请检查角色配置`);
+          }
+        }
+      });
+
+      characters.activeCharacters = activeCharacterIds;
+
+      // 验证角色状态完整性
+      const missingCharacters = activeCharacterIds.filter(id => !characters.byId[id]);
+      if (missingCharacters.length > 0) {
+        console.error('缺少必要的角色信息:', {
+          missingIds: missingCharacters,
+          availableIds: Object.keys(characters.byId),
+          characterState: characterState,
+          localStorage: {
+            hasCharacterState: !!localStorage.getItem('characterState'),
+            hasUnifiedState: !!localStorage.getItem('unifiedState')
+          }
+        });
+        throw new Error(`缺少必要的角色信息: ${missingCharacters.join(', ')}`);
+      }
+
+      console.log('处理后的角色状态:', {
+        totalCharacters: Object.keys(characters.byId).length,
+        activeCharacters: characters.activeCharacters.length,
+        charactersList: Object.values(characters.byId).map(c => ({ id: c.id, name: c.name }))
+      });
+      console.groupEnd();
 
     // 转换辩论状态
-    const debate: UnifiedDebateState = {
+      console.group('处理辩论状态');
+      console.log('处理后的辩论状态:', {
+        hasPlayers: Object.keys(gameConfig.players).length > 0,
+        format: gameConfig.ruleConfig?.format || gameConfig.debate?.rules?.debateFormat || 'structured',
+        status: 'preparing'
+      });
+      console.groupEnd();
+
+      // 转换配置状态
+      const config = {
+        activeMode: characterState.activeMode,
+        settings: {
+          dify: characterState.difyConfig,
+          direct: characterState.directConfig
+        }
+      };
+
+      const unifiedState: UnifiedState = {
+        characters,
+        debate: {
       topic: {
         title: gameConfig.topic.title || '',
         description: gameConfig.topic.description || '',
@@ -142,21 +243,26 @@ export class StateAdapter {
       players: {
         byId: gameConfig.players.reduce((acc, player) => {
           const status = 'waiting';
-          return {
-            ...acc,
-            [player.id]: {
+              // 创建一个新的可扩展对象
+              const newPlayer = {
               ...player,
+                id: player.id,
+                name: player.name,
+                isAI: player.isAI,
               status,
               role: player.role || 'unassigned',
-              characterId: player.characterId
-            }
+                characterId: player.characterId || undefined
+              };
+              return {
+                ...acc,
+                [player.id]: newPlayer
           };
         }, {}),
         allIds: gameConfig.players.map(p => p.id)
       },
       currentState: {
         round: 1,
-        status: 'preparing',
+            status: 'preparing' as const,
         lastModified: Date.now()
       },
       rules: {
@@ -180,34 +286,7 @@ export class StateAdapter {
       },
       judge: processedJudge,
       judging: processedJudging
-    };
-
-    console.log('转换后的辩论状态:', {
-      hasJudge: !!debate.judge,
-      judgeConfig: {
-        characterId: debate.judge.characterId,
-        name: debate.judge.name,
-        avatar: debate.judge.avatar
-      },
-      judgingConfig: {
-        description: debate.judging.description,
-        dimensionsCount: debate.judging.dimensions.length,
-        totalScore: debate.judging.totalScore
-      }
-    });
-
-    // 转换配置状态
-    const config = {
-      activeMode: characterState.activeMode,
-      settings: {
-        dify: characterState.difyConfig,
-        direct: characterState.directConfig
-      }
-    };
-
-    const unifiedState: UnifiedState = {
-      characters,
-      debate,
+        },
       config
     };
 
@@ -215,13 +294,15 @@ export class StateAdapter {
       charactersCount: Object.keys(unifiedState.characters.byId).length,
       activeCharactersCount: unifiedState.characters.activeCharacters.length,
       playersCount: Object.keys(unifiedState.debate.players.byId).length,
-      debateFormat: unifiedState.debate.rules.format,
-      topic: unifiedState.debate.topic,
-      rules: unifiedState.debate.rules
+        debateFormat: unifiedState.debate.rules.format
     });
 
     console.groupEnd();
     return unifiedState;
+    } catch (error) {
+      console.error('状态转换失败:', error);
+      throw error;
+    }
   }
 
   // 从统一状态转换回原始状态
@@ -385,7 +466,7 @@ export class StateAdapter {
         },
         currentState: {
           round: 1,
-          status: 'preparing',
+          status: 'preparing' as const,
           lastModified: Date.now()
         },
         rules: {

@@ -35,8 +35,11 @@ export interface CharacterConfig {
     };
   };
   
+  // 元数据
   createdAt?: number;
   updatedAt?: number;
+  isTemplate?: boolean;
+  templateId?: string;  // 新增：用于记录角色是从哪个模板创建的
 }
 
 // 模型配置
@@ -58,7 +61,7 @@ export interface DifyConfig {
   serverUrl: string;
   apiKey: string;
   workflowId: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, string | number | boolean | null>;
 }
 
 // 直接API配置
@@ -66,7 +69,7 @@ export interface DirectAPIConfig {
   provider: string;
   apiKey: string;
   model: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, string | number | boolean | null>;
 }
 
 // 预设模板

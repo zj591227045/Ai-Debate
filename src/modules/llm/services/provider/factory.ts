@@ -33,7 +33,7 @@ export class ProviderFactory {
       throw new LLMError(
         LLMErrorCode.PROVIDER_NOT_FOUND,
         config.provider,
-        new Error(`未找到提供商: ${config.provider}。请确保在表单中选择了正确的供应商。`)
+        new Error(`未找到提供商: ${config.provider}。可用的提供商: ${Array.from(this.providers.keys()).join(', ')}`)
       );
     }
     
@@ -50,7 +50,7 @@ export class ProviderFactory {
     return Array.from(this.providers.keys());
   }
 
-  static isProviderSupported(providerId: string): boolean {
-    return this.providers.has(providerId.toLowerCase());
+  static isProviderSupported(provider: string): boolean {
+    return this.providers.has(provider.toLowerCase());
   }
 } 

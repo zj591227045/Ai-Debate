@@ -13,7 +13,7 @@ import { DeepseekConfigForm } from '../providers/DeepseekConfigForm';
 import { DeepseekConfigFactory } from '../../factories/DeepseekConfigFactory';
 import { UnifiedLLMService } from '../../../llm/services/UnifiedLLMService';
 import { adaptModelConfig } from '../../../llm/utils/adapters';
-import { ModelConfig as LLMModelConfig } from '@/modules/llm/types';
+import { ModelConfig as LLMModelConfig } from '../../../llm/types';
 import { message } from 'antd';
 import { Form, Input, FormInstance, Button, Select, Slider, Space, Spin } from 'antd';
 import { ProviderSelect } from '../providers/ProviderSelect';
@@ -141,12 +141,20 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
       provider: value,
       model: undefined,
       auth: {
-        baseUrl: defaultBaseUrl
+        baseUrl: defaultBaseUrl,
+        apiKey: form.getFieldValue(['auth', 'apiKey']) // 保持原有的 API Key
       }
     });
 
     // 等待表单更新完成后刷新模型列表
-    setTimeout(refreshModelList, 0);
+    setTimeout(() => {
+      console.log('Refreshing models with form values:', {
+        provider: form.getFieldValue('provider'),
+        baseUrl: form.getFieldValue(['auth', 'baseUrl']),
+        apiKey: form.getFieldValue(['auth', 'apiKey'])
+      });
+      refreshModelList();
+    }, 0);
   };
 
   const refreshModelList = async () => {
@@ -154,6 +162,18 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     setError(null);
     
     try {
+      const apiKey = form.getFieldValue(['auth', 'apiKey']);
+      const baseUrl = form.getFieldValue(['auth', 'baseUrl']);
+      
+      console.log('Refreshing model list with:', {
+        baseUrl,
+        apiKey: apiKey ? '***' : undefined
+      });
+
+      if (!apiKey) {
+        throw new Error('请先输入API密钥');
+      }
+
       const tempConfig = {
         id: 'temp',
         name: 'temp',
@@ -165,7 +185,8 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
           maxTokens: 2000
         },
         auth: {
-          baseUrl: form.getFieldValue(['auth', 'baseUrl'])
+          baseUrl,
+          apiKey
         },
         isEnabled: true,
         createdAt: Date.now(),
@@ -186,7 +207,7 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     } catch (error) {
       console.error('\n 获取模型列表失败:', error);
       setError(error instanceof Error ? error.message : '获取模型列表失败');
-      message.error('获取模型列表失败');
+      message.error('获取模型列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setRefreshing(false);
     }
@@ -254,6 +275,7 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
   };
 
   const handleApiKeyChange = (value: string) => {
+    // 更新 formData
     setFormData(prev => ({
       ...prev,
       auth: {
@@ -261,6 +283,19 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
         apiKey: value
       }
     }));
+    
+    // 更新表单字段
+    form.setFieldsValue({
+      auth: {
+        ...form.getFieldValue('auth'),
+        apiKey: value
+      }
+    });
+    
+    // 如果已经有了服务地址，尝试刷新模型列表
+    if (formData.auth?.baseUrl) {
+      refreshModelList();
+    }
   };
 
   const getAvailableModels = () => {
@@ -373,6 +408,20 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
             onTest={handleChatTest}
           />
         );
+      case 'siliconflow':
+        return (
+          <SiliconFlowConfigForm
+            formData={formData}
+            onBaseUrlChange={handleBaseUrlChange}
+            onApiKeyChange={handleApiKeyChange}
+            onModelChange={handleModelChange}
+            onParameterChange={handleParameterChange}
+            availableModels={availableModels}
+            isLoadingModels={isLoadingModels}
+            onRefreshModels={refreshModelList}
+            onTest={handleChatTest}
+          />
+        );
       default:
         return (
           <>
@@ -424,74 +473,12 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
         <ProviderSelect onChange={handleProviderChange} />
       </Form.Item>
 
-      <Form.Item
-        label="服务地址"
-        name={['auth', 'baseUrl']}
-        rules={[{ required: true, message: '请输入服务地址' }]}
-      >
-        <Input placeholder="例如: http://localhost:11434" />
-      </Form.Item>
-
-      <Form.Item
-        label="模型"
-        name="model"
-        rules={[{ required: true, message: '请选择模型' }]}
-      >
-        <Space>
-          <Select
-            placeholder="请选择模型"
-            loading={refreshing}
-            notFoundContent={refreshing ? <Spin size="small" /> : null}
-            onChange={handleModelChange}
-            value={formData.model}
-            style={{ width: '200px' }}
-          >
-            {availableModels.map(model => (
-              <Select.Option key={model} value={model}>
-                {model}
-              </Select.Option>
-            ))}
-          </Select>
-          <Button 
-            onClick={refreshModelList}
-            loading={refreshing}
-          >
-            刷新
-          </Button>
-        </Space>
-      </Form.Item>
-
-      {/* 参数配置部分 */}
-      <Form.Item label="Temperature" name={['parameters', 'temperature']}>
-        <Slider
-          min={0}
-          max={2}
-          step={0.1}
-          defaultValue={0.7}
-        />
-      </Form.Item>
-
-      <Form.Item label="Top P" name={['parameters', 'topP']}>
-        <Slider
-          min={0}
-          max={1}
-          step={0.1}
-          defaultValue={0.9}
-        />
-      </Form.Item>
-
-      <Form.Item label="最大Token数" name={['parameters', 'maxTokens']}>
-        <Slider
-          min={100}
-          max={4000}
-          step={100}
-          defaultValue={2000}
-        />
-      </Form.Item>
+      {/* 根据供应商渲染不同的配置表单 */}
+      {renderProviderConfig()}
 
       <Form.Item>
         <Space>
-          <Button type="primary" htmlType="submit">
+          <Button type="primary" htmlType="submit" loading={loading}>
             保存
           </Button>
           <Button onClick={onCancel}>

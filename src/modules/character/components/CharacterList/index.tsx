@@ -287,13 +287,28 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterL
 
   const handleDeleteCharacter = (id: string) => {
     Modal.confirm({
-      title: '确定要删除这个角色吗？',
+      title: '确认删除',
       content: '删除后将无法恢复',
-      okText: '确定',
+      okText: '确定删除',
       cancelText: '取消',
-      onOk: () => {
-        dispatch({ type: 'DELETE_CHARACTER', payload: id });
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          dispatch({ type: 'DELETE_CHARACTER', payload: id });
+          message.success('角色已删除');
+        } catch (error) {
+          console.error('删除角色失败:', error);
+          message.error('删除失败: ' + (error instanceof Error ? error.message : '未知错误'));
+        }
       },
+      wrapClassName: 'delete-confirm-modal',
+      centered: true,
+      okCancel: true,
+      maskClosable: true,
+      width: 400,
+      styles: {
+        body: { padding: '16px' }
+      }
     });
   };
 
@@ -304,6 +319,7 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterL
       description: character.description || '',
       persona: character.persona,
       callConfig: character.callConfig,
+      isTemplate: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -426,24 +442,7 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterL
                           icon={<DeleteOutlined />}
                           onClick={(e) => {
                             e.stopPropagation();
-                            Modal.confirm({
-                              title: '确认删除',
-                              content: `确定要删除角色"${character.name}"吗？删除后将无法恢复。`,
-                              okText: '确定删除',
-                              cancelText: '取消',
-                              okButtonProps: { danger: true },
-                              onOk: () => handleDeleteCharacter(character.id),
-                              wrapClassName: 'delete-confirm-modal',
-                              centered: true,
-                              okCancel: true,
-                              maskClosable: true,
-                              width: 400,
-                              style: { top: 0 },
-                              bodyStyle: { padding: '16px' },
-                              cancelButtonProps: {
-                                style: { float: 'right', marginLeft: 8 }
-                              }
-                            });
+                            handleDeleteCharacter(character.id);
                           }}
                         >
                           删除

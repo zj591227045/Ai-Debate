@@ -26,44 +26,56 @@ export function SiliconFlowConfigForm({
   onRefreshModels,
   onTest,
 }: SiliconFlowConfigFormProps) {
-  const baseUrl = formData.auth?.baseUrl || 'https://api.siliconflow.cn';
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    onApiKeyChange(value);
+  };
 
   return (
     <>
       <div className="form-group">
-        <label htmlFor="baseUrl">服务地址</label>
+        <label htmlFor="baseUrl">服务地址 *</label>
         <input
           type="text"
           id="baseUrl"
           value={formData.auth?.baseUrl || ''}
           onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder="请输入服务地址（默认：https://api.siliconflow.cn）"
+          placeholder="请输入服务地址，例如：https://api.siliconflow.cn"
           className="api-key-input"
+          required
         />
+        <small className="form-text text-muted">
+          硅基流动API服务地址，必填项
+        </small>
       </div>
 
       <div className="form-group">
-        <label htmlFor="apiKey">API 密钥</label>
+        <label htmlFor="apiKey">API 密钥 *</label>
         <div className="api-key-input-group">
           <input
             type="password"
             id="apiKey"
             value={formData.auth?.apiKey || ''}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder="请输入 API 密钥"
+            onChange={handleApiKeyChange}
+            placeholder="请输入硅基流动的 API 密钥"
             required
             className="api-key-input"
           />
-          <BalanceChecker
-            provider="siliconflow"
-            apiKey={formData.auth?.apiKey || ''}
-            baseUrl={formData.auth?.baseUrl}
-          />
+          <small className="form-text text-muted">
+            在硅基流动控制台获取的API密钥，必填项
+          </small>
+          {formData.auth?.apiKey && (
+            <BalanceChecker
+              provider="siliconflow"
+              apiKey={formData.auth.apiKey}
+              baseUrl={formData.auth?.baseUrl}
+            />
+          )}
         </div>
       </div>
 
       <div className="form-group">
-        <label htmlFor="model">模型</label>
+        <label htmlFor="model">模型 *</label>
         <div className="model-select-group">
           <select
             id="model"
@@ -79,11 +91,16 @@ export function SiliconFlowConfigForm({
             ) : (
               availableModels.map((model) => (
                 <option key={model} value={model}>
-                  {model}
+                  {model} {model.startsWith('Pro/') && '(付费)'}
                 </option>
               ))
             )}
           </select>
+          {formData.model?.startsWith('Pro/') && (
+            <small className="form-text text-warning">
+              注意：此为付费模型，请确保账户余额充足
+            </small>
+          )}
           {onRefreshModels && (
             <button
               type="button"

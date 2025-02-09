@@ -35,7 +35,7 @@ export class ProviderManager {
     }
 
     // 使用完整的缓存键
-    const cacheKey = `${config.provider}:${config.model}:${config.auth.baseUrl}`;
+    const cacheKey = `${config.provider}::${config.auth.baseUrl}`;
     console.log('Cache key:', cacheKey);
     
     // 只有在不跳过模型验证时才保存配置到本地存储
@@ -58,7 +58,7 @@ export class ProviderManager {
     
     // 如果已经有初始化的 provider，直接返回
     let provider = this.providers.get(cacheKey);
-    console.log('Existing provider:', provider?.constructor.name);
+    console.log('Existing provider:', provider);
 
     try {
       if (!provider) {
@@ -83,10 +83,17 @@ export class ProviderManager {
       console.groupEnd();
       return provider;
     } catch (error) {
-      console.error('Failed to get provider:', error);
+      console.error('\n Failed to get provider:', error);
       console.groupEnd();
+      
+      // 如果是 LLMError，直接抛出
+      if (error instanceof LLMError) {
+        throw error;
+      }
+      
+      // 否则包装为 INITIALIZATION_FAILED 错误
       throw new LLMError(
-        LLMErrorCode.PROVIDER_NOT_FOUND,
+        LLMErrorCode.INITIALIZATION_FAILED,
         config.provider,
         error instanceof Error ? error : new Error('Failed to initialize provider')
       );

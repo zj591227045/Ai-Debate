@@ -4,7 +4,10 @@ import { PROVIDERS } from '../types/providers';
 
 interface SiliconFlowRequest {
   model: string;
-  prompt: string;
+  messages: Array<{
+    role: string;
+    content: string;
+  }>;
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
@@ -13,11 +16,22 @@ interface SiliconFlowRequest {
 
 interface SiliconFlowResponse {
   id: string;
+  object: string;
+  created: number;
+  model: string;
   choices: Array<{
-    text: string;
+    index: number;
+    message?: {
+      role: string;
+      content: string;
+    };
+    delta?: {
+      role?: string;
+      content?: string;
+    };
     finish_reason: string;
   }>;
-  usage: {
+  usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
@@ -26,31 +40,84 @@ interface SiliconFlowResponse {
 
 export class SiliconFlowAdapter extends BaseProviderAdapter<SiliconFlowRequest, SiliconFlowResponse> {
   adaptRequest(request: ChatRequest): SiliconFlowRequest {
-    const prompt = request.systemPrompt 
-      ? `${request.systemPrompt}\n\n${request.message}`
-      : request.message;
+    const messages = [];
+    
+    if (request.systemPrompt) {
+      messages.push({
+        role: 'system',
+        content: request.systemPrompt
+      });
+    }
+    
+    messages.push({
+      role: 'user',
+      content: request.message
+    });
 
-    return {
-      model: request.model || 'silicon-chat',
-      prompt,
-      stream: request.stream,
-      temperature: request.temperature,
-      max_tokens: request.maxTokens,
-      top_p: request.topP
+    if (!request.model) {
+      throw new Error('未指定模型');
+    }
+
+    // 构建请求配置
+    const requestConfig: SiliconFlowRequest = {
+      model: request.model,
+      messages,
+      temperature: request.temperature || 0.7,
+      top_p: request.topP || 0.9,
+      max_tokens: request.maxTokens || 2000
     };
+
+    // 如果是流式请求，添加stream参数
+    if (request.stream) {
+      requestConfig.stream = true;
+    }
+
+    console.log('SiliconFlow request config:', requestConfig);
+    return requestConfig;
   }
 
   adaptResponse(response: SiliconFlowResponse): ChatResponse {
+    // 处理流式响应
+    if (response.choices?.[0]?.delta) {
+      return {
+        content: response.choices[0].delta.content || '',
+        metadata: {
+          modelId: response.id,
+          provider: PROVIDERS.SILICONFLOW,
+          timestamp: response.created,
+          tokensUsed: response.usage ? {
+            prompt: response.usage.prompt_tokens,
+            completion: response.usage.completion_tokens,
+            total: response.usage.total_tokens
+          } : {
+            prompt: 0,
+            completion: 0,
+            total: 0
+          }
+        }
+      };
+    }
+    
+    // 处理普通响应
+    const content = response.choices[0].message?.content;
+    if (!content) {
+      throw new Error('响应内容为空');
+    }
+
     return {
-      content: response.choices[0].text,
+      content,
       metadata: {
         modelId: response.id,
         provider: PROVIDERS.SILICONFLOW,
-        timestamp: Date.now(),
-        tokensUsed: {
+        timestamp: response.created,
+        tokensUsed: response.usage ? {
           prompt: response.usage.prompt_tokens,
           completion: response.usage.completion_tokens,
           total: response.usage.total_tokens
+        } : {
+          prompt: 0,
+          completion: 0,
+          total: 0
         }
       }
     };

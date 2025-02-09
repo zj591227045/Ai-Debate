@@ -22,8 +22,8 @@ function adaptModelParameters(params: Partial<ModelParameters> = {}): ModelParam
  * 将UI模型配置转换为LLM服务模型配置
  */
 export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
-  console.group('=== adaptModelConfig ===');
-  console.log('Input UI config:', uiConfig);
+  //console.group('=== adaptModelConfig ===');
+  //console.log('Input UI config:', uiConfig);
   
   // 基础配置转换
   const baseConfig = {
@@ -35,7 +35,7 @@ export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
     createdAt: uiConfig.createdAt || Date.now(),
     updatedAt: uiConfig.updatedAt || Date.now()
   };
-  console.log('Base config:', baseConfig);
+  //console.log('Base config:', baseConfig);
 
   // 转换参数配置
   const parameters = adaptModelParameters(uiConfig.parameters);
@@ -103,8 +103,8 @@ export function adaptModelConfig(uiConfig: UIModelConfig): LLMModelConfig {
     providerSpecific,
   };
   
-  console.log('Adapted config:', result);
-  console.groupEnd();
+  //console.log('Adapted config:', result);
+  //console.groupEnd();
   return result;
 }
 

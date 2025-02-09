@@ -31,7 +31,7 @@ export class SiliconFlowConfigFactory {
       auth: {
         apiKey: '',
         organizationId: '',
-        baseUrl: 'https://api.siliconflow.cn',
+        baseUrl: '',
       },
       isEnabled: true,
       createdAt: Date.now(),
@@ -45,6 +45,14 @@ export class SiliconFlowConfigFactory {
     apiKey: string,
     options?: ProviderOptions
   ): ModelConfig {
+    if (!apiKey) {
+      throw new Error('硅基流动 API 密钥是必需的');
+    }
+
+    if (!options?.baseUrl) {
+      throw new Error('硅基流动服务地址是必需的');
+    }
+
     return {
       ...this.createInitialConfig(),
       name,
@@ -52,8 +60,26 @@ export class SiliconFlowConfigFactory {
       auth: {
         apiKey,
         organizationId: '',
-        baseUrl: options?.baseUrl || 'https://api.siliconflow.cn',
+        baseUrl: options.baseUrl,
       },
     } as ModelConfig;
+  }
+
+  static validateConfig(config: PartialModelConfig): string[] {
+    const errors: string[] = [];
+
+    if (!config.auth?.apiKey) {
+      errors.push('硅基流动 API 密钥是必需的');
+    }
+
+    if (!config.auth?.baseUrl) {
+      errors.push('硅基流动服务地址是必需的');
+    }
+
+    if (!config.model) {
+      errors.push('请选择一个模型');
+    }
+
+    return errors;
   }
 } 

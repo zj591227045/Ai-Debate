@@ -27,6 +27,7 @@ export const characterTemplateSchema = z.object({
       model: z.string()
     }).optional(),
   }),
+  isTemplate: z.boolean().default(true),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -55,6 +56,7 @@ export const defaultTemplates: CharacterTemplate[] = [
         model: 'default'
       }
     },
+    isTemplate: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -78,6 +80,7 @@ export const defaultTemplates: CharacterTemplate[] = [
         model: 'gpt-4'
       }
     },
+    isTemplate: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -101,6 +104,7 @@ export const defaultTemplates: CharacterTemplate[] = [
         model: 'claude-2'
       }
     },
+    isTemplate: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -124,6 +128,7 @@ export const defaultTemplates: CharacterTemplate[] = [
         model: 'gpt-4'
       }
     },
+    isTemplate: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -136,6 +141,10 @@ export const templateToCharacter = (template: CharacterTemplate): Partial<Charac
     description: template.description,
     persona: template.persona,
     callConfig: template.callConfig,
+    isTemplate: false,
+    templateId: template.id,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   };
 };
 

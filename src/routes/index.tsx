@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import GameConfig from '../pages/GameConfig';
-import DebateRoom from '../pages/DebateRoom';
+import { DebateRoom } from '../pages/DebateRoom';
 
 const AppRoutes: React.FC = () => {
   return (

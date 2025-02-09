@@ -108,6 +108,13 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     isEnabled: true,
   },
   {
+    id: 'siliconflow',
+    name: '硅基流动',
+    models: [],
+    defaultBaseUrl: 'https://api.siliconflow.cn',
+    isEnabled: true,
+  },
+  {
     id: 'xfyun',
     name: '讯飞星火',
     models: ['spark-v3', 'spark-v2', 'spark-v1.5'],

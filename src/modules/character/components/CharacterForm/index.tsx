@@ -131,8 +131,13 @@ export default function CharacterForm({
       return;
     }
 
+    // 生成一个唯一的英文ID
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const characterId = character?.id || `char_${timestamp}_${randomStr}`;
+
     const completeCharacter: CharacterConfig = {
-      id: formData.id || `char_${Date.now()}`,
+      id: characterId,
       name: formData.name!,
       avatar: formData.avatar,
       description: formData.description || '',
@@ -145,8 +150,8 @@ export default function CharacterForm({
         customDescription: formData.persona!.customDescription || '',
       },
       callConfig: formData.callConfig!,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: character?.createdAt || timestamp,
+      updatedAt: timestamp,
     };
 
     console.log('准备保存角色:', completeCharacter);

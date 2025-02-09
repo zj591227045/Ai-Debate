@@ -2,16 +2,16 @@ import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { useTheme } from '../../styles/ThemeContext';
 import { useSpeechRecorder } from '../../hooks/debate/useSpeechRecorder';
-import SpeechList from './SpeechList';
-import SpeechInput from './SpeechInput';
-import type { Player } from '../../types';
 import type { Speech } from '../../hooks/debate/useSpeechRecorder';
+import { SpeechList } from './SpeechList';
+import SpeechInput from './SpeechInput';
+import type { UnifiedPlayer, BaseDebateSpeech } from '../../types/adapters';
 
 export interface MainContentProps {
-  players: Player[];
+  players: UnifiedPlayer[];
   currentSpeaker?: string;
-  onSpeechAdded?: (speech: any) => void;
-  onSpeechEdited?: (speech: any) => void;
+  onSpeechAdded?: (speech: Speech) => void;
+  onSpeechEdited?: (speech: Speech) => void;
 }
 
 const Container = styled.div`
@@ -68,6 +68,13 @@ const CurrentSpeaker = styled.div`
   }
 `;
 
+const convertToBaseDebateSpeech = (speech: Speech): BaseDebateSpeech => ({
+  ...speech,
+  timestamp: speech.timestamp.toISOString(),
+  round: 1,
+  references: speech.references || []
+});
+
 export const MainContent: React.FC<MainContentProps> = ({
   players,
   currentSpeaker,
@@ -85,14 +92,24 @@ export const MainContent: React.FC<MainContentProps> = ({
   } = useSpeechRecorder({
     maxLength: 1000,
     minLength: 10,
-    onSpeechAdded,
-    onSpeechEdited
+    onSpeechAdded: onSpeechAdded as ((speech: Speech) => void) | undefined,
+    onSpeechEdited: onSpeechEdited as ((speech: Speech) => void) | undefined
   });
 
   const handleSubmitSpeech = async (content: string, type: 'speech' | 'innerThought', references?: string[]) => {
     if (!currentSpeaker) return false;
     const currentPlayer = players.find(p => p.name === currentSpeaker);
     if (!currentPlayer) return false;
+    
+    const speech: Speech = {
+      id: crypto.randomUUID(),
+      playerId: currentPlayer.id,
+      content,
+      timestamp: new Date(),
+      type,
+      references: references || []
+    };
+    
     return await addSpeech(currentPlayer.id, content, type, references);
   };
 
@@ -122,9 +139,11 @@ export const MainContent: React.FC<MainContentProps> = ({
         <SpeechList
           players={players}
           currentSpeakerId={currentSpeaker ? players.find(p => p.name === currentSpeaker)?.id : undefined}
-          speeches={speeches}
+          speeches={speeches.map(convertToBaseDebateSpeech)}
           onReference={handleReference}
-          getReferencedSpeeches={getReferencedSpeeches}
+          getReferencedSpeeches={(speechId: string) => 
+            getReferencedSpeeches(speechId).map(convertToBaseDebateSpeech)
+          }
         />
       </ContentArea>
 

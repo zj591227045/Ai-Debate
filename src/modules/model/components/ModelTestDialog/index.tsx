@@ -40,10 +40,10 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
   const adaptedConfig = adaptModelConfig(model);
 
   // 添加调试信息
-  console.group('=== LLM Service Debug Info ===');
-  console.log('Original Model Config:', model);
-  console.log('Adapted Model Config:', adaptedConfig);
-  console.groupEnd();
+  //console.group('=== LLM Service Debug Info ===');
+  //console.log('Original Model Config:', model);
+  //console.log('Adapted Model Config:', adaptedConfig);
+  //console.groupEnd();
 
   // 使用测试Hook
   const {

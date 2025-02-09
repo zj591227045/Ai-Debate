@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import styled from '@emotion/styled';
-import { Tooltip, Divider, message } from 'antd';
+import { Tooltip, Divider, message, Spin, Result, Button } from 'antd';
 import { 
   ArrowLeftOutlined,
   SaveOutlined,
@@ -29,6 +29,7 @@ import type { UnifiedPlayer, Speech } from '../types/adapters';
 import { createTimestamp } from '../utils/timestamp';
 import { DebugPanel } from '../components/debug/DebugPanel';
 import { AIPlayerList } from '../components/debug/AIPlayerList';
+import { SpeechList } from '../components/debate/SpeechList';
 
 // 主容器
 const Container = styled.div`
@@ -493,6 +494,14 @@ const DebateContent = styled.div`
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 `;
 
+const ContentArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg-container);
+`;
+
 interface DebateState {
   topic: {
     title: string;
@@ -562,50 +571,79 @@ export const DebateRoom: React.FC = () => {
   // 添加调试相关状态
   const [showDebugger, setShowDebugger] = useState(false);
 
+  const [streamingSpeech, setStreamingSpeech] = useState<{
+    playerId: string;
+    content: string;
+  } | null>(null);
+
+  // 添加 speeches 状态
+  const [speeches, setSpeeches] = useState<Speech[]>([]);
+
   // 监听游戏配置和角色状态变化
   useEffect(() => {
-    if (!gameConfig || !characterState) {
-      navigate('/');
-      return;
-    }
+    const initializeState = async () => {
+      console.log('开始初始化状态...');
+      setIsLoading(true);
 
-    console.log('游戏配置或角色状态发生变化:', {
-      gameConfig,
-      characterState
-    });
+      if (!gameConfig || !characterState) {
+        console.error('缺少必要的配置或角色状态');
+        navigate('/');
+        return;
+      }
 
-    // 更新统一状态
-    updateStateManager(gameConfig, characterState);
-    
-    // 获取状态管理器实例
-    const manager = getStateManager();
-    if (manager) {
-      setStateManager(manager);
-      const state = manager.getState();
-      setUnifiedState(state);
-      
-      // 订阅状态更新
-      const unsubscribe = manager.subscribe(newState => {
-        console.log('状态更新:', newState);
-        setUnifiedState(newState);
-      });
+      try {
+        // 更新统一状态
+        updateStateManager(gameConfig, characterState);
+        
+        // 获取状态管理器实例
+        const manager = getStateManager();
+        if (!manager) {
+          throw new Error('状态管理器初始化失败');
+        }
 
-      return () => {
-        unsubscribe();
-      };
-    } else {
-      console.error('状态管理器获取失败');
-      navigate('/');
-    }
+        setStateManager(manager);
+        const state = manager.getState();
+        
+        // 验证状态完整性
+        if (!state.debate || !state.characters || Object.keys(state.characters.byId).length === 0) {
+          throw new Error('状态不完整或角色数据为空');
+        }
+
+        setUnifiedState(state);
+        
+        // 订阅状态更新
+        const unsubscribe = manager.subscribe(newState => {
+          console.log('状态更新:', newState);
+          setUnifiedState(newState);
+        });
+
+        // 加载完成
+        setIsLoading(false);
+        console.log('状态初始化完成');
+
+        return () => {
+          unsubscribe();
+        };
+      } catch (error) {
+        console.error('初始化状态失败:', error);
+        message.error('初始化失败，请返回重试');
+        navigate('/');
+      }
+    };
+
+    initializeState();
   }, [gameConfig, characterState, navigate]);
 
   // 组件卸载时清理状态管理器
   useEffect(() => {
     return () => {
-      clearStateManager();
+      if (stateManager) {
+        stateManager.saveState();
+      }
     };
-  }, []);
+  }, [stateManager]);
 
+  // 监听当前发言者变化
   useEffect(() => {
     if (unifiedState?.debate.currentState.currentSpeaker) {
       const speakerId = unifiedState.debate.currentState.currentSpeaker;
@@ -613,7 +651,7 @@ export const DebateRoom: React.FC = () => {
       if (speaker) {
         setCurrentSpeaker({
           ...speaker,
-          role: speaker.role as UnifiedPlayer['role'] // 类型转换以确保兼容性
+          role: speaker.role as UnifiedPlayer['role']
         });
       }
     }
@@ -712,12 +750,71 @@ export const DebateRoom: React.FC = () => {
     });
   }, [currentSpeaker, unifiedState]);
 
+  const handleSpeechGenerated = (speech: Speech) => {
+    // 更新流式输出状态，累积内容
+    setStreamingSpeech(prev => {
+      if (!prev || prev.playerId !== speech.playerId) {
+        return {
+          playerId: speech.playerId,
+          content: speech.content
+        };
+      }
+      return {
+        playerId: speech.playerId,
+        content: prev.content + speech.content
+      };
+    });
+  };
+
+  const handleSpeechComplete = (speech: Speech) => {
+    // 清除流式输出状态
+    setStreamingSpeech(null);
+    
+    // 更新历史记录
+    stateManager?.dispatch({
+      type: 'ADD_SPEECH',
+      payload: speech
+    });
+  };
+
   if (isLoading) {
-    return <div>正在加载中...</div>;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <Spin size="large" />
+        <div>正在初始化辩论室...</div>
+      </div>
+    );
   }
 
   if (!unifiedState || !stateManager) {
-    return <div>状态初始化失败，请返回重试</div>;
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <Result
+          status="error"
+          title="初始化失败"
+          subTitle="无法加载辩论配置，请返回重试"
+          extra={[
+            <Button type="primary" key="back" onClick={() => navigate('/')}>
+              返回首页
+            </Button>
+          ]}
+        />
+      </div>
+    );
   }
 
   const isDebating = currentState.status === 'ongoing';
@@ -727,7 +824,7 @@ export const DebateRoom: React.FC = () => {
       {/* 顶部工具栏 */}
       <TopBar>
         <ToolButton onClick={handleBackToConfig}>
-          <ArrowLeftOutlined />返回配置
+          返回配置
         </ToolButton>
         <Divider type="vertical" />
         <span>当前轮次: {currentState.round}/4</span>
@@ -736,32 +833,9 @@ export const DebateRoom: React.FC = () => {
         {/* 添加调试按钮 */}
         {process.env.NODE_ENV !== 'production' && (
           <>
-            <ToolButton onClick={() => {
-              // 找到第一个AI玩家
-              const aiPlayers = Object.values(unifiedState.debate.players.byId).filter(p => p.isAI);
-              console.log('可用的AI玩家:', aiPlayers);
-              
-              if (aiPlayers.length > 0) {
-                const aiPlayer = aiPlayers[0];
-                console.log('选择AI玩家:', aiPlayer);
-                
-                // 更新状态管理器中的当前发言者
-                stateManager.dispatch({
-                  type: 'DEBATE_STATE_UPDATED',
-                  payload: {
-                    ...unifiedState.debate.currentState,
-                    currentSpeaker: aiPlayer.id
-                  }
-                });
-                
-                // 直接更新currentSpeaker状态
-                setCurrentSpeaker({
-                  ...aiPlayer,
-                  role: aiPlayer.role as UnifiedPlayer['role']
-                });
-              }
-            }}>
-              <BulbOutlined />设置AI发言者
+            <ToolButton onClick={() => setShowDebugger(!showDebugger)}>
+              {showDebugger ? <BulbFilled /> : <BulbOutlined />}
+              {showDebugger ? '关闭调试' : '开启调试'}
             </ToolButton>
             <Divider type="vertical" />
           </>
@@ -1018,15 +1092,25 @@ export const DebateRoom: React.FC = () => {
           </PlayerListSection>
         </Resizable>
 
-        <DebateContent>
-          {/* 辩论内容展示区域 */}
-          <div style={{ textAlign: 'center', color: '#999', marginTop: '40px' }}>
-            {currentState.status === 'preparing' ? '准备开始辩论...' :
-             currentState.status === 'paused' ? '辩论已暂停' :
-             currentState.status === 'finished' ? '辩论已结束' :
-             '辩论进行中...'}
-          </div>
-        </DebateContent>
+        <ContentArea>
+          {/* 发言记录列表 */}
+          <SpeechList
+            players={Object.values(unifiedState.debate.players.byId).map(player => ({
+              ...player,
+              role: player.role as UnifiedPlayer['role']
+            }))}
+            currentSpeakerId={currentState.currentSpeaker}
+            speeches={speeches}
+            streamingSpeech={streamingSpeech || undefined}
+            onReference={(speechId: string) => {
+              // 处理引用逻辑
+            }}
+            getReferencedSpeeches={(speechId: string) => {
+              // 获取被引用的发言
+              return [];
+            }}
+          />
+        </ContentArea>
       </MainContent>
 
       <StateDebugger />
@@ -1069,34 +1153,16 @@ export const DebateRoom: React.FC = () => {
                 },
                 currentRound: currentState.round,
                 totalRounds: unifiedState.debate.rules.totalRounds,
-                previousSpeeches: history.speeches
+                previousSpeeches: speeches
               }}
-              onSpeechGenerated={(speech) => {
-                dispatch({
-                  type: 'ADD_SPEECH',
-                  payload: speech
-                });
-              }}
+              onSpeechGenerated={handleSpeechGenerated}
               onError={(error) => {
-                message.error(`生成失败: ${error.message}`);
+                message.error('生成发言时出错：' + error.message);
               }}
             />
           )}
-
-          {/* 状态调试器 */}
-          <StateDebugger />
         </DebugPanel>
-      )}
-
-      {/* 调试开关 */}
-      {isDevelopment && (
-        <ToolButton onClick={() => setShowDebugger(!showDebugger)}>
-          {showDebugger ? <BulbFilled /> : <BulbOutlined />}
-          {showDebugger ? '关闭调试' : '开启调试'}
-        </ToolButton>
       )}
     </Container>
   );
 };
-
-export default DebateRoom; 

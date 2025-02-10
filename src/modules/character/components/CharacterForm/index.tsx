@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Tabs, Steps, message } from 'antd';
+import { Tabs, Steps, message, Form, Input, Button } from 'antd';
 import { UserOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons';
 import { CharacterConfig } from '../../types';
 import BasicInfo from './BasicInfo';
 import PersonaConfig from './PersonaConfig';
 import CallModeConfig from './CallModeConfig';
-import { useCharacter } from '../../context/CharacterContext';
 import { ModelProvider } from '../../../model/context/ModelContext';
 import { v4 as uuidv4 } from 'uuid';
 import './styles.css';
 import { PROVIDERS } from '../../../llm/types/providers';
+import { StateManager } from '../../../../store/unified/StateManager';
+import type { UnifiedState } from '../../../../store/unified/types';
 
 const { TabPane } = Tabs;
 
@@ -24,7 +25,6 @@ export default function CharacterForm({
   onSubmit, 
   onCancel 
 }: CharacterFormProps) {
-  const { dispatch } = useCharacter();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<Partial<CharacterConfig>>(
     character || {
@@ -93,79 +93,36 @@ export default function CharacterForm({
     });
   };
 
-  const handleSubmit = () => {
-    console.log('提交表单数据:', formData);
-    
-    // 验证必填字段
-    if (!formData.name) {
-      message.error('请填写角色名称');
-      setCurrentStep(0);
-      return;
+  const handleSubmit = async (values: any) => {
+    try {
+      const characterData: CharacterConfig = {
+        ...values,
+        id: character?.id || Date.now().toString(),
+        updatedAt: Date.now()
+      };
+
+      const stateManager = StateManager.getInstance();
+
+      if (character?.id) {
+        stateManager.dispatch({
+          type: 'CHARACTER_UPDATED',
+          payload: { id: character.id, changes: characterData }
+        });
+      } else {
+        stateManager.dispatch({
+          type: 'CHARACTER_ADDED',
+          payload: characterData
+        });
+      }
+
+      message.success('保存成功');
+      if (onSubmit) {
+        onSubmit(characterData);
+      }
+    } catch (error) {
+      console.error('保存失败:', error);
+      message.error('保存失败: ' + (error instanceof Error ? error.message : '未知错误'));
     }
-
-    if (!formData.persona?.personality?.length || 
-        !formData.persona?.speakingStyle ||
-        !formData.persona?.background ||
-        !formData.persona?.values?.length ||
-        !formData.persona?.argumentationStyle?.length) {
-      message.error('请完善人设配置');
-      setCurrentStep(1);
-      return;
-    }
-
-    if (!formData.callConfig?.type) {
-      message.error('请配置调用模式');
-      setCurrentStep(2);
-      return;
-    }
-
-    if (formData.callConfig.type === 'direct' && !formData.callConfig.direct?.modelId) {
-      message.error('请选择模型');
-      setCurrentStep(2);
-      return;
-    }
-
-    if (formData.callConfig.type === 'dify' && (!formData.callConfig.dify?.serverUrl || !formData.callConfig.dify?.apiKey)) {
-      message.error('请完善Dify配置');
-      setCurrentStep(2);
-      return;
-    }
-
-    // 生成一个唯一的英文ID
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const characterId = character?.id || `char_${timestamp}_${randomStr}`;
-
-    const completeCharacter: CharacterConfig = {
-      id: characterId,
-      name: formData.name!,
-      avatar: formData.avatar,
-      description: formData.description || '',
-      persona: {
-        personality: formData.persona!.personality,
-        speakingStyle: formData.persona!.speakingStyle,
-        background: formData.persona!.background,
-        values: formData.persona!.values,
-        argumentationStyle: formData.persona!.argumentationStyle,
-        customDescription: formData.persona!.customDescription || '',
-      },
-      callConfig: formData.callConfig!,
-      createdAt: character?.createdAt || timestamp,
-      updatedAt: timestamp,
-    };
-
-    console.log('准备保存角色:', completeCharacter);
-    
-    if (character) {
-      console.log('更新现有角色');
-      dispatch({ type: 'UPDATE_CHARACTER', payload: completeCharacter });
-    } else {
-      console.log('创建新角色');
-      dispatch({ type: 'ADD_CHARACTER', payload: completeCharacter });
-    }
-    
-    message.success('保存成功');
-    onSubmit?.(completeCharacter);
   };
 
   const CurrentStepComponent = steps[currentStep].component;

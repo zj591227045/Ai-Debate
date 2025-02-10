@@ -100,6 +100,22 @@ const DimensionSection = styled.div<{ $visible: boolean }>`
   border: 1px solid #f0f0f0;
 `;
 
+interface DimensionScore {
+  name: string;
+  weight: number;
+  description: string;
+}
+
+interface JudgeConfig {
+  selectedJudge: Judge | null;
+  scoringRule: string;
+  dimensions: DimensionScore[];
+  customScores: Array<{
+    name: string;
+    score: number;
+  }>;
+}
+
 const DebateConfig: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newRuleName, setNewRuleName] = useState('');
@@ -178,8 +194,13 @@ const DebateConfig: React.FC = () => {
             <Select
               style={{ width: '100%' }}
               placeholder="选择裁判"
-              value={config.selectedJudgeId}
-              onChange={handleJudgeSelect}
+              value={config.selectedJudge?.id}
+              onChange={(value: string) => {
+                const judge = availableJudges.find(j => j.id === value);
+                if (judge) {
+                  handleJudgeSelect(judge);
+                }
+              }}
             >
               {availableJudges.map((judge: Judge) => (
                 <Select.Option key={judge.id} value={judge.id}>
@@ -211,33 +232,20 @@ const DebateConfig: React.FC = () => {
           </ScoreHeader>
 
           <DimensionSection $visible={showDimensions} data-visible={showDimensions}>
-            <DimensionItem>
-              <span>逻辑性：</span>
-              <InputNumber
-                min={0}
-                max={100}
-                value={config.dimensionScores.logic}
-                onChange={(value) => handleDimensionChange('logic', value || 0)}
-              />
-            </DimensionItem>
-            <DimensionItem>
-              <span>拟人程度：</span>
-              <InputNumber
-                min={0}
-                max={100}
-                value={config.dimensionScores.humanness}
-                onChange={(value) => handleDimensionChange('humanness', value || 0)}
-              />
-            </DimensionItem>
-            <DimensionItem>
-              <span>规则遵守：</span>
-              <InputNumber
-                min={0}
-                max={100}
-                value={config.dimensionScores.compliance}
-                onChange={(value) => handleDimensionChange('compliance', value || 0)}
-              />
-            </DimensionItem>
+            {config.dimensions.map((dimension) => (
+              <DimensionItem key={dimension.name}>
+                <span>{dimension.name}：</span>
+                <InputNumber
+                  min={0}
+                  max={100}
+                  value={dimension.weight}
+                  onChange={(value) => handleDimensionChange(
+                    dimension,
+                    value || 0
+                  )}
+                />
+              </DimensionItem>
+            ))}
           </DimensionSection>
 
           <CustomScoreSection>
@@ -262,14 +270,14 @@ const DebateConfig: React.FC = () => {
               </Space.Compact>
             </FormItem>
 
-            {config.customScoreRules.map(rule => (
-              <CustomScoreItem key={rule.id}>
+            {config.customScores.map(rule => (
+              <CustomScoreItem key={rule.name}>
                 <span>{rule.name}：</span>
                 <span>{rule.score}分</span>
                 <Button 
                   type="text" 
                   danger 
-                  onClick={() => removeCustomScoreRule(rule.id)}
+                  onClick={() => removeCustomScoreRule(rule.name)}
                 >
                   删除
                 </Button>

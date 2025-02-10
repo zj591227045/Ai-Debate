@@ -1,14 +1,23 @@
-export interface RuleConfig {
-  format: 'free' | 'structured';
-  description: string;
-  advancedRules: {
-    maxLength: number;
-    minLength: number;
-    allowQuoting: boolean;
-    requireResponse: boolean;
-    allowStanceChange: boolean;
-    requireEvidence: boolean;
+import type { RuleConfig } from '../store/unified/types';
+
+export type { RuleConfig };
+
+export interface BasicRules {
+  speechLengthLimit: {
+    min: number;
+    max: number;
   };
+  allowEmptySpeech: boolean;
+  allowRepeatSpeech: boolean;
+}
+
+export interface AdvancedRules {
+  allowQuoting: boolean;
+  requireResponse: boolean;
+  allowStanceChange: boolean;
+  requireEvidence: boolean;
+  minLength: number;
+  maxLength: number;
 }
 
 export interface RuleConfigProps {

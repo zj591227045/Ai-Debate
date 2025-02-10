@@ -1,17 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Typography, Alert } from 'antd';
 import { CharacterConfigForm } from './CharacterConfigForm';
-import { useCharacter } from '../context/CharacterContext';
+import CharacterList from './CharacterList';
+import { StateManager } from '../../../store/unified/StateManager';
 import type { CharacterConfig } from '../types';
+import type { UnifiedState } from '../../../store/unified';
 
 const { Title } = Typography;
 
 export const CharacterConfigPage: React.FC = () => {
-  const { state, dispatch } = useCharacter();
+  const stateManager = StateManager.getInstance();
+  const [characters, setCharacters] = useState<CharacterConfig[]>(() => {
+    const state = stateManager.getState();
+    return Object.values(state.characters.byId);
+  });
+
+  useEffect(() => {
+    const unsubscribe = stateManager.subscribe((newState: UnifiedState) => {
+      setCharacters(Object.values(newState.characters.byId));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleCharacterSelect = (character: CharacterConfig) => {
+    stateManager.dispatch({
+      type: 'CHARACTER_SELECTED',
+      payload: { id: character.id }
+    });
+  };
+
+  const handleCharacterEdit = (character: CharacterConfig) => {
+    stateManager.dispatch({
+      type: 'CHARACTER_UPDATED',
+      payload: { id: character.id, changes: character }
+    });
+  };
+
+  const handleCharacterDelete = (character: CharacterConfig) => {
+    stateManager.dispatch({
+      type: 'CHARACTER_DELETED',
+      payload: { id: character.id }
+    });
+  };
 
   const handleSave = (values: CharacterConfig) => {
     if (values.id) {
-      dispatch({ type: 'UPDATE_CHARACTER', payload: values });
+      stateManager.dispatch({
+        type: 'CHARACTER_UPDATED',
+        payload: { id: values.id, changes: values }
+      });
     } else {
       const newCharacter = {
         ...values,
@@ -19,30 +56,43 @@ export const CharacterConfigPage: React.FC = () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
-      dispatch({ type: 'ADD_CHARACTER', payload: newCharacter });
+      stateManager.dispatch({
+        type: 'CHARACTER_ADDED',
+        payload: newCharacter
+      });
     }
   };
 
-  const handleDelete = (id: string) => {
-    dispatch({ type: 'DELETE_CHARACTER', payload: id });
-  };
-
   return (
-    <div className="p-6">
-      <Title level={2} className="mb-6">AI角色配置</Title>
-      
+    <div className="character-config-page">
+      <Title level={2}>角色配置</Title>
       <Alert
-        message="提示"
-        description="在这里配置AI辩手的基本信息、人设和关联模型。配置完成后，AI辩手将根据这些设置在辩论中表现出相应的特征。"
+        message="配置AI角色的基本信息、人设和调用方式"
         type="info"
         showIcon
         className="mb-6"
       />
 
+      <CharacterList
+        onSelect={handleCharacterSelect}
+        onEdit={(characterId: string) => {
+          const character = characters.find(c => c.id === characterId);
+          if (character) {
+            handleCharacterEdit(character);
+          }
+        }}
+        onDelete={(characterId: string) => {
+          const character = characters.find(c => c.id === characterId);
+          if (character) {
+            handleCharacterDelete(character);
+          }
+        }}
+      />
+
       <CharacterConfigForm
         onSave={handleSave}
-        onDelete={state.characters.length > 0 ? () => handleDelete(state.characters[0].id) : undefined}
-        initialValues={state.characters[0]}
+        onDelete={characters.length > 0 ? () => handleCharacterDelete(characters[0]) : undefined}
+        initialValues={characters[0]}
       />
     </div>
   );

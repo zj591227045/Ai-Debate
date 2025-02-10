@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
 import { useRoleAssignment } from '../hooks/useRoleAssignment';
 import { Player, DebateRole } from '../types/player';
-import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
+import { CharacterList } from '../modules/character';
 import { ModelProvider } from '../modules/model/context/ModelContext';
 import ModelList from '../modules/model/components/ModelList';
 import { TopicRuleConfig } from '../components/debate/TopicRuleConfig';
@@ -30,6 +30,7 @@ import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
 import { adaptRoleAssignmentToGameConfig, adaptConfigToGameConfig } from '../store/adapters/gameConfigAdapter';
 import { StateDebugger } from '../components/debug/StateDebugger';
+import { StateManager } from '../store/unified/StateManager';
 
 const Container = styled.div`
   display: flex;
@@ -110,7 +111,11 @@ const GameConfigContent: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'roles' | 'characters' | 'models'>('roles');
-  const { state: characterState } = useCharacter();
+  const stateManager = StateManager.getInstance();
+  const [characters, setCharacters] = useState(() => {
+    const state = stateManager.getState();
+    return Object.values(state.characters.byId);
+  });
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>(() => {
     if (location.state?.lastConfig?.ruleConfig) {
       // console.log('使用上次的规则配置:', location.state.lastConfig.ruleConfig);
@@ -247,31 +252,183 @@ const GameConfigContent: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = stateManager.subscribe((newState) => {
+      setCharacters(Object.values(newState.characters.byId));
+    });
+    return () => unsubscribe();
+  }, []);
+
   // 修改 handleStartGame 函数
   const handleStartGame = () => {
     // 构建完整的配置对象
     const fullConfig = {
+      topic: {
+        title: debateConfig.topic.title || '',
+        description: debateConfig.topic.description || '',
+        type: 'binary'
+      },
+      rules: {
+        format: ruleConfig.format,
+        timeLimit: ruleConfig.timeLimit,
+        totalRounds: ruleConfig.totalRounds,
+        debateFormat: ruleConfig.debateFormat,
+        description: ruleConfig.description,
+        basicRules: ruleConfig.basicRules,
+        advancedRules: ruleConfig.advancedRules
+      },
       debate: {
-        ...debateConfig,
-        topic: {
-          ...debateConfig.topic,
-          title: debateConfig.topic.title || '未设置主题',
-          description: debateConfig.topic.description || '未设置描述'
+        topic: debateConfig.topic,
+        rules: ruleConfig,
+        judging: debateConfig.judging,
+        players: {
+          byId: {}
         }
       },
       players: players.map(player => ({
         ...player,
-        characterId: player.characterId || undefined
+        role: player.role || 'unassigned'
       })),
-      ruleConfig: {
-        ...ruleConfig,
-        format: ruleConfig.format || 'structured'
+      ruleConfig: ruleConfig,
+      isConfiguring: false,
+      settings: {
+        roundCount: ruleConfig.totalRounds,
+        timeLimit: ruleConfig.timeLimit,
+        language: 'zh-CN',
+        dify: {
+          serverUrl: '',
+          apiKey: '',
+          workflowId: '',
+          parameters: {}
+        },
+        direct: {
+          provider: 'openai',
+          apiKey: '',
+          model: 'gpt-3.5-turbo',
+          parameters: {}
+        }
       },
-      isConfiguring: false
+      roles: {
+        affirmative: [],
+        negative: []
+      }
     };
 
     // 使用适配器转换配置
-    const gameConfig = adaptConfigToGameConfig(fullConfig);
+    const gameConfig: GameConfigState = {
+      settings: {
+        roundCount: 3,
+        timeLimit: 300,
+        language: 'zh-CN',
+        dify: {
+          serverUrl: '',
+          apiKey: '',
+          workflowId: '',
+          parameters: {}
+        },
+        direct: {
+          provider: 'openai',
+          apiKey: '',
+          model: 'gpt-3.5-turbo',
+          parameters: {}
+        }
+      },
+      roles: {
+        affirmative: [],
+        negative: []
+      },
+      topic: {
+        title: '',
+        description: '',
+        type: 'binary'
+      },
+      rules: {
+        format: 'structured',
+        timeLimit: 300,
+        totalRounds: 3,
+        debateFormat: 'structured',
+        description: '',
+        basicRules: {
+          speechLengthLimit: {
+            min: 60,
+            max: 300
+          },
+          allowEmptySpeech: false,
+          allowRepeatSpeech: false
+        },
+        advancedRules: {
+          allowQuoting: true,
+          requireResponse: true,
+          allowStanceChange: false,
+          requireEvidence: true,
+          minLength: 100,
+          maxLength: 1000
+        }
+      },
+      debate: {
+        topic: {
+          title: '',
+          description: '',
+          type: 'binary'
+        },
+        rules: {
+          format: 'structured',
+          timeLimit: 300,
+          totalRounds: 3,
+          debateFormat: 'structured',
+          description: '',
+          basicRules: {
+            speechLengthLimit: {
+              min: 60,
+              max: 300
+            },
+            allowEmptySpeech: false,
+            allowRepeatSpeech: false
+          },
+          advancedRules: {
+            allowQuoting: true,
+            requireResponse: true,
+            allowStanceChange: false,
+            requireEvidence: true,
+            minLength: 100,
+            maxLength: 1000
+          }
+        },
+        judging: {
+          dimensions: [],
+          totalScore: 100,
+          description: ''
+        },
+        players: {
+          byId: {}
+        }
+      },
+      players: [],
+      ruleConfig: {
+        format: 'structured',
+        timeLimit: 300,
+        totalRounds: 3,
+        debateFormat: 'structured',
+        description: '',
+        basicRules: {
+          speechLengthLimit: {
+            min: 60,
+            max: 300
+          },
+          allowEmptySpeech: false,
+          allowRepeatSpeech: false
+        },
+        advancedRules: {
+          allowQuoting: true,
+          requireResponse: true,
+          allowStanceChange: false,
+          requireEvidence: true,
+          minLength: 100,
+          maxLength: 1000
+        }
+      },
+      isConfiguring: true
+    };
     
     if (validateConfig && !validateConfig(gameConfig)) {
       message.error('游戏配置验证失败，请检查配置是否完整');
@@ -301,21 +458,28 @@ const GameConfigContent: React.FC = () => {
     // 更新规则配置
     const newRuleConfig: RuleConfig = {
       format: config.rules.debateFormat === 'structured' ? 'structured' : 'free',
+      timeLimit: 300,
+      totalRounds: 3,
+      debateFormat: config.rules.debateFormat,
       description: config.rules.description,
+      basicRules: {
+        ...config.rules.basicRules
+      },
       advancedRules: {
-        maxLength: config.rules.basicRules.speechLengthLimit.max,
-        minLength: config.rules.basicRules.speechLengthLimit.min,
-        allowQuoting: config.rules.advancedRules.allowQuoting,
-        requireResponse: config.rules.advancedRules.requireResponse,
-        allowStanceChange: config.rules.advancedRules.allowStanceChange,
-        requireEvidence: config.rules.advancedRules.requireEvidence,
+        ...config.rules.advancedRules,
+        minLength: 100,
+        maxLength: 1000
       }
     };
     
-    setRuleConfig(newRuleConfig);
+    // 创建一个新的配置对象，确保包含所有必需的属性
+    const updatedConfig = {
+      ...config,
+      rules: newRuleConfig
+    };
     
     // 同时更新 Redux store
-    dispatch(updateDebateConfig(config));
+    dispatch(updateDebateConfig(updatedConfig));
     dispatch(updateRuleConfig(newRuleConfig));
 
     message.success('模板加载成功');
@@ -512,11 +676,7 @@ const GameConfigContent: React.FC = () => {
 };
 
 export const GameConfig: React.FC = () => {
-  return (
-    <CharacterProvider>
-      <GameConfigContent />
-    </CharacterProvider>
-  );
+  return <GameConfigContent />;
 };
 
 export default GameConfig; 

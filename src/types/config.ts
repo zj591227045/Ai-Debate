@@ -1,18 +1,38 @@
-import type { DebateConfig } from './debate';
-import type { Player } from './player';
-import type { RuleConfig } from './rules';
+import { TopicConfig, RuleConfig, DebateConfig } from '../store/unified/types';
+import { DebateRole } from './player';
 
 export interface GameConfigState {
-  topic: {
-    title: string;
-    description: string;
+  settings: {
+    roundCount: number;
+    timeLimit: number;
+    language: string;
+    dify?: {
+      serverUrl: string;
+      apiKey: string;
+      workflowId: string;
+      parameters: Record<string, any>;
+    };
+    direct?: {
+      provider: string;
+      apiKey: string;
+      model: string;
+      parameters: Record<string, any>;
+    };
   };
-  rules: {
-    totalRounds: number;
-    debateFormat: string;
+  roles: {
+    affirmative: string[];
+    negative: string[];
   };
+  topic: TopicConfig;
+  rules: RuleConfig;
   debate: DebateConfig;
-  players: Player[];
+  players: Array<{
+    id: string;
+    name: string;
+    isAI: boolean;
+    role: DebateRole;
+    characterId?: string;
+  }>;
   ruleConfig: RuleConfig;
   isConfiguring: boolean;
-} 
+}

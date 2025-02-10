@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { Player, DebateRole } from '../../types/player';
 import { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
 import { Avatar, Space, Button as AntButton, Tooltip, Select, Modal, Input } from 'antd';
 import { UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
-import { useCharacter } from '../../modules/character/context/CharacterContext';
 import { useModel } from '../../modules/model/context/ModelContext';
 import { useDispatch } from 'react-redux';
 import { updatePlayers } from '../../store/slices/gameConfigSlice';
+import { StateManager } from '../../store/unified/StateManager';
+import type { CharacterConfig } from '../../modules/character/types';
 
 const Container = styled.div`
-  background-color: white;
-  border-radius: 8px;
+  margin-top: 32px;
   padding: 24px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 `;
 
 const Header = styled.div`
@@ -266,17 +269,28 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   onStartDebate,
   onSelectCharacter,
 }) => {
-  const { state: characterState } = useCharacter();
   const { state: modelState } = useModel();
+  const stateManager = StateManager.getInstance();
+  const [characters, setCharacters] = useState(() => {
+    const state = stateManager.getState();
+    return Object.values(state.characters.byId);
+  });
   const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
   const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
   const dispatch = useDispatch();
 
-  // 获取已被选择的角色ID列表
+  useEffect(() => {
+    const unsubscribe = stateManager.subscribe((newState) => {
+      setCharacters(Object.values(newState.characters.byId));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 获取已选择的角色ID列表
   const selectedCharacterIds = players
     .filter(p => p.characterId)
-    .map(p => p.characterId) as string[];
+    .map(p => p.characterId);
 
   // 检查是否已有人类玩家
   const hasHumanPlayer = players.some(p => !p.isAI);
@@ -389,7 +403,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
           const isAffirmative = player.role.startsWith('affirmative');
           const isNegative = player.role.startsWith('negative');
           const selectedCharacter = player.characterId 
-            ? characterState.characters.find(c => c.id === player.characterId)
+            ? characters.find(c => c.id === player.characterId)
             : undefined;
           
           // 获取角色关联的模型信息
@@ -401,7 +415,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
             : undefined;
 
           // 过滤掉已被其他玩家选择的角色
-          const availableCharacters = characterState.characters.filter(
+          const availableCharacters = characters.filter(
             character => !selectedCharacterIds.includes(character.id) || character.id === player.characterId
           );
 

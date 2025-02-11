@@ -1,79 +1,108 @@
 import type { 
   UnifiedState, 
   UnifiedAction, 
-  UnifiedSubscriber,
-  UnifiedDispatch,
+  Subscriber, 
+  Unsubscribe,
   StorageState,
   CharacterStateStorage,
-  StateMeta,
-  TopicConfig,
-  RuleConfig
+  StateMeta
 } from './types';
 import { StateAdapter } from './adapters';
 import type { CharacterConfig } from '../../modules/character/types';
-import type { GameConfigState } from '../../types/config';
 
 export class StateManager {
-  private static instance: StateManager;
   private state: UnifiedState;
-  private subscribers: UnifiedSubscriber[];
+  private subscribers: Array<(state: UnifiedState) => void> = [];
+  private static instance: StateManager | null = null;
 
-  private constructor() {
-    this.state = StateAdapter.createInitialState();
-    this.subscribers = [];
+  constructor(initialState: UnifiedState) {
+    this.validateState(initialState);
+    this.state = initialState;
+    console.log('StateManager 初始化状态:', {
+      hasCharacters: !!initialState.characters,
+      charactersCount: Object.keys(initialState.characters.byId).length,
+      hasDebate: !!initialState.debate,
+      debateStatus: initialState.debate.currentState.status
+    });
   }
 
-  public static getInstance(): StateManager {
-    if (!StateManager.instance) {
-      StateManager.instance = new StateManager();
+  private validateState(state: UnifiedState): void {
+    if (!state) {
+      throw new Error('状态不能为空');
     }
-    return StateManager.instance;
+
+    if (!state.characters || !state.characters.byId || !state.characters.allIds) {
+      throw new Error('角色状态不完整');
+    }
+
+    if (!state.debate || !state.debate.players || !state.debate.currentState) {
+      throw new Error('辩论状态不完整');
+    }
+
+    if (!state.config || !state.config.settings) {
+      throw new Error('配置状态不完整');
+    }
+  }
+
+  public static getInstance(initialState?: UnifiedState): StateManager {
+    try {
+      if (!StateManager.instance && initialState) {
+        console.log('创建新的状态管理器实例');
+        StateManager.instance = new StateManager(initialState);
+      } else if (initialState) {
+        console.log('更新现有状态管理器实例');
+        StateManager.instance?.updateState(initialState);
+      } else if (!StateManager.instance) {
+        console.log('创建默认状态管理器实例');
+        StateManager.instance = new StateManager(StateAdapter.createInitialState());
+      }
+      
+      if (!StateManager.instance) {
+        throw new Error('状态管理器初始化失败');
+      }
+      
+      return StateManager.instance;
+    } catch (error) {
+      console.error('状态管理器初始化失败:', error);
+      throw error;
+    }
   }
 
   public static clearInstance(): void {
-    StateManager.instance = new StateManager();
+    StateManager.instance = null;
   }
 
+  // 更新整个状态树
   public updateState(newState: UnifiedState): void {
-    this.state = newState;
-    this.notifySubscribers();
+    try {
+      console.log('StateManager 更新状态:', {
+        hasCharacters: !!newState.characters,
+        charactersCount: Object.keys(newState.characters.byId).length,
+        hasDebate: !!newState.debate,
+        debateStatus: newState.debate.currentState.status
+      });
+
+      this.validateState(newState);
+      this.state = newState;
+      this.notifySubscribers();
+    } catch (error) {
+      console.error('状态更新失败:', error);
+      throw error;
+    }
   }
 
+  // 获取当前状态
   public getState(): UnifiedState {
     return this.state;
   }
 
-  public dispatch: UnifiedDispatch = (action) => {
-    switch (action.type) {
-      case 'CHARACTER_SELECTED':
-        // Handle character selection
-        break;
-      case 'CHARACTER_UPDATED':
-        if (action.payload.id && action.payload.changes) {
-          this.state.characters.byId[action.payload.id] = {
-            ...this.state.characters.byId[action.payload.id],
-            ...action.payload.changes
-          };
-        }
-        break;
-      case 'CHARACTER_ADDED':
-        if (action.payload.id) {
-          this.state.characters.byId[action.payload.id] = action.payload;
-        }
-        break;
-      case 'CHARACTER_DELETED':
-        if (action.payload.id) {
-          delete this.state.characters.byId[action.payload.id];
-        }
-        break;
-      // Add other action handlers as needed
-    }
-    
-    // Notify subscribers
-    this.notifySubscribers();
-  };
+  // 获取原始状态格式
+  getOriginalState() {
+    return StateAdapter.fromUnified(this.state);
+  }
 
-  public subscribe(callback: UnifiedSubscriber): () => void {
+  // 订阅状态变化
+  public subscribe(callback: (state: UnifiedState) => void): () => void {
     this.subscribers.push(callback);
     return () => {
       this.subscribers = this.subscribers.filter(cb => cb !== callback);
@@ -81,12 +110,79 @@ export class StateManager {
   }
 
   private notifySubscribers(): void {
-    this.subscribers.forEach(callback => callback(this.state));
+    this.subscribers.forEach(callback => {
+      try {
+        callback(this.state);
+      } catch (error) {
+        console.error('通知订阅者失败:', error);
+      }
+    });
   }
 
-  // 获取原始状态格式
-  getOriginalState() {
-    return StateAdapter.fromUnified(this.state);
+  // 分发动作
+  public dispatch(action: any): void {
+    console.log('StateManager 分发动作:', action);
+    switch (action.type) {
+      case 'DEBATE_STATE_UPDATED':
+        this.state = {
+          ...this.state,
+          debate: {
+            ...this.state.debate,
+            currentState: {
+              ...this.state.debate.currentState,
+              ...action.payload
+            }
+          }
+        };
+        break;
+        
+      case 'JUDGE_CONFIG_UPDATED':
+        this.state = {
+          ...this.state,
+          debate: {
+            ...this.state.debate,
+            judge: {
+              ...this.state.debate.judge,
+              ...action.payload.judge
+            },
+            judging: {
+              ...this.state.debate.judging,
+              ...action.payload.judging
+            }
+          }
+        };
+        break;
+
+      case 'JUDGE_SELECTED':
+        this.state = {
+          ...this.state,
+          debate: {
+            ...this.state.debate,
+            judge: {
+              ...this.state.debate.judge,
+              characterId: action.payload.characterId,
+              name: action.payload.name,
+              avatar: action.payload.avatar
+            }
+          }
+        };
+        break;
+
+      case 'JUDGING_DIMENSIONS_UPDATED':
+        this.state = {
+          ...this.state,
+          debate: {
+            ...this.state.debate,
+            judging: {
+              ...this.state.debate.judging,
+              dimensions: action.payload.dimensions,
+              totalScore: action.payload.totalScore
+            }
+          }
+        };
+        break;
+    }
+    this.notifySubscribers();
   }
 
   // 保存状态到本地存储
@@ -116,6 +212,7 @@ export class StateManager {
       if (saved) {
         const parsed = JSON.parse(saved) as StorageState;
         if (parsed.meta?.version === '1.0.0') {
+          // 确保角色信息不为空
           if (parsed.characters && Object.keys(parsed.characters.byId).length > 0) {
             this.state = {
               ...parsed,
@@ -128,6 +225,7 @@ export class StateManager {
               }
             };
           } else {
+            // 如果角色信息为空，尝试从 characterState 加载
             const savedCharacterState = localStorage.getItem('characterState');
             if (savedCharacterState) {
               const characterState = JSON.parse(savedCharacterState) as CharacterStateStorage;
@@ -142,7 +240,7 @@ export class StateManager {
                   characters: {
                     ...this.state.characters,
                     byId,
-                    activeCharacters: Object.keys(byId),
+                    allIds: Object.keys(byId),
                     meta: {
                       lastModified: Date.now(),
                       version: '1.0.0'

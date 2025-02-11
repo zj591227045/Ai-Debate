@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { Input, Radio, Checkbox, Button, InputNumber, Select, Space, Slider, Switch, Divider, Card } from 'antd';
+import { Input, Radio, Checkbox, Button, InputNumber, Select, Space } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useJudgeConfig } from '../../hooks/useJudgeConfig';
 import { Judge } from '../../types/judge';
@@ -8,59 +8,41 @@ import type { RuleConfig } from '../../types/rules';
 import { useDispatch } from 'react-redux';
 import { updateRuleConfig, updateDebateConfig } from '../../store/slices/gameConfigSlice';
 import type { DebateConfig } from '../../types/debate';
+import { useCharacter } from '../../modules/character/context/CharacterContext';
 import type { CharacterConfig } from '../../modules/character/types';
-import { StateManager } from '../../store/unified/StateManager';
 
 const { TextArea } = Input;
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--spacing-lg);
   width: 100%;
-  margin-bottom: 32px;
 `;
 
 const ConfigSection = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
   width: 100%;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: 1fr;
-  }
 `;
 
-const StyledCard = styled(Card)`
-  height: 100%;
-  overflow: hidden;
-  
-  .ant-card-body {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 24px;
-    overflow-y: auto;
-    max-height: calc(100vh - 300px);
+const Card = styled.div`
+  flex: 1;
+  min-width: 300px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 24px;
+  margin-bottom: 20px;
 
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background-color: rgba(0, 0, 0, 0.1);
-      border-radius: 3px;
-    }
-
-    &::-webkit-scrollbar-track {
-      background-color: transparent;
-    }
+  @media (min-width: 768px) {
+    max-width: calc(50% - 10px);
   }
 
-  &.ant-card {
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  @media (min-width: 1200px) {
+    max-width: calc(33.333% - 14px);
   }
 `;
 
@@ -69,8 +51,6 @@ const CardHeader = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f0f0f0;
 `;
 
 const CardTitle = styled.div`
@@ -91,33 +71,15 @@ const StyledButton = styled(Button)`
 `;
 
 const FormItem = styled.div`
-  margin-bottom: 20px;
-  width: 100%;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
+  margin-bottom: 16px;
 
   .label {
     margin-bottom: 8px;
-    font-weight: 500;
-    color: #666;
   }
 
   .ant-input,
-  .ant-input-textarea,
-  .ant-radio-group,
-  .ant-select {
-    width: 100%;
-    max-width: 100%;
-  }
-
   .ant-input-textarea {
-    textarea {
-      resize: vertical;
-      min-height: 80px;
-      max-height: 200px;
-    }
+    width: 100%;
   }
 `;
 
@@ -125,13 +87,8 @@ const DimensionItem = styled.div`
   margin-bottom: 16px;
   background: white;
   border-radius: 6px;
-  padding: 16px;
+  padding: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  width: 100%;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
 `;
 
 const DimensionHeader = styled.div`
@@ -167,11 +124,10 @@ const BonusItem = styled.div`
 `;
 
 const AdvancedSection = styled.div<{ visible: boolean }>`
-  margin-top: ${props => props.visible ? '20px' : '0'};
-  height: ${props => props.visible ? 'auto' : '0'};
-  opacity: ${props => props.visible ? '1' : '0'};
-  overflow: hidden;
-  transition: all 0.3s ease-in-out;
+  display: ${props => props.visible ? 'block' : 'none'};
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 `;
 
 const TotalScore = styled.div`
@@ -242,20 +198,17 @@ const ScoreText = styled.div`
   margin-left: 16px;
 `;
 
-const DimensionSection = styled.div<{ visible: boolean }>`
-  margin-top: ${props => props.visible ? '20px' : '0'};
-  height: ${props => props.visible ? 'auto' : '0'};
-  opacity: ${props => props.visible ? '1' : '0'};
-  overflow: hidden;
-  transition: all 0.3s ease-in-out;
+const DimensionSection = styled.div<{ $visible: boolean }>`
+  display: ${props => props.$visible ? 'block' : 'none'};
+  margin-top: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
 `;
 
 const ScoreConfigContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   margin-top: 16px;
-  width: 100%;
 `;
 
 const ScoreDimensions = styled.div`
@@ -273,9 +226,9 @@ const JudgeOption = styled.div`
   }
 
   .judge-description {
+    color: rgba(0, 0, 0, 0.45);
     font-size: 12px;
-    color: #666;
-    white-space: normal;
+    line-height: 1.5;
   }
 `;
 
@@ -307,18 +260,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   } = useJudgeConfig();
 
   const dispatch = useDispatch();
-  const stateManager = StateManager.getInstance();
-  const [characters, setCharacters] = useState(() => {
-    const state = stateManager.getState();
-    return Object.values(state.characters.byId);
-  });
-
-  useEffect(() => {
-    const unsubscribe = stateManager.subscribe((newState) => {
-      setCharacters(Object.values(newState.characters.byId));
-    });
-    return () => unsubscribe();
-  }, []);
+  const { state: characterState } = useCharacter();
 
   const handleRuleChange = (newConfig: Partial<RuleConfig>) => {
     const updatedConfig = {
@@ -359,25 +301,8 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
 
     // 同时更新 Redux store
     dispatch(updateDebateConfig({
-      judging: {
-        ...debateConfig.judging,
-        dimensions: updatedDimensions,
-        totalScore: updatedJudging.totalScore,
-        description: updatedJudging.description
-      },
-      rules: {
-        format: debateConfig.rules.debateFormat === 'structured' ? 'structured' : 'free',
-        timeLimit: 300,
-        totalRounds: 3,
-        debateFormat: debateConfig.rules.debateFormat,
-        description: debateConfig.rules.description,
-        basicRules: debateConfig.rules.basicRules,
-        advancedRules: {
-          ...debateConfig.rules.advancedRules,
-          minLength: 100,
-          maxLength: 1000
-        }
-      }
+      ...debateConfig,
+      judging: updatedJudging
     }));
   };
 
@@ -434,19 +359,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
     // 更新 Redux store
     dispatch(updateDebateConfig({ 
       topic: updatedTopic,
-      rules: {
-        format: debateConfig.rules.debateFormat === 'structured' ? 'structured' : 'free',
-        timeLimit: 300,
-        totalRounds: 3,
-        debateFormat: debateConfig.rules.debateFormat,
-        description: debateConfig.rules.description,
-        basicRules: debateConfig.rules.basicRules,
-        advancedRules: {
-          ...debateConfig.rules.advancedRules,
-          minLength: 100,
-          maxLength: 1000
-        }
-      },
+      rules: debateConfig.rules,
       judging: debateConfig.judging
     }));
   };
@@ -460,7 +373,14 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   return (
     <Container>
       <ConfigSection>
-        <StyledCard title="主题配置">
+        <Card>
+          <CardHeader>
+            <CardTitle>主题配置</CardTitle>
+            <ButtonGroup>
+              <StyledButton>重置</StyledButton>
+              <StyledButton type="primary">保存</StyledButton>
+            </ButtonGroup>
+          </CardHeader>
           <FormItem>
             <div className="label">主题名称</div>
             <Input 
@@ -488,9 +408,16 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               }}
             />
           </FormItem>
-        </StyledCard>
+        </Card>
 
-        <StyledCard title="规则配置">
+        <Card>
+          <CardHeader>
+            <CardTitle>规则配置</CardTitle>
+            <ButtonGroup>
+              <StyledButton onClick={() => onRuleConfigChange({ ...ruleConfig })}>重置</StyledButton>
+              <StyledButton type="primary" onClick={() => onRuleConfigChange({ ...ruleConfig })}>保存</StyledButton>
+            </ButtonGroup>
+          </CardHeader>
           <FormItem>
             <div className="label">辩论模式</div>
             <Radio.Group
@@ -597,9 +524,37 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               </Checkbox>
             </FormItem>
           </AdvancedSection>
-        </StyledCard>
+        </Card>
 
-        <StyledCard title="裁判配置">
+        <Card>
+          <CardHeader>
+            <CardTitle>裁判配置</CardTitle>
+            <ButtonGroup>
+              <StyledButton onClick={() => {
+                console.log('重置裁判配置:', {
+                  current: debateConfig.judging,
+                  default: {
+                    description: '',
+                    dimensions: [],
+                    totalScore: 100,
+                    selectedJudge: undefined
+                  }
+                });
+                handleJudgeConfigChange({
+                  description: '',
+                  dimensions: [],
+                  totalScore: 100,
+                  selectedJudge: undefined
+                });
+              }}>重置</StyledButton>
+              <StyledButton type="primary" onClick={() => {
+                console.log('保存裁判配置:', debateConfig.judging);
+                // 这里可以添加保存前的验证逻辑
+                handleJudgeConfigChange(debateConfig.judging);
+              }}>保存</StyledButton>
+            </ButtonGroup>
+          </CardHeader>
+
           <FormItem>
             <div className="label">裁判选择</div>
             <Select
@@ -609,9 +564,9 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               onChange={(value: string) => {
                 console.log('选择裁判:', {
                   selectedId: value,
-                  availableCharacters: characters
+                  availableCharacters: characterState.characters
                 });
-                const selectedJudge = characters.find(
+                const selectedJudge = characterState.characters.find(
                   (c: CharacterConfig) => c.id === value
                 );
                 if (selectedJudge) {
@@ -625,7 +580,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 }
               }}
             >
-              {characters.map((character: CharacterConfig) => (
+              {characterState.characters.map((character: CharacterConfig) => (
                 <Select.Option 
                   key={character.id} 
                   value={character.id}
@@ -667,7 +622,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <ScoreText>总分：{calculateTotalScore(debateConfig.judging.dimensions)} 分</ScoreText>
           </ScoreHeader>
 
-          <DimensionSection visible={showDimensions}>
+          <DimensionSection $visible={showDimensions}>
             <ScoreConfigContent>
               {debateConfig.judging.dimensions.map((dimension, index) => (
                 <DimensionItem key={dimension.id || index}>
@@ -748,7 +703,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               </Button>
             </ScoreConfigContent>
           </DimensionSection>
-        </StyledCard>
+        </Card>
       </ConfigSection>
     </Container>
   );

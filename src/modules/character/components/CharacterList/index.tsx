@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useModel } from '../../../model/context/ModelContext';
+import React, { useState } from 'react';
+import { useCharacter } from '../../context/CharacterContext';
+import { ModelProvider, useModel } from '../../../model/context/ModelContext';
 import { Button, Modal, message, Tabs, Avatar, Card, Radio, Space, Tooltip } from 'antd';
 import { EditOutlined, DeleteOutlined, SaveOutlined, UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
 import CharacterForm from '../CharacterForm';
@@ -8,8 +9,6 @@ import { CharacterConfig } from '../../types';
 import { CharacterTemplate } from '../../types/template';
 import './styles.css';
 import styled from '@emotion/styled';
-import { StateManager } from '../../../../store/unified/StateManager';
-import type { UnifiedState } from '../../../../store/unified/types';
 
 const { TabPane } = Tabs;
 
@@ -137,15 +136,10 @@ const ModelTag = styled.span`
   color: rgba(0, 0, 0, 0.65);
 `;
 
-interface State {
-  characters: CharacterConfig[];
-  templates: CharacterConfig[];
-}
-
-interface Props {
+interface CharacterListProps {
   onSelect?: (character: CharacterConfig) => void;
-  onEdit?: (characterId: string) => void;
-  onDelete?: (characterId: string) => void;
+  onEdit?: (character: CharacterConfig) => void;
+  onDelete?: (character: CharacterConfig) => void;
 }
 
 interface PlayerCardProps {
@@ -167,9 +161,8 @@ export const PlayerCardComponent: React.FC<PlayerCardProps> = ({
   onCharacterSelect,
   onTakeover,
 }) => {
-  const stateManager = StateManager.getInstance();
-  const characters = stateManager.getState().characters;
-  const selectedCharacter = player.characterId ? characters.byId[player.characterId] : undefined;
+  const { state: characterState } = useCharacter();
+  const selectedCharacter = characterState.characters.find(c => c.id === player.characterId);
   const isAffirmative = player.role.startsWith('affirmative');
   const isNegative = player.role.startsWith('negative');
   
@@ -237,7 +230,7 @@ export const PlayerCardComponent: React.FC<PlayerCardProps> = ({
             style={{ width: '100%' }}
           >
             <Space direction="vertical" style={{ width: '100%' }}>
-              {Object.values(characters.byId).map(character => (
+              {characterState.characters.map(character => (
                 <Radio.Button key={character.id} value={character.id}>
                   <Space>
                     <span>{character.name}</span>
@@ -276,29 +269,11 @@ export const PlayerCardComponent: React.FC<PlayerCardProps> = ({
   );
 };
 
-export default function CharacterList({ onSelect, onEdit, onDelete }: Props) {
+export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterListProps) {
+  const { state, dispatch } = useCharacter();
   const { state: modelState } = useModel();
   const [showForm, setShowForm] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<string | null>(null);
-
-  const stateManager = StateManager.getInstance();
-  const [state, setState] = useState<State>({
-    characters: [],
-    templates: []
-  });
-
-  useEffect(() => {
-    const unsubscribe = stateManager.subscribe((newState: UnifiedState) => {
-      setState({
-        characters: Object.values(newState.characters.byId) as CharacterConfig[],
-        templates: newState.characters.templates 
-          ? Object.values(newState.characters.templates.byId) as CharacterConfig[]
-          : []
-      });
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   const handleAddCharacter = () => {
     setEditingCharacter(null);
@@ -319,15 +294,20 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: Props) {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          stateManager.dispatch({
-            type: 'CHARACTER_UPDATED',
-            payload: { id, changes: null } // null 表示删除
-          });
+          dispatch({ type: 'DELETE_CHARACTER', payload: id });
           message.success('角色已删除');
         } catch (error) {
           console.error('删除角色失败:', error);
           message.error('删除失败: ' + (error instanceof Error ? error.message : '未知错误'));
         }
+      },
+      wrapClassName: 'delete-confirm-modal',
+      centered: true,
+      okCancel: true,
+      maskClosable: true,
+      width: 400,
+      styles: {
+        body: { padding: '16px' }
       }
     });
   };
@@ -344,7 +324,7 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: Props) {
       updatedAt: Date.now(),
     };
 
-    stateManager.dispatch({ type: 'ADD_TEMPLATE', payload: template });
+    dispatch({ type: 'ADD_TEMPLATE', payload: template });
     message.success('已保存为模板');
   };
 
@@ -364,126 +344,128 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: Props) {
 
   const handleEdit = (e: React.MouseEvent, character: CharacterConfig) => {
     e.stopPropagation();
-    onEdit?.(character.id);
+    onEdit?.(character);
   };
 
   const handleDelete = (e: React.MouseEvent, character: CharacterConfig) => {
     e.stopPropagation();
-    onDelete?.(character.id);
+    onDelete?.(character);
   };
 
   return (
-    <div className="character-management">
-      <Tabs defaultActiveKey="characters">
-        <TabPane tab="角色列表" key="characters">
-          <div className="character-list">
-            <div className="character-list-header">
-              <h2>AI角色列表</h2>
-              <Button type="primary" onClick={handleAddCharacter}>
-                添加角色
-              </Button>
-            </div>
-
-            {showForm && (
-              <div className="character-form-modal">
-                <div className="character-form-modal-content">
-                  <CharacterForm
-                    character={
-                      editingCharacter
-                        ? state.characters.find((c) => c.id === editingCharacter)
-                        : undefined
-                    }
-                    onSubmit={handleFormSubmit}
-                    onCancel={handleFormCancel}
-                  />
-                </div>
+    <ModelProvider>
+      <div className="character-management">
+        <Tabs defaultActiveKey="characters">
+          <TabPane tab="角色列表" key="characters">
+            <div className="character-list">
+              <div className="character-list-header">
+                <h2>AI角色列表</h2>
+                <Button type="primary" onClick={handleAddCharacter}>
+                  添加角色
+                </Button>
               </div>
-            )}
 
-            <div className="character-grid">
-              {state.characters.map((character) => {
-                // 获取角色关联的模型信息
-                const modelId = character.callConfig?.type === 'direct' 
-                  ? character.callConfig.direct?.modelId 
-                  : undefined;
-                const characterModel = modelId
-                  ? modelState.models.find(m => m.id === modelId)
-                  : undefined;
-
-                return (
-                  <div
-                    key={character.id}
-                    className="character-item"
-                    onClick={() => handleSelect(character)}
-                  >
-                    <div className="character-info">
-                      <div className="character-avatar">
-                        {character.avatar ? (
-                          <img src={character.avatar} alt={character.name} />
-                        ) : (
-                          <div className="avatar-placeholder">
-                            {character.name.charAt(0)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="character-details">
-                        <h3>{character.name}</h3>
-                        <p>{character.description}</p>
-                        {characterModel && (
-                          <ModelInfo>
-                            <ModelTag>{characterModel.provider}</ModelTag>
-                            <ModelTag>{characterModel.model}</ModelTag>
-                          </ModelInfo>
-                        )}
-                      </div>
-                    </div>
-                    <div className="character-actions">
-                      <Button
-                        icon={<EditOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(e, character);
-                        }}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        icon={<SaveOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveAsTemplate(character);
-                        }}
-                      >
-                        保存为模板
-                      </Button>
-                      <Button
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(e, character);
-                        }}
-                      >
-                        删除
-                      </Button>
-                    </div>
+              {showForm && (
+                <div className="character-form-modal">
+                  <div className="character-form-modal-content">
+                    <CharacterForm
+                      character={
+                        editingCharacter
+                          ? state.characters.find((c) => c.id === editingCharacter)
+                          : undefined
+                      }
+                      onSubmit={handleFormSubmit}
+                      onCancel={handleFormCancel}
+                    />
                   </div>
-                );
-              })}
-
-              {state.characters.length === 0 && (
-                <div className="empty-state">
-                  <p>暂无角色，点击"添加角色"创建新角色</p>
                 </div>
               )}
+
+              <div className="character-grid">
+                {state.characters.map((character) => {
+                  // 获取角色关联的模型信息
+                  const modelId = character.callConfig?.type === 'direct' 
+                    ? character.callConfig.direct?.modelId 
+                    : undefined;
+                  const characterModel = modelId
+                    ? modelState.models.find(m => m.id === modelId)
+                    : undefined;
+
+                  return (
+                    <div
+                      key={character.id}
+                      className="character-item"
+                      onClick={() => handleSelect(character)}
+                    >
+                      <div className="character-info">
+                        <div className="character-avatar">
+                          {character.avatar ? (
+                            <img src={character.avatar} alt={character.name} />
+                          ) : (
+                            <div className="avatar-placeholder">
+                              {character.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="character-details">
+                          <h3>{character.name}</h3>
+                          <p>{character.description}</p>
+                          {characterModel && (
+                            <ModelInfo>
+                              <ModelTag>{characterModel.provider}</ModelTag>
+                              <ModelTag>{characterModel.model}</ModelTag>
+                            </ModelInfo>
+                          )}
+                        </div>
+                      </div>
+                      <div className="character-actions">
+                        <Button
+                          icon={<EditOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditCharacter(character.id);
+                          }}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          icon={<SaveOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveAsTemplate(character);
+                          }}
+                        >
+                          保存为模板
+                        </Button>
+                        <Button
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCharacter(character.id);
+                          }}
+                        >
+                          删除
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {state.characters.length === 0 && (
+                  <div className="empty-state">
+                    <p>暂无角色，点击"添加角色"创建新角色</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </TabPane>
-        
-        <TabPane tab="模板管理" key="templates">
-          <TemplateManager />
-        </TabPane>
-      </Tabs>
-    </div>
+          </TabPane>
+          
+          <TabPane tab="模板管理" key="templates">
+            <TemplateManager />
+          </TabPane>
+        </Tabs>
+      </div>
+    </ModelProvider>
   );
 } 

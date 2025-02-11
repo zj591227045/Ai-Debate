@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react';
 import styled from '@emotion/styled';
 import { getStateManager } from '../../store/unified';
 import type { UnifiedState } from '../../store/unified';
+import { useCharacter } from '../../modules/character/context/CharacterContext';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
-import { StateManager } from '../../store/unified';
-import type { CharacterStateStorage } from '../../store/unified/types';
 
 // 修改悬浮切换按钮样式和位置
 const ToggleButton = styled.button<{ visible: boolean }>`
@@ -100,13 +99,9 @@ export const StateDebugger: React.FC = () => {
     const saved = localStorage.getItem('debuggerVisible');
     return saved ? JSON.parse(saved) : false;
   });
-  const gameConfig = useSelector((state: RootState) => state.gameConfig);
-  const stateManager = StateManager.getInstance();
   const [unifiedState, setUnifiedState] = useState<UnifiedState | null>(null);
-  const [characters, setCharacters] = useState(() => {
-    const state = stateManager.getState();
-    return Object.values(state.characters.byId);
-  });
+  const { state: characterState } = useCharacter();
+  const gameConfig = useSelector((state: RootState) => state.gameConfig);
 
   // 保存显示状态到 localStorage
   useEffect(() => {
@@ -114,24 +109,20 @@ export const StateDebugger: React.FC = () => {
   }, [isVisible]);
 
   useEffect(() => {
-    const unsubscribe = stateManager.subscribe((newState) => {
-      setUnifiedState(newState);
-      setCharacters(Object.values(newState.characters.byId));
-    });
-    return () => unsubscribe();
-  }, []);
+    const stateManager = getStateManager(gameConfig, characterState);
+    if (stateManager) {
+      setUnifiedState(stateManager.getState());
+      
+      // 订阅状态更新
+      const unsubscribe = stateManager.subscribe(newState => {
+        setUnifiedState(newState);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [gameConfig, characterState]);
 
   const handleRefresh = () => {
-    if (!gameConfig) return;
-    
-    const characterState: CharacterStateStorage = {
-      characters: characters,
-      templates: [],
-      activeMode: 'direct',
-      difyConfig: {},
-      directConfig: {}
-    };
-    
     const stateManager = getStateManager(gameConfig, characterState);
     if (stateManager) {
       setUnifiedState(stateManager.getState());
@@ -139,16 +130,6 @@ export const StateDebugger: React.FC = () => {
   };
 
   const handleSave = () => {
-    if (!gameConfig) return;
-    
-    const characterState: CharacterStateStorage = {
-      characters: characters,
-      templates: [],
-      activeMode: 'direct',
-      difyConfig: {},
-      directConfig: {}
-    };
-    
     const stateManager = getStateManager(gameConfig, characterState);
     if (stateManager) {
       stateManager.saveState();
@@ -156,16 +137,6 @@ export const StateDebugger: React.FC = () => {
   };
 
   const handleLoad = () => {
-    if (!gameConfig) return;
-    
-    const characterState: CharacterStateStorage = {
-      characters: characters,
-      templates: [],
-      activeMode: 'direct',
-      difyConfig: {},
-      directConfig: {}
-    };
-    
     const stateManager = getStateManager(gameConfig, characterState);
     if (stateManager) {
       stateManager.loadState();
@@ -223,9 +194,9 @@ export const StateDebugger: React.FC = () => {
           </div>
         </DebugHeader>
 
-        {renderStateSection('角色状态', characters, isExpanded)}
-        {renderStateSection('统一状态', unifiedState, isExpanded)}
-        {renderStateSection('配置状态', gameConfig, isExpanded)}
+        {renderStateSection('角色状态', unifiedState.characters, isExpanded)}
+        {renderStateSection('辩论状态', unifiedState.debate, isExpanded)}
+        {renderStateSection('配置状态', unifiedState.config, isExpanded)}
 
         <DebugSection>
           <DebugSectionTitle>统计信息</DebugSectionTitle>

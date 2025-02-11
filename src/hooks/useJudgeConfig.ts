@@ -1,91 +1,91 @@
-import { useState, useEffect } from 'react';
-import type { Judge } from '../types/judge';
-import { StateManager } from '../store/unified/StateManager';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  JudgeConfigState,
+  DimensionType,
+  DimensionScores,
+} from '../types/judge';
+import { useCharacter } from '../modules/character/context/CharacterContext';
 
-export function useJudgeConfig() {
-  const stateManager = StateManager.getInstance();
-  const [characters, setCharacters] = useState(() => {
-    const state = stateManager.getState();
-    return Object.values(state.characters.byId);
-  });
-  const [config, setConfig] = useState({
-    selectedJudge: null as Judge | null,
+const DEFAULT_DIMENSION_SCORES: DimensionScores = {
+  logic: 35,
+  humanness: 30,
+  compliance: 35,
+};
+
+export const useJudgeConfig = () => {
+  const { state: characterState } = useCharacter();
+  const [config, setConfig] = useState<JudgeConfigState>({
+    selectedJudgeId: '',
     scoringRule: '',
-    dimensions: [] as Array<{
-      name: string;
-      weight: number;
-      description: string;
-    }>,
-    customScores: [] as Array<{
-      name: string;
-      score: number;
-    }>,
+    dimensionScores: DEFAULT_DIMENSION_SCORES,
+    customScoreRules: [],
   });
 
-  useEffect(() => {
-    const unsubscribe = stateManager.subscribe((newState) => {
-      setCharacters(Object.values(newState.characters.byId));
-    });
-    return () => unsubscribe();
-  }, []);
+  const availableJudges = characterState.characters.map(character => ({
+    id: character.id,
+    name: character.name,
+    description: character.description,
+  }));
 
-  const handleJudgeSelect = (judge: Judge) => {
+  const handleJudgeSelect = useCallback((judgeId: string) => {
     setConfig(prev => ({
       ...prev,
-      selectedJudge: judge,
+      selectedJudgeId: judgeId,
     }));
-  };
+  }, []);
 
-  const handleScoringRuleChange = (rule: string) => {
+  const handleScoringRuleChange = useCallback((rule: string) => {
     setConfig(prev => ({
       ...prev,
       scoringRule: rule,
     }));
-  };
+  }, []);
 
-  const handleDimensionChange = (dimension: { name: string; weight: number; description: string }, value: number) => {
+  const handleDimensionChange = useCallback((dimension: DimensionType, value: number) => {
     setConfig(prev => ({
       ...prev,
-      dimensions: prev.dimensions.map(d =>
-        d.name === dimension.name ? { ...d, weight: value } : d
-      ),
+      dimensionScores: {
+        ...prev.dimensionScores,
+        [dimension]: value,
+      },
     }));
-  };
+  }, []);
 
-  const addCustomScoreRule = (name: string, score: number) => {
+  const addCustomScoreRule = useCallback((name: string, score: number) => {
     setConfig(prev => ({
       ...prev,
-      customScores: [
-        ...prev.customScores,
+      customScoreRules: [
+        ...prev.customScoreRules,
         {
+          id: Date.now().toString(),
           name,
           score,
         },
       ],
     }));
-  };
+  }, []);
 
-  const removeCustomScoreRule = (name: string) => {
+  const removeCustomScoreRule = useCallback((id: string) => {
     setConfig(prev => ({
       ...prev,
-      customScores: prev.customScores.filter(s => s.name !== name),
+      customScoreRules: prev.customScoreRules.filter(rule => rule.id !== id),
     }));
-  };
+  }, []);
 
-  const getTotalScore = () => {
-    const dimensionTotal = config.dimensions.reduce((sum, d) => sum + d.weight, 0);
-    const customTotal = config.customScores.reduce((sum, s) => sum + s.score, 0);
+  const getTotalScore = useCallback(() => {
+    const dimensionTotal = Object.values(config.dimensionScores).reduce((sum, score) => sum + score, 0);
+    const customTotal = config.customScoreRules.reduce((sum, rule) => sum + rule.score, 0);
     return dimensionTotal + customTotal;
-  };
+  }, [config.dimensionScores, config.customScoreRules]);
 
-  const resetConfig = () => {
+  const resetConfig = useCallback(() => {
     setConfig({
-      selectedJudge: null,
+      selectedJudgeId: '',
       scoringRule: '',
-      dimensions: [],
-      customScores: [],
+      dimensionScores: DEFAULT_DIMENSION_SCORES,
+      customScoreRules: [],
     });
-  };
+  }, []);
 
   return {
     config,
@@ -96,6 +96,6 @@ export function useJudgeConfig() {
     removeCustomScoreRule,
     getTotalScore,
     resetConfig,
-    availableJudges: characters,
+    availableJudges,
   };
-} 
+}; 

@@ -14,8 +14,11 @@ import {
 } from '@ant-design/icons';
 import { Resizable } from 're-resizable';
 import type { RootState } from '../store';
+import { useCharacter } from '../modules/character/context/CharacterContext';
 import { useModel } from '../modules/model/context/ModelContext';
 import type { CharacterConfig } from '../modules/character/types';
+import type { CharacterState } from '../modules/character/context/CharacterContext';
+//import type { CharacterError } from '../modules/character/types/error';
 import { defaultTemplates, templateToCharacter } from '../modules/character/types/template';
 import { StateDebugger } from '../components/debug/StateDebugger';
 import { getStateManager, clearStateManager, updateStateManager } from '../store/unified';
@@ -27,9 +30,6 @@ import { createTimestamp } from '../utils/timestamp';
 import { DebugPanel } from '../components/debug/DebugPanel';
 import { AIPlayerList } from '../components/debug/AIPlayerList';
 import { SpeechList } from '../components/debate/SpeechList';
-import { StateManager } from '../store/unified/StateManager';
-import type { CharacterState } from '../types/character';
-import type { CharacterStateStorage } from '../types/character';
 
 // 主容器
 const Container = styled.div`
@@ -525,14 +525,28 @@ const adaptStateFromStorage = (parsedState: any): CharacterState => ({
   characters: Array.isArray(parsedState.characters) ? parsedState.characters : [],
   templates: Array.isArray(parsedState.templates) ? parsedState.templates : [],
   activeMode: parsedState.activeMode || 'direct',
-  difyConfig: parsedState.difyConfig || {},
-  directConfig: parsedState.directConfig || {}
+  difyConfig: {
+    serverUrl: '',
+    apiKey: '',
+    workflowId: '',
+    parameters: {},
+    ...parsedState.difyConfig
+  },
+  directConfig: {
+    provider: '',
+    apiKey: '',
+    model: '',
+    parameters: {},
+    ...parsedState.directConfig
+  },
+  loading: false
 });
 
 export const DebateRoom: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const gameConfig = useSelector((state: RootState) => state.gameConfig);
+  const { state: characterState } = useCharacter();
   const { state: modelState } = useModel();
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -565,50 +579,20 @@ export const DebateRoom: React.FC = () => {
   // 添加 speeches 状态
   const [speeches, setSpeeches] = useState<Speech[]>([]);
 
-  const stateManagerInstance = StateManager.getInstance();
-  const [characters, setCharacters] = useState(() => {
-    const state = stateManagerInstance.getState();
-    return Object.values(state.characters.byId);
-  });
-
-  useEffect(() => {
-    const unsubscribe = stateManagerInstance.subscribe((newState) => {
-      setCharacters(Object.values(newState.characters.byId));
-    });
-    return () => unsubscribe();
-  }, []);
-
   // 监听游戏配置和角色状态变化
   useEffect(() => {
     const initializeState = async () => {
       console.log('开始初始化状态...');
       setIsLoading(true);
 
-      if (!gameConfig || !characters.length) {
+      if (!gameConfig || !characterState) {
         console.error('缺少必要的配置或角色状态');
         navigate('/');
         return;
       }
 
       try {
-        // 修复 updateStateManager 调用
-        const characterState: CharacterStateStorage = {
-          characters: characters,
-          templates: [],
-          activeMode: 'direct',
-          difyConfig: {
-            serverUrl: '',
-            apiKey: '',
-            workflowId: '',
-            parameters: {}
-          },
-          directConfig: {
-            provider: 'openai',
-            apiKey: '',
-            model: 'gpt-3.5-turbo',
-            parameters: {}
-          }
-        };
+        // 更新统一状态
         updateStateManager(gameConfig, characterState);
         
         // 获取状态管理器实例
@@ -648,7 +632,7 @@ export const DebateRoom: React.FC = () => {
     };
 
     initializeState();
-  }, [gameConfig, characters, navigate]);
+  }, [gameConfig, characterState, navigate]);
 
   // 组件卸载时清理状态管理器
   useEffect(() => {
@@ -674,7 +658,7 @@ export const DebateRoom: React.FC = () => {
   }, [unifiedState?.debate.currentState.currentSpeaker]);
 
   const getJudgeInfo = () => {
-    if (!unifiedState?.debate.judge?.characterId) return null;
+    if (!unifiedState?.debate.judge.characterId) return null;
     
     const judgeCharacter = unifiedState.characters.byId[unifiedState.debate.judge.characterId];
     if (!judgeCharacter) return null;

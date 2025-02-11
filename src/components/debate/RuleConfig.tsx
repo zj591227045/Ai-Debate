@@ -144,25 +144,14 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
 
 export const defaultRuleConfig: RuleConfig = {
   format: 'free',
-  timeLimit: 300,
-  totalRounds: 3,
-  debateFormat: 'free',
   description: '',
-  basicRules: {
-    speechLengthLimit: {
-      min: 60,
-      max: 300
-    },
-    allowEmptySpeech: false,
-    allowRepeatSpeech: false
-  },
   advancedRules: {
     maxLength: 1000,
     minLength: 100,
     allowQuoting: true,
     requireResponse: true,
     allowStanceChange: false,
-    requireEvidence: true
+    requireEvidence: true,
   }
 };
 

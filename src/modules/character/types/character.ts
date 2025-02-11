@@ -29,8 +29,8 @@ export const characterConfigSchema = z.object({
   
   isTemplate: z.boolean().default(false),
   templateId: z.string().optional(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
+  createdAt: z.number().optional(),
+  updatedAt: z.number().optional(),
 }).transform((data) => ({
   ...data,
   isTemplate: data.isTemplate ?? false,

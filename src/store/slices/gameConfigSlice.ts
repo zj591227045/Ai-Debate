@@ -1,124 +1,65 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { GameConfigState } from '../../types/config';
-import type { TopicConfig, RuleConfig, DebateConfig } from '../unified/types';
 import type { Player } from '../../types/player';
+import type { RuleConfig } from '../../types/rules';
+import type { DebateConfig } from '../../types/debate';
 
 const initialState: GameConfigState = {
-  settings: {
-    roundCount: 3,
-    timeLimit: 300,
-    language: 'zh-CN',
-    dify: {
-      serverUrl: '',
-      apiKey: '',
-      workflowId: '',
-      parameters: {}
-    },
-    direct: {
-      provider: 'openai',
-      apiKey: '',
-      model: 'gpt-3.5-turbo',
-      parameters: {}
-    }
-  },
-  roles: {
-    affirmative: [],
-    negative: []
-  },
   topic: {
     title: '',
-    description: '',
-    type: 'binary' as const
+    description: ''
   },
   rules: {
-    format: 'structured' as const,
-    timeLimit: 300,
-    totalRounds: 3,
-    debateFormat: 'structured' as const,
-    description: '标准辩论规则',
-    basicRules: {
-      speechLengthLimit: {
-        min: 60,
-        max: 300
-      },
-      allowEmptySpeech: false,
-      allowRepeatSpeech: false
-    },
-    advancedRules: {
-      allowQuoting: true,
-      requireResponse: true,
-      allowStanceChange: false,
-      requireEvidence: true,
-      minLength: 100,
-      maxLength: 1000
-    }
+    totalRounds: 4,
+    debateFormat: 'structured'
   },
   debate: {
     topic: {
       title: '',
       description: '',
-      type: 'binary' as const
+      type: 'binary'
     },
     rules: {
-      format: 'structured' as const,
-      timeLimit: 300,
-      totalRounds: 3,
-      debateFormat: 'structured' as const,
-      description: '标准辩论规则',
+      debateFormat: 'structured',
+      description: '',
       basicRules: {
         speechLengthLimit: {
-          min: 60,
-          max: 300
+          min: 100,
+          max: 1000,
         },
         allowEmptySpeech: false,
-        allowRepeatSpeech: false
+        allowRepeatSpeech: false,
       },
       advancedRules: {
         allowQuoting: true,
         requireResponse: true,
         allowStanceChange: false,
         requireEvidence: true,
-        minLength: 100,
-        maxLength: 1000
-      }
+      },
     },
     judging: {
+      description: '',
       dimensions: [],
       totalScore: 100,
-      description: ''
     },
-    players: {
-      byId: {}
-    }
   },
   players: [],
   ruleConfig: {
-    format: 'structured' as const,
-    timeLimit: 300,
-    totalRounds: 3,
-    debateFormat: 'structured' as const,
-    description: '标准辩论规则',
-    basicRules: {
-      speechLengthLimit: {
-        min: 60,
-        max: 300
-      },
-      allowEmptySpeech: false,
-      allowRepeatSpeech: false
-    },
+    format: 'structured',
+    description: '',
     advancedRules: {
+      maxLength: 1000,
+      minLength: 100,
       allowQuoting: true,
       requireResponse: true,
       allowStanceChange: false,
       requireEvidence: true,
-      minLength: 100,
-      maxLength: 1000
     }
   },
   isConfiguring: true
 };
 
-const gameConfigSlice = createSlice({
+export const gameConfigSlice = createSlice({
   name: 'gameConfig',
   initialState,
   reducers: {
@@ -133,21 +74,20 @@ const gameConfigSlice = createSlice({
         };
         // 同步更新顶层 topic
         state.topic = {
-          ...action.payload.topic,
-          type: 'binary'
+          title: state.debate.topic.title,
+          description: state.debate.topic.description
         };
       }
       if (action.payload.rules) {
-        const rules: RuleConfig = {
+        state.debate.rules = {
           ...state.debate.rules,
-          ...action.payload.rules,
-          format: action.payload.rules.format || state.debate.rules.format,
-          timeLimit: action.payload.rules.timeLimit || state.debate.rules.timeLimit,
-          totalRounds: action.payload.rules.totalRounds || state.debate.rules.totalRounds
+          ...action.payload.rules
         };
-        state.debate.rules = rules;
         // 同步更新顶层 rules
-        state.rules = rules;
+        state.rules = {
+          totalRounds: 4, // 默认值
+          debateFormat: state.debate.rules.debateFormat
+        };
       }
       if (action.payload.judging) {
         state.debate.judging = {
@@ -164,12 +104,23 @@ const gameConfigSlice = createSlice({
       // 同步更新 debate.rules
       state.debate.rules = {
         ...state.debate.rules,
-        ...action.payload
+        debateFormat: action.payload.format,
+        description: action.payload.description,
+        basicRules: {
+          ...state.debate.rules.basicRules,
+          speechLengthLimit: {
+            min: action.payload.advancedRules.minLength,
+            max: action.payload.advancedRules.maxLength
+          }
+        },
+        advancedRules: {
+          ...action.payload.advancedRules
+        }
       };
       // 同步更新顶层 rules
       state.rules = {
-        ...state.rules,
-        ...action.payload
+        totalRounds: 4, // 默认值
+        debateFormat: action.payload.format
       };
     },
     setConfiguring: (state, action: PayloadAction<boolean>) => {

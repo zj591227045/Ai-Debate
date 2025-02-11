@@ -1,56 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Table, Button, Modal, message, Tooltip, Upload } from 'antd';
 import { EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons';
-import { StateManager } from '../../../../store/unified';
+import { useCharacter } from '../../context/CharacterContext';
 import { CharacterTemplate, characterTemplateSchema } from '../../types/template';
 import type { UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import type { UnifiedState } from '../../../../store/unified';
 import './styles.css';
 
-export function TemplateManager() {
-  const stateManager = StateManager.getInstance();
-  const characters = stateManager.getState().characters;
-  const [templates, setTemplates] = useState(() => 
-    (characters.templates ? Object.values(characters.templates.byId) : []).map(template => ({
-      ...template,
-      createdAt: template.createdAt || Date.now(),
-      updatedAt: template.updatedAt || Date.now(),
-      description: template.description || '',
-      isTemplate: true
-    })) as CharacterTemplate[]
-  );
-
-  useEffect(() => {
-    const unsubscribe = stateManager.subscribe((newState) => {
-      setTemplates(
-        (newState.characters.templates 
-          ? Object.values(newState.characters.templates.byId)
-          : []).map(template => ({
-            ...template,
-            createdAt: template.createdAt || Date.now(),
-            updatedAt: template.updatedAt || Date.now(),
-            description: template.description || '',
-            isTemplate: true
-          })) as CharacterTemplate[]
-      );
-    });
-    return () => unsubscribe();
-  }, []);
+export const TemplateManager: React.FC = () => {
+  const { state, dispatch } = useCharacter();
 
   const handleDeleteTemplate = (id: string) => {
     Modal.confirm({
-      title: '确认删除模板',
+      title: '确定要删除这个模板吗？',
       content: '删除后将无法恢复',
-      okText: '确定删除',
+      okText: '确定',
       cancelText: '取消',
       onOk: () => {
-        stateManager.dispatch({
-          type: 'TEMPLATE_DELETED',
-          payload: { id }
-        });
+        dispatch({ type: 'DELETE_TEMPLATE', payload: id });
         message.success('模板已删除');
-      }
+      },
     });
   };
 
@@ -90,10 +59,7 @@ export function TemplateManager() {
           updatedAt: Date.now(),
         };
 
-        stateManager.dispatch({
-          type: 'TEMPLATE_ADDED',
-          payload: template
-        });
+        dispatch({ type: 'ADD_TEMPLATE', payload: template });
         message.success('模板导入成功');
       } catch (error) {
         message.error('导入失败，请检查文件格式');
@@ -173,13 +139,13 @@ export function TemplateManager() {
             <Button icon={<ImportOutlined />}>导入模板</Button>
           </Upload>
           <div className="template-stats">
-            共 {templates.length} 个模板
+            共 {state.templates.length} 个模板
           </div>
         </div>
       </div>
       
       <Table
-        dataSource={templates}
+        dataSource={state.templates}
         columns={columns}
         rowKey="id"
         pagination={{
@@ -190,4 +156,4 @@ export function TemplateManager() {
       />
     </div>
   );
-} 
+}; 

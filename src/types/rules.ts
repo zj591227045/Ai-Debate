@@ -4,8 +4,10 @@ import { UnifiedRole } from './roles';
  * 基础规则配置
  */
 export interface BasicRules {
-  maxLength: number;
-  minLength: number;
+  speechLengthLimit: {
+    min: number;
+    max: number;
+  }
   allowEmptySpeech: boolean;
   allowRepeatSpeech: boolean;
 }
@@ -18,8 +20,10 @@ export interface AdvancedRules {
   requireResponse: boolean;
   allowStanceChange: boolean;
   requireEvidence: boolean;
-  maxLength: number;
-  minLength: number;
+  speechLengthLimit: {
+    min: number;
+    max: number;
+  }
 }
 
 /**
@@ -58,11 +62,13 @@ export interface RuleConfig {
  * 默认规则配置
  */
 export const DEFAULT_RULE_CONFIG: RuleConfig = {
-  format: 'structured',
-  description: '标准辩论规则',
+  format: 'free',
+  description: '',
   basicRules: {
-    maxLength: 1000,
-    minLength: 100,
+    speechLengthLimit: {
+      min: 100,
+      max: 1000
+    },
     allowEmptySpeech: false,
     allowRepeatSpeech: false
   },
@@ -71,8 +77,10 @@ export const DEFAULT_RULE_CONFIG: RuleConfig = {
     requireResponse: true,
     allowStanceChange: false,
     requireEvidence: true,
-    maxLength: 2000,
-    minLength: 200
+    speechLengthLimit: {
+      min: 200,
+      max: 2000
+    }
   },
   roundRules: [],
   scoringRules: []

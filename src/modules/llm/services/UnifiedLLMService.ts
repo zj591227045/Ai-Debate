@@ -35,7 +35,7 @@ export class UnifiedLLMService {
   }
 
   private getLLMStore(): LLMStore {
-    return this.storeManager.getStore<LLMState>('llm') as LLMStore;
+    return this.storeManager.getStore<LLMStore>('llm');
   }
 
   async setModel(modelId: string): Promise<void> {

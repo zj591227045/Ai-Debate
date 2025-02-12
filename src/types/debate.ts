@@ -67,7 +67,8 @@ export interface DebateConfig {
   // 主题配置
   topic: {
     title: string;          
-    description: string;    
+    description: string;
+    rounds: number;    
   };
   // 规则配置
   rules: {

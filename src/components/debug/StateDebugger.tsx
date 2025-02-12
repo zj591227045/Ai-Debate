@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import styled from '@emotion/styled';
-import { useStore } from '../../modules/state';
-import { StateLogger } from '../../modules/state/utils';
+import { useUnifiedState } from '../../modules/state';
 import { StoreManager } from '../../modules/state/core/StoreManager';
+import { useStore } from '../../modules/state';
+import { GameConfigStore } from '../../modules/state/stores/GameConfigStore';
 
 const Container = styled.div`
   position: fixed;
@@ -52,60 +53,80 @@ const StateView = styled.pre`
   word-wrap: break-word;
 `;
 
-const LogEntry = styled.div<{ $level: string }>`
-  margin: 4px 0;
-  padding: 4px;
-  border-radius: 4px;
-  font-size: 12px;
-  background: ${props => {
-    switch (props.$level) {
-      case 'error': return 'rgba(255, 77, 79, 0.2)';
-      case 'warn': return 'rgba(250, 173, 20, 0.2)';
-      case 'info': return 'rgba(24, 144, 255, 0.2)';
-      default: return 'transparent';
-    }
-  }};
-  color: ${props => {
-    switch (props.$level) {
-      case 'error': return '#ff4d4f';
-      case 'warn': return '#faad14';
-      case 'info': return '#1890ff';
-      default: return '#fff';
-    }
-  }};
+const StateSection = styled.div`
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+  
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
 `;
 
+const SectionHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+`;
+
+const SectionTitle = styled.h4`
+  margin: 0;
+  color: #1890ff;
+`;
+
+const UpdateTime = styled.span`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+`;
+
+const DebugContainer = styled.div`
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  max-width: 400px;
+  max-height: 300px;
+  overflow: auto;
+`;
+
+const DebugSection = styled.div`
+  margin-bottom: 10px;
+`;
+
+const DebugTitle = styled.h4`
+  margin: 0 0 5px;
+  color: #0f0;
+`;
+
+const gameConfigStore = GameConfigStore.getInstance();
+
 export const StateDebugger: React.FC = () => {
+  const { state: unifiedState } = useUnifiedState();
   const { state: gameConfig } = useStore('gameConfig');
-  const { state: modelState } = useStore('model');
-  const { state: gameRules } = useStore('gameRules');
   const [isVisible, setIsVisible] = useState(true);
-  const [logs, setLogs] = useState<any[]>([]);
-  const logger = StateLogger.getInstance();
-
-  useEffect(() => {
-    logger.debug('StateDebugger', '状态已更新', {
-      timestamp: new Date().toISOString(),
-      gameConfig,
-      modelState,
-      gameRules
-    });
-
-    setLogs(prev => [...prev, {
-      timestamp: new Date().toISOString(),
-      level: 'debug',
-      message: '状态已更新',
-      data: { gameConfig, modelState, gameRules }
-    }]);
-  }, [gameConfig, modelState, gameRules]);
+  const [viewMode, setViewMode] = useState<'simple' | 'detailed'>('simple');
+  const storeManager = StoreManager.getInstance();
+  const [storeState, setStoreState] = useState(gameConfigStore.getState());
 
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
   };
 
-  const clearLogs = () => {
-    setLogs([]);
-  };
+  // 监听状态变化
+  useEffect(() => {
+    const unsubscribe = gameConfigStore.subscribe((state) => {
+      setStoreState(state);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   if (!isVisible) {
     return (
@@ -118,43 +139,68 @@ export const StateDebugger: React.FC = () => {
     );
   }
 
+  const getLastUpdateTime = (namespace: string) => {
+    try {
+      const store = storeManager.getStore(namespace);
+      const metadata = store.getMetadata();
+      return new Date(metadata.lastUpdated).toLocaleString();
+    } catch {
+      return '未知';
+    }
+  };
+
   return (
     <Container>
       <Header>
         <Title>状态调试器</Title>
         <div>
-          <Button onClick={clearLogs} style={{ marginRight: '8px' }}>
-            清除日志
+          <Button onClick={() => setViewMode(viewMode === 'simple' ? 'detailed' : 'simple')}>
+            {viewMode === 'simple' ? '详细视图' : '简单视图'}
           </Button>
-          <Button onClick={toggleVisibility}>
-            隐藏
-          </Button>
+          <Button onClick={toggleVisibility}>隐藏</Button>
         </div>
       </Header>
-      <div>
-        <h4 style={{ color: '#1890ff', margin: '8px 0' }}>游戏配置：</h4>
+
+      {viewMode === 'simple' ? (
+        <>
+          {gameConfig?.debate ? (
+            <>
+              <DebugSection>
+                <DebugTitle>辩论配置</DebugTitle>
+                <div>
+                  主题: {gameConfig.debate.topic.title}
+                  <br />
+                  描述: {gameConfig.debate.topic.description}
+                  <br />
+                  回合: {gameConfig.debate.topic.rounds}
+                </div>
+              </DebugSection>
+
+              <DebugSection>
+                <DebugTitle>辩论规则</DebugTitle>
+                <div>
+                  格式: {gameConfig.debate.rules.debateFormat}
+                  <br />
+                  描述: {gameConfig.debate.rules.description}
+                </div>
+              </DebugSection>
+
+              <DebugSection>
+                <DebugTitle>玩家</DebugTitle>
+                <div>
+                  数量: {gameConfig.players?.length || 0}
+                </div>
+              </DebugSection>
+            </>
+          ) : (
+            <div>加载中...</div>
+          )}
+        </>
+      ) : (
         <StateView>
-          {JSON.stringify(gameConfig, null, 2)}
+          {JSON.stringify(storeState, null, 2)}
         </StateView>
-        
-        <h4 style={{ color: '#1890ff', margin: '8px 0' }}>模型状态：</h4>
-        <StateView>
-          {JSON.stringify(modelState, null, 2)}
-        </StateView>
-        
-        <h4 style={{ color: '#1890ff', margin: '8px 0' }}>游戏规则：</h4>
-        <StateView>
-          {JSON.stringify(gameRules, null, 2)}
-        </StateView>
-      </div>
-      <div style={{ marginTop: '16px' }}>
-        {logs.map((log, index) => (
-          <LogEntry key={index} $level={log.level}>
-            <div>[{new Date(log.timestamp).toLocaleTimeString()}] {log.message}</div>
-            <pre>{JSON.stringify(log.data, null, 2)}</pre>
-          </LogEntry>
-        ))}
-      </div>
+      )}
     </Container>
   );
 }; 

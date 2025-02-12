@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
-import { useStore } from '../modules/state';
+import { useStore, useStorePersistence } from '../modules/state';
 import { StateLogger } from '../modules/state/utils';
 import { StoreError } from '../modules/state/types/error';
+import { GameConfigStore } from '../modules/state/stores/GameConfigStore';
 
 const logger = StateLogger.getInstance();
+const gameConfigStore = GameConfigStore.getInstance();
 
 export function GameConfig() {
   const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
@@ -35,35 +37,36 @@ export function GameConfig() {
 
   // 更新主题
   const handleTopicChange = (title: string) => {
+    if (!gameConfig?.debate) return;
+    
     logger.debug('gameConfig', '更新主题', {
-      oldTitle: gameConfig.topic.title,
+      oldTitle: gameConfig.debate.topic.title,
       newTitle: title,
       timestamp: new Date().toISOString(),
       source: 'GameConfig.topicChange'
     });
     
-    setGameConfig({
-      topic: {
-        ...gameConfig.topic,
-        title
-      }
-    });
+    gameConfigStore.updateTopicConfig({ title });
   };
 
   // 更新规则
-  const handleRulesChange = (totalRounds: number) => {
+  const handleRulesChange = (debateFormat: string) => {
+    if (!gameConfig?.debate) return;
+    
     logger.debug('gameConfig', '更新规则', {
-      oldTotalRounds: gameConfig.rules.totalRounds,
-      newTotalRounds: totalRounds,
+      oldFormat: gameConfig.debate.rules.debateFormat,
+      newFormat: debateFormat,
       timestamp: new Date().toISOString(),
       source: 'GameConfig.rulesChange'
     });
     
-    setGameConfig({
-      rules: {
-        ...gameConfig.rules,
-        totalRounds
-      }
+    gameConfigStore.updateRuleConfig({ debateFormat });
+  };
+
+  // 更新主题描述
+  const handleDescriptionChange = (description: string) => {
+    gameConfigStore.updateTopicConfig({
+      description
     });
   };
 
@@ -71,36 +74,41 @@ export function GameConfig() {
     <div>
       <h2>游戏配置</h2>
       
-      {/* 主题配置 */}
-      <section>
-        <h3>主题设置</h3>
-        <input
-          value={gameConfig.topic.title}
-          onChange={e => handleTopicChange(e.target.value)}
-          placeholder="输入主题标题"
-        />
-        <textarea
-          value={gameConfig.topic.description}
-          onChange={e => setGameConfig({
-            topic: { ...gameConfig.topic, description: e.target.value }
-          })}
-          placeholder="输入主题描述"
-        />
-      </section>
+      {gameConfig?.debate ? (
+        <>
+          {/* 主题配置 */}
+          <section>
+            <h3>主题设置</h3>
+            <input
+              value={gameConfig.debate.topic.title}
+              onChange={e => handleTopicChange(e.target.value)}
+              placeholder="输入主题标题"
+            />
+            <textarea
+              value={gameConfig.debate.topic.description}
+              onChange={e => handleDescriptionChange(e.target.value)}
+              placeholder="输入主题描述"
+            />
+          </section>
 
-      {/* 规则配置 */}
-      <section>
-        <h3>规则设置</h3>
-        <div>
-          <label>回合数：</label>
-          <input
-            type="number"
-            value={gameConfig.rules.totalRounds}
-            onChange={e => handleRulesChange(Number(e.target.value))}
-            min={1}
-          />
-        </div>
-      </section>
+          {/* 规则配置 */}
+          <section>
+            <h3>规则设置</h3>
+            <div>
+              <label>辩论格式：</label>
+              <select
+                value={gameConfig.debate.rules.debateFormat}
+                onChange={e => handleRulesChange(e.target.value)}
+              >
+                <option value="structured">结构化辩论</option>
+                <option value="free">自由辩论</option>
+              </select>
+            </div>
+          </section>
+        </>
+      ) : (
+        <div>加载中...</div>
+      )}
 
       {/* 持久化控制 */}
       <section>
@@ -115,10 +123,12 @@ export function GameConfig() {
 // 保存配置按钮组件
 function SaveConfigButton() {
   const { state: gameConfig } = useStore('gameConfig');
+  const { persist } = useStorePersistence('gameConfig');
   
   return (
-    <button onClick={() => {
+    <button onClick={async () => {
       try {
+        await persist();
         logger.debug('gameConfig', '手动保存配置', {
           state: gameConfig,
           timestamp: new Date().toISOString(),
@@ -135,13 +145,13 @@ function SaveConfigButton() {
 
 // 加载配置按钮组件
 function LoadConfigButton() {
-  const { state: gameConfig } = useStore('gameConfig');
+  const { hydrate } = useStorePersistence('gameConfig');
   
   return (
-    <button onClick={() => {
+    <button onClick={async () => {
       try {
-        logger.debug('gameConfig', '手动加载配置', {
-          state: gameConfig,
+        await hydrate();
+        logger.debug('gameConfig', '手动加载配置成功', {
           timestamp: new Date().toISOString(),
           source: 'LoadConfigButton'
         });
@@ -156,12 +166,10 @@ function LoadConfigButton() {
 
 // 重置配置按钮组件
 function ResetConfigButton() {
-  const { setState: setGameConfig } = useStore('gameConfig');
-  
   return (
     <button onClick={() => {
       try {
-        setGameConfig({});  // 重置为默认状态
+        gameConfigStore.resetConfig();
         logger.debug('gameConfig', '手动重置配置成功', {
           timestamp: new Date().toISOString(),
           source: 'ResetConfigButton'

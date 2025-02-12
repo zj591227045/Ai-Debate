@@ -9,7 +9,16 @@ export class ModelStore extends BaseStore<ModelState> {
   protected data: ModelState;
   protected metadata: { lastUpdated: number };
 
-  constructor(config: any) {
+  constructor(config: {
+    namespace: string;
+    version: string;
+    persistence?: {
+      enabled: boolean;
+      key?: string;
+      storage?: 'local' | 'session' | 'memory';
+    };
+    storageAdapter?: any;
+  }) {
     super(config);
     this.metadata = { lastUpdated: Date.now() };
     this.data = this.createInitialState().data;

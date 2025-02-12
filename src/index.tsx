@@ -5,6 +5,10 @@ import App from './App';
 import './styles/global.css';
 import 'reflect-metadata';
 import { initializeProviders } from './modules/llm/services/initializeProviders';
+import { StoreManager } from './modules/state/core/StoreManager';
+import { StateLogger } from './modules/state/utils';
+
+const logger = StateLogger.getInstance();
 
 // 禁用自动填充功能
 if (typeof window !== 'undefined') {
@@ -25,35 +29,59 @@ if (typeof window !== 'undefined') {
   });
 }
 
-// 初始化 LLM 服务提供者
-initializeProviders([
-  // 默认配置
-  {
-    id: 'default-model',
-    name: '默认模型',
-    provider: 'default',
-    model: 'default',
-    parameters: {
-      temperature: 0.7,
-      maxTokens: 2000,
-      topP: 1.0
-    },
-    auth: {
-      baseUrl: '',
-      apiKey: ''
-    },
-    isEnabled: true,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+// 初始化应用
+async function initializeApp() {
+  try {
+    // 初始化存储管理器
+    const storeManager = StoreManager.getInstance();
+    await storeManager.initialize();
+    
+    // 初始化 LLM 服务提供者
+    await initializeProviders([
+      {
+        id: 'ollama-default',
+        name: 'Ollama默认模型',
+        provider: 'ollama',
+        model: 'llama2',
+        parameters: {
+          temperature: 0.7,
+          maxTokens: 2000,
+          topP: 1.0
+        },
+        auth: {
+          baseUrl: 'http://localhost:11434',
+          apiKey: ''
+        },
+        isEnabled: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+    ]);
+
+    // 渲染应用
+    const root = ReactDOM.createRoot(
+      document.getElementById('root') as HTMLElement
+    );
+
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
+  } catch (error) {
+    logger.error('App', '应用初始化失败', error instanceof Error ? error : new Error('Unknown error'));
+    // 即使初始化失败也渲染应用
+    const root = ReactDOM.createRoot(
+      document.getElementById('root') as HTMLElement
+    );
+
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    );
   }
-]);
+}
 
-const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// 启动应用
+initializeApp();

@@ -20,6 +20,7 @@ import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
 import { StateLogger } from '../modules/state/utils';
 import { StateDebugger } from '../components/debug/StateDebugger';
+import { GameConfigStore } from '../modules/state/stores/GameConfigStore';
 
 const logger = StateLogger.getInstance();
 
@@ -177,10 +178,9 @@ const GameConfigContent: React.FC = () => {
   // 更新规则配置
   const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
     setRuleConfig(newRuleConfig);
-    setGameConfig({
-      ...gameConfig,
-      ruleConfig: newRuleConfig
-    });
+    const store = GameConfigStore.getInstance();
+    store.updateRuleConfig(newRuleConfig);
+    setGameConfig(store.getState());
   };
 
   // 更新辩论配置
@@ -205,15 +205,6 @@ const GameConfigContent: React.FC = () => {
   const handleStartGame = () => {
     // 构建完整的配置对象
     const fullConfig: GameConfigState = {
-      topic: {
-        title: debateConfig.topic.title || '未设置主题',
-        description: debateConfig.topic.description || '未设置描述',
-        background: debateConfig.topic.description || ''
-      },
-      rules: {
-        totalRounds: 4,
-        format: ruleConfig.format || 'structured'
-      },
       debate: {
         ...debateConfig,
         rules: {
@@ -225,11 +216,6 @@ const GameConfigContent: React.FC = () => {
         ...player,
         characterId: player.characterId || undefined
       })),
-      ruleConfig: {
-        ...ruleConfig,
-        format: ruleConfig.format || 'structured',
-        description: ruleConfig.description || ''
-      },
       isConfiguring: false
     };
     
@@ -265,11 +251,11 @@ const GameConfigContent: React.FC = () => {
   const handleBack = () => {
     setGameConfig({
       ...gameConfig,
-      ruleConfig: defaultRuleConfig,
       debate: {
         topic: {
           title: '',
           description: '',
+          rounds: 3,
         },
         rules: {
           debateFormat: 'structured',
@@ -310,11 +296,6 @@ const GameConfigContent: React.FC = () => {
     setGameConfig({
       ...gameConfig,
       debate: config,
-      ruleConfig: {
-        ...ruleConfig,
-        format: config.rules.debateFormat,
-        description: config.rules.description
-      }
     });
     message.success('模板加载成功');
   };
@@ -363,14 +344,15 @@ const GameConfigContent: React.FC = () => {
       topic: {
         title: debateConfig.topic.title,
         description: debateConfig.topic.description,
+        rounds: debateConfig.topic.rounds,
       },
       rules: {
         debateFormat: ruleConfig.format,
         description: ruleConfig.description,
         basicRules: {
           speechLengthLimit: {
-            min: ruleConfig.advancedRules.minLength,
-            max: ruleConfig.advancedRules.maxLength,
+            min: ruleConfig.advancedRules.speechLengthLimit.min,
+            max: ruleConfig.advancedRules.speechLengthLimit.max,
           },
           allowEmptySpeech: false,
           allowRepeatSpeech: ruleConfig.advancedRules.allowQuoting,

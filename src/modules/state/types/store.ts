@@ -4,6 +4,7 @@
 export interface StateTransformer<T, U> {
   toUnified(state: Partial<T>): Partial<U>;
   fromUnified(state: U): T;
+  deepMerge(target: any, source: any): any;
 }
 
 /**
@@ -98,5 +99,7 @@ export enum StoreEvents {
   /** 恢复完成事件 */
   HYDRATE_COMPLETED = 'state:hydrate_completed',
   /** 错误发生事件 */
-  ERROR_OCCURRED = 'state:error_occurred'
+  ERROR_OCCURRED = 'state:error_occurred',
+  /** 初始化完成事件 */
+  STORE_INITIALIZED = 'state:store_initialized'
 } 

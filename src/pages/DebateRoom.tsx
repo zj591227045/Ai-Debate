@@ -548,11 +548,11 @@ export const DebateRoom: React.FC = () => {
   // 修改AI测试面板的上下文
   const getAITestContext = () => ({
     topic: {
-      title: gameConfig.topic.title,
-      description: gameConfig.topic.description
+      title: gameConfig?.debate?.topic?.title || '',
+      description: gameConfig?.debate?.topic?.description || ''
     },
     currentRound: session.debateState.progress.currentRound,
-    totalRounds: gameConfig.rules.totalRounds,
+    totalRounds: gameConfig?.debate?.topic?.rounds || 0,
     previousSpeeches: session.debateState.history.speeches
   });
 
@@ -718,43 +718,32 @@ export const DebateRoom: React.FC = () => {
     message.error('生成发言时出错：' + error.message);
   };
 
-  if (isLoading) {
+  // 添加加载状态检查
+  if (!gameConfig || gameConfig.isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
-        <Spin size="large" />
-        <div>正在初始化辩论室...</div>
-      </div>
+      <Container>
+        <Spin tip="加载中...">
+          <div style={{ padding: '50px' }} />
+        </Spin>
+      </Container>
     );
   }
 
-  if (!gameConfig) {
+  // 如果没有辩论配置，显示错误状态
+  if (!gameConfig.debate) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '20px'
-      }}>
+      <Container>
         <Result
           status="error"
-          title="初始化失败"
-          subTitle="无法加载辩论配置，请返回重试"
+          title="加载失败"
+          subTitle="无法加载辩论配置"
           extra={[
-            <Button type="primary" key="back" onClick={() => navigate('/')}>
-              返回首页
+            <Button type="primary" key="back" onClick={() => window.history.back()}>
+              返回
             </Button>
           ]}
         />
-      </div>
+      </Container>
     );
   }
 
@@ -792,12 +781,12 @@ export const DebateRoom: React.FC = () => {
       {/* 主题信息区域 */}
       <TopicBar>
         <TopicSection>
-          <TopicTitle>{gameConfig.topic.title}</TopicTitle>
+          <TopicTitle>{gameConfig?.debate?.topic?.title}</TopicTitle>
           <TopicInfo>
             <div>
-              <span>辩论形式：{gameConfig.rules.format === 'structured' ? '正反方辩论' : '自由辩论'}</span>
+              <span>辩论形式：{gameConfig?.debate?.rules?.debateFormat === 'structured' ? '正反方辩论' : '自由辩论'}</span>
               <span style={{ margin: '0 16px' }}>|</span>
-              <span>{gameConfig.topic.description}</span>
+              <span>{gameConfig?.debate?.topic?.description}</span>
             </div>
           </TopicInfo>
         </TopicSection>
@@ -960,7 +949,7 @@ export const DebateRoom: React.FC = () => {
 
                         </PlayerName>
                         <PlayerRole>
-                          {gameConfig.rules.format === 'structured' ? (
+                          {gameConfig?.debate?.rules?.debateFormat === 'structured' ? (
                             <>
                               {player.role.includes('affirmative') ? '正方' : 
                                player.role.includes('negative') ? '反方' : 

@@ -51,24 +51,30 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
                   <InputNumber
                     min={0}
                     placeholder="最小字数"
-                    value={config.advancedRules.minLength}
+                    value={config.advancedRules.speechLengthLimit.min}
                     onChange={(value: number | null) => onChange({
                       ...config,
                       advancedRules: {
                         ...config.advancedRules,
-                        minLength: value || 0
+                        speechLengthLimit: {
+                          min: value || 0,
+                          max: config.advancedRules.speechLengthLimit.max
+                        }
                       }
                     })}
                   />
                   <InputNumber
                     min={0}
                     placeholder="最大字数"
-                    value={config.advancedRules.maxLength}
+                    value={config.advancedRules.speechLengthLimit.max}
                     onChange={(value: number | null) => onChange({
                       ...config,
                       advancedRules: {
                         ...config.advancedRules,
-                        maxLength: value || 0
+                        speechLengthLimit: {
+                          min: config.advancedRules.speechLengthLimit.min,
+                          max: value || 0
+                        }
                       }
                     })}
                   />
@@ -146,14 +152,18 @@ export const defaultRuleConfig: RuleConfig = {
   format: 'free',
   description: '',
   basicRules: {
-    maxLength: 1000,
-    minLength: 100,
+    speechLengthLimit: {
+      min: 100,
+      max: 1000
+    },
     allowEmptySpeech: false,
     allowRepeatSpeech: false
   },
   advancedRules: {
-    maxLength: 2000,
-    minLength: 200,
+    speechLengthLimit: {
+      min: 200,
+      max: 2000
+    },
     allowQuoting: true,
     requireResponse: true,
     allowStanceChange: false,

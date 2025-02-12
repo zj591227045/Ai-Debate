@@ -315,6 +315,7 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 topic: {
                   title: '',
                   description: '',
+                  rounds: 3
                 }
               })}>重置</StyledButton>
               <StyledButton type="primary">保存</StyledButton>
@@ -379,22 +380,28 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 <InputNumber
                   min={0}
                   placeholder="最小字数"
-                  value={ruleConfig.advancedRules?.minLength}
+                  value={ruleConfig.advancedRules?.speechLengthLimit.min}
                   onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
-                      minLength: value || 0
+                      speechLengthLimit: {
+                        min: value || 0,
+                        max: ruleConfig.advancedRules.speechLengthLimit.max
+                      }
                     }
                   })}
                 />
                 <InputNumber
                   min={0}
                   placeholder="最大字数"
-                  value={ruleConfig.advancedRules?.maxLength}
+                  value={ruleConfig.advancedRules?.speechLengthLimit.max}
                   onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
-                      maxLength: value || 0
+                      speechLengthLimit: {
+                        min: ruleConfig.advancedRules.speechLengthLimit.min,
+                        max: value || 0
+                      }
                     }
                   })}
                 />

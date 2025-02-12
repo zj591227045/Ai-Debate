@@ -3,7 +3,8 @@ import {
   StoreConfig,
   StateContainer,
   StoreErrorCode,
-  ValidationOptions
+  ValidationOptions,
+  StoreEvents
 } from '../types';
 import { StoreError } from '../types/error';
 import { IStateStorageAdapter, PersistentStorageAdapter } from '../adapters/StateStorageAdapter';
@@ -23,6 +24,15 @@ export abstract class BaseStore<T extends Record<string, any>> extends EventEmit
   protected state: StateContainer<T>;
   protected readonly eventBus: EventBus;
   protected readonly config: StoreConfig;
+  protected readonly transformer: { 
+    toUnified: (state: Partial<T>) => Partial<T>; 
+    fromUnified?: (state: T) => T;
+    deepMerge: (target: any, source: any) => any;
+  } = {
+    toUnified: (state: Partial<T>) => state,
+    fromUnified: (state: T) => state,
+    deepMerge: (target: any, source: any) => ({ ...target, ...source })
+  };
   private subscribers = new Set<StateSubscriber<T>>();
   private readonly storageAdapter: IStateStorageAdapter;
 
@@ -125,32 +135,42 @@ export abstract class BaseStore<T extends Record<string, any>> extends EventEmit
     });
 
     const oldState = { ...this.state.data };
-    const newState = { ...oldState, ...update };
 
     try {
-      if (this.validateState(newState)) {
-        this.state.data = newState;
+      // 转换状态
+      const unified = this.transformer.toUnified(update);
+      
+      // 使用 transformer 的 deepMerge 进行状态合并
+      const mergedState = this.transformer.deepMerge(this.state.data, unified);
+      
+      // 验证合并后的状态
+      if (this.validateState(mergedState)) {
+        // 更新状态
+        this.state.data = mergedState;
         this.state.metadata.lastUpdated = Date.now();
 
         logger.debug('BaseStore', `存储 ${this.namespace} 状态验证通过`, {
           namespace: this.namespace,
-          newState,
+          newState: mergedState,
           timestamp: this.state.metadata.lastUpdated
         });
 
+        // 触发事件
         this.eventBus.emitStateChanged({
           namespace: this.namespace,
-          newState,
+          newState: mergedState,
           oldState,
           timestamp: this.state.metadata.lastUpdated
         });
 
+        // 通知订阅者
         this.notifySubscribers();
 
+        // 处理持久化
         if (this.config.persistence?.enabled) {
           logger.debug('BaseStore', `触发存储 ${this.namespace} 持久化`, {
             namespace: this.namespace,
-            state: newState,
+            state: mergedState,
             timestamp: Date.now()
           });
           
@@ -164,19 +184,14 @@ export abstract class BaseStore<T extends Record<string, any>> extends EventEmit
             ));
           });
         }
-
-        logger.debug('BaseStore', `存储 ${this.namespace} 状态更新完成`, {
-          namespace: this.namespace,
-          oldState,
-          newState,
-          timestamp: Date.now()
-        });
+      } else {
+        throw new Error('State validation failed');
       }
     } catch (error) {
       const validationError = new StoreError(
         StoreErrorCode.VALIDATION_FAILED,
         'State validation failed',
-        { oldState, newState, error },
+        { oldState, update, error },
         this.namespace
       );
       logger.error('BaseStore', `存储 ${this.namespace} 状态验证失败`, validationError);
@@ -205,15 +220,22 @@ export abstract class BaseStore<T extends Record<string, any>> extends EventEmit
     }
 
     try {
+      const currentState = this.getState();
+      
       logger.debug('BaseStore', `开始持久化存储 ${this.namespace}`, {
         namespace: this.namespace,
-        state: this.state.data
+        state: currentState,
+        timestamp: Date.now()
       });
       
-      await this.storageAdapter.saveState(this.namespace, this.state.data);
+      // 直接保存当前状态，不进行额外的转换
+      await this.storageAdapter.saveState(this.namespace, currentState);
       this.eventBus.emitPersistCompleted(this.namespace);
       
-      logger.debug('BaseStore', `存储 ${this.namespace} 持久化完成`);
+      logger.debug('BaseStore', `存储 ${this.namespace} 持久化完成`, {
+        savedState: currentState,
+        timestamp: Date.now()
+      });
     } catch (error) {
       logger.error('BaseStore', `存储 ${this.namespace} 持久化失败`, error instanceof Error ? error : new Error('Unknown error'));
       throw new StoreError(
@@ -250,6 +272,40 @@ export abstract class BaseStore<T extends Record<string, any>> extends EventEmit
       throw new StoreError(
         StoreErrorCode.HYDRATION_FAILED,
         'Failed to hydrate state',
+        error,
+        this.namespace
+      );
+    }
+  }
+
+  /**
+   * 初始化存储
+   */
+  public async initialize(): Promise<void> {
+    logger.debug('BaseStore', `开始初始化存储 ${this.namespace}`, {
+      namespace: this.namespace,
+      version: this.version
+    });
+
+    try {
+      // 如果启用了持久化，尝试恢复状态
+      if (this.config.persistence?.enabled) {
+        await this.hydrate();
+      }
+
+      // 触发初始化完成事件
+      this.eventBus.emit(StoreEvents.STORE_INITIALIZED, {
+        namespace: this.namespace,
+        version: this.version,
+        timestamp: Date.now()
+      });
+
+      logger.debug('BaseStore', `存储 ${this.namespace} 初始化完成`);
+    } catch (error) {
+      logger.error('BaseStore', `存储 ${this.namespace} 初始化失败`, error instanceof Error ? error : new Error('Unknown error'));
+      throw new StoreError(
+        StoreErrorCode.INITIALIZATION_FAILED,
+        `Failed to initialize store ${this.namespace}`,
         error,
         this.namespace
       );

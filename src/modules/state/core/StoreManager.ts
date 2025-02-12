@@ -6,6 +6,8 @@ import { IStateStorageAdapter, PersistentStorageAdapter } from '../adapters/Stat
 import { ModelStore } from '../stores/ModelStore';
 import { StateLogger } from '../utils';
 import { LLMStore } from '../stores/LLMStore';
+import { GameConfigStore } from '../stores/GameConfigStore';
+import { GameRulesStore } from '../stores/GameRulesStore';
 
 const logger = StateLogger.getInstance();
 
@@ -27,12 +29,67 @@ export class StoreManager {
     this.eventBus = EventBus.getInstance();
     this.storageAdapter = storageAdapter;
     this.initializeStores();
+    this.isInitialized = true;
     logger.debug('StoreManager', '存储管理器实例已创建');
   }
 
   private initializeStores(): void {
     // 初始化所有store
-    this.stores.set('llm', new LLMStore());
+    const llmConfig = {
+      namespace: 'llm',
+      version: '1.0.0',
+      persistence: {
+        enabled: true,
+        storage: 'local' as const
+      }
+    };
+
+    const modelConfig = {
+      namespace: 'model',
+      version: '1.0.0',
+      persistence: {
+        enabled: true,
+        storage: 'local' as const
+      }
+    };
+
+    const gameConfigConfig = {
+      namespace: 'gameConfig',
+      version: '1.0.0',
+      persistence: {
+        enabled: true,
+        storage: 'local' as const
+      }
+    };
+
+    const gameRulesConfig = {
+      namespace: 'gameRules',
+      version: '1.0.0',
+      persistence: {
+        enabled: true,
+        storage: 'local' as const
+      }
+    };
+
+    // 创建并注册所有store
+    const llmStore = new LLMStore();
+    const modelStore = new ModelStore(modelConfig);
+    const gameConfigStore = new GameConfigStore(gameConfigConfig);
+    const gameRulesStore = new GameRulesStore(gameRulesConfig);
+
+    // 注册store并设置状态变更监听
+    [llmStore, modelStore, gameConfigStore, gameRulesStore].forEach(store => {
+      const namespace = store.getMetadata().namespace;
+      store.on('stateChanged', () => {
+        logger.debug('StoreManager', `${namespace} 状态已更新，通知订阅者`);
+        this.notifySubscribers();
+      });
+      this.stores.set(namespace, store);
+    });
+
+    logger.debug('StoreManager', '所有store初始化完成', {
+      stores: Array.from(this.stores.keys())
+    });
   }
 
   /**
@@ -143,30 +200,25 @@ export class StoreManager {
    * 获取存储实例
    * @param namespace 命名空间
    */
-  public getStore<T extends Record<string, any>>(namespace: string): BaseStore<T> {
-    logger.debug('StoreManager', `获取存储: ${namespace}`);
-    
+  public getStore<T extends BaseStore<any>>(namespace: string): T {
     if (!this.isInitialized) {
-      logger.error('StoreManager', '存储管理器尚未初始化');
       throw new StoreError(
         StoreErrorCode.INITIALIZATION_FAILED,
-        'Store manager is not initialized yet',
-        { namespace },
-        namespace
+        '存储管理器尚未初始化',
+        { namespace }
       );
     }
-
+    
     const store = this.stores.get(namespace);
     if (!store) {
-      logger.error('StoreManager', `未找到存储: ${namespace}`);
       throw new StoreError(
         StoreErrorCode.STORE_NOT_FOUND,
-        `Store with namespace "${namespace}" not found`,
-        { namespace },
-        namespace
+        `未找到命名空间为 ${namespace} 的存储`,
+        { namespace }
       );
     }
-    return store as BaseStore<T>;
+    
+    return store as T;
   }
 
   /**
@@ -237,22 +289,15 @@ export class StoreManager {
    */
   public async hydrateAll(): Promise<void> {
     logger.debug('StoreManager', '开始恢复所有状态');
-    const promises = Array.from(this.stores.values()).map(store =>
+    const hydrationPromises = Array.from(this.stores.values()).map(store => 
       store.hydrate().catch(error => {
-        logger.error('StoreManager', `恢复存储 ${store.getMetadata().namespace} 状态失败`, error);
-        this.eventBus.emitError(
-          new StoreError(
-            StoreErrorCode.HYDRATION_FAILED,
-            'Failed to hydrate store state',
-            error,
-            store.getMetadata().namespace
-          )
-        );
+        logger.error('StoreManager', `恢复存储失败: ${store.getMetadata().namespace}`, error);
+        return null;
       })
     );
-    await Promise.all(promises);
+    
+    await Promise.all(hydrationPromises);
     this.isInitialized = true;
-    this.notifySubscribers();
     logger.debug('StoreManager', '所有状态恢复完成');
   }
 
@@ -280,5 +325,28 @@ export class StoreManager {
       );
     }
     return store;
+  }
+
+  /**
+   * 初始化存储管理器
+   */
+  public async initialize(): Promise<void> {
+    logger.debug('StoreManager', '开始初始化存储管理器');
+    
+    try {
+      // 等待所有store初始化完成
+      const stores = Array.from(this.stores.values());
+      await Promise.all(stores.map(store => store.initialize()));
+      
+      logger.debug('StoreManager', '存储管理器初始化完成');
+    } catch (error) {
+      this.isInitialized = false;
+      logger.error('StoreManager', '存储管理器初始化失败', error instanceof Error ? error : new Error('Unknown error'));
+      throw new StoreError(
+        StoreErrorCode.INITIALIZATION_FAILED,
+        '存储管理器初始化失败',
+        { error }
+      );
+    }
   }
 } 

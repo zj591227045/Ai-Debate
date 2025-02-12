@@ -4,6 +4,7 @@ import { StoreManager } from '../../state/core/StoreManager';
 import type { LLMState } from '../../state/types/llm';
 import { LLMEvents } from '../api/events';
 import type { LLMEventHandlers } from '../api/events';
+import { LLMStore } from '../../state/stores/LLMStore';
 
 export interface Container {
   eventBus: IEventEmitter;
@@ -14,7 +15,7 @@ let container: Container | null = null;
 
 export async function initializeContainer(eventBus: IEventEmitter): Promise<void> {
   const storeManager = StoreManager.getInstance();
-  const llmStore = storeManager.getStore<LLMState>('llm');
+  const llmStore = storeManager.getStore<LLMStore>('llm');
   const llmService = UnifiedLLMService.getInstance();
   
   container = {

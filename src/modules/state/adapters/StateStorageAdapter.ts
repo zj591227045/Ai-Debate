@@ -72,8 +72,15 @@ export class PersistentStorageAdapter implements IStateStorageAdapter {
 
   async saveState<T extends Record<string, any>>(namespace: string, state: T): Promise<void> {
     try {
-      const stateString = JSON.stringify(state);
-      localStorage.setItem(`state_${namespace}`, stateString);
+      // 深度克隆状态以避免引用问题
+      const clonedState = JSON.parse(JSON.stringify(state));
+      const stateString = JSON.stringify(clonedState);
+      
+      // 使用命名空间作为键名前缀
+      const key = `state_${namespace}`;
+      
+      // 直接保存最新状态，不进行合并
+      localStorage.setItem(key, stateString);
     } catch (error) {
       console.error('Failed to save state:', error);
       throw error;
@@ -82,9 +89,13 @@ export class PersistentStorageAdapter implements IStateStorageAdapter {
 
   async loadState<T extends Record<string, any>>(namespace: string): Promise<T | null> {
     try {
-      const stateString = localStorage.getItem(`state_${namespace}`);
+      const key = `state_${namespace}`;
+      const stateString = localStorage.getItem(key);
       if (!stateString) return null;
-      return JSON.parse(stateString) as T;
+      
+      // 解析并深度克隆状态
+      const state = JSON.parse(stateString);
+      return JSON.parse(JSON.stringify(state)) as T;
     } catch (error) {
       console.error('Failed to load state:', error);
       return null;
@@ -93,7 +104,8 @@ export class PersistentStorageAdapter implements IStateStorageAdapter {
 
   async removeState(namespace: string): Promise<void> {
     try {
-      localStorage.removeItem(`state_${namespace}`);
+      const key = `state_${namespace}`;
+      localStorage.removeItem(key);
     } catch (error) {
       console.error('Failed to remove state:', error);
       throw error;
@@ -112,5 +124,30 @@ export class PersistentStorageAdapter implements IStateStorageAdapter {
       console.error('Failed to clear all states:', error);
       throw error;
     }
+  }
+
+  private deepMerge(target: any, source: any): any {
+    if (typeof source !== 'object' || source === null) {
+      return source;
+    }
+    
+    if (Array.isArray(source)) {
+      return [...source];
+    }
+    
+    const result = { ...target };
+    
+    for (const key in source) {
+      if (source[key] === null) {
+        result[key] = null;
+      } else if (typeof source[key] === 'object') {
+        const targetValue = typeof result[key] === 'object' ? result[key] : {};
+        result[key] = this.deepMerge(targetValue, source[key]);
+      } else {
+        result[key] = source[key];
+      }
+    }
+    
+    return result;
   }
 } 

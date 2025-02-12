@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StoreManager } from '../core/StoreManager';
 import { UnifiedState } from '../types';
+import { BaseStore } from '../core/BaseStore';
+import { LLMStore } from '../stores/LLMStore';
+import { ModelStore } from '../stores/ModelStore';
+import { GameConfigStore } from '../stores/GameConfigStore';
+import { GameRulesStore } from '../stores/GameRulesStore';
+
+type StoreMap = {
+  llm: LLMStore;
+  model: ModelStore;
+  gameConfig: GameConfigStore;
+  gameRules: GameRulesStore;
+  session: BaseStore<UnifiedState['session']>;
+};
+
+type StoreInstance<K extends keyof UnifiedState> = BaseStore<UnifiedState[K]>;
 
 /**
  * 使用存储 Hook
@@ -12,7 +27,8 @@ export function useStore<K extends keyof UnifiedState>(namespace: K) {
       if (!manager.isStoreInitialized()) {
         throw new Error('Store is not initialized yet');
       }
-      return manager.getStore<UnifiedState[K]>(namespace).getState();
+      const store = manager.getStore(namespace) as StoreInstance<K>;
+      return store.getState();
     } catch (error) {
       console.warn(`Failed to get initial state for ${namespace}:`, error);
       return {} as UnifiedState[K];
@@ -26,10 +42,10 @@ export function useStore<K extends keyof UnifiedState>(namespace: K) {
     }
 
     try {
-      const store = manager.getStore<UnifiedState[K]>(namespace);
+      const store = manager.getStore(namespace) as StoreInstance<K>;
       setState(store.getState());
-      const unsubscribe = store.subscribe((newState: UnifiedState[K]) => {
-        setState(newState);
+      const unsubscribe = store.subscribe(() => {
+        setState(store.getState());
       });
       return unsubscribe;
     } catch (error) {
@@ -45,7 +61,8 @@ export function useStore<K extends keyof UnifiedState>(namespace: K) {
     }
 
     try {
-      manager.getStore<UnifiedState[K]>(namespace).setState(update);
+      const store = manager.getStore(namespace) as StoreInstance<K>;
+      store.setState(update);
     } catch (error) {
       console.error(`Failed to update ${namespace}:`, error);
     }
@@ -65,14 +82,14 @@ export function useStoreSelector<K extends keyof UnifiedState, R>(
   selector: (state: UnifiedState[K]) => R
 ) {
   const [selectedState, setSelectedState] = useState<R>(() => {
-    const store = StoreManager.getInstance().getStore<UnifiedState[K]>(namespace);
+    const store = StoreManager.getInstance().getStore(namespace) as StoreInstance<K>;
     return selector(store.getState());
   });
 
   useEffect(() => {
-    const store = StoreManager.getInstance().getStore<UnifiedState[K]>(namespace);
-    const unsubscribe = store.subscribe((state: UnifiedState[K]) => {
-      setSelectedState(selector(state));
+    const store = StoreManager.getInstance().getStore(namespace) as StoreInstance<K>;
+    const unsubscribe = store.subscribe(() => {
+      setSelectedState(selector(store.getState()));
     });
     return unsubscribe;
   }, [namespace, selector]);
@@ -85,7 +102,8 @@ export function useStoreSelector<K extends keyof UnifiedState, R>(
  */
 export function useStoreDispatch<K extends keyof UnifiedState>(namespace: K) {
   return useCallback((action: Partial<UnifiedState[K]>) => {
-    StoreManager.getInstance().getStore<UnifiedState[K]>(namespace).setState(action);
+    const store = StoreManager.getInstance().getStore(namespace) as StoreInstance<K>;
+    store.setState(action);
   }, [namespace]);
 }
 
@@ -119,7 +137,7 @@ export function useUnifiedState() {
  * 使用存储持久化 Hook
  */
 export function useStorePersistence<K extends keyof UnifiedState>(namespace: K) {
-  const store = StoreManager.getInstance().getStore<UnifiedState[K]>(namespace);
+  const store = StoreManager.getInstance().getStore(namespace) as StoreInstance<K>;
 
   const persist = useCallback(() => {
     return store.persist();
@@ -139,7 +157,7 @@ export function useStorePersistence<K extends keyof UnifiedState>(namespace: K) 
  * 使用存储重置 Hook
  */
 export function useStoreReset<K extends keyof UnifiedState>(namespace: K) {
-  const store = StoreManager.getInstance().getStore<UnifiedState[K]>(namespace);
+  const store = StoreManager.getInstance().getStore(namespace) as StoreInstance<K>;
 
   return useCallback(() => {
     store.resetState();

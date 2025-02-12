@@ -719,7 +719,7 @@ export const DebateRoom: React.FC = () => {
   };
 
   // 添加加载状态检查
-  if (!gameConfig || gameConfig.isLoading) {
+  if (!gameConfig || session.uiState.isLoading) {
     return (
       <Container>
         <Spin tip="加载中...">

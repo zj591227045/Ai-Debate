@@ -74,15 +74,11 @@ export interface DebateConfig {
   rules: {
     debateFormat: 'structured' | 'free';  
     description: string;                   
-    basicRules: {
+    advancedRules: {
       speechLengthLimit: {
         min: number;
         max: number;
       };
-      allowEmptySpeech: boolean;
-      allowRepeatSpeech: boolean;
-    };
-    advancedRules: {
       allowQuoting: boolean;      
       requireResponse: boolean;   
       allowStanceChange: boolean; 

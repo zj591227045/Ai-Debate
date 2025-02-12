@@ -12,15 +12,11 @@ export interface GameConfigState {
     rules: {
       debateFormat: string;
       description: string;
-      basicRules: {
+      advancedRules: {
         speechLengthLimit: {
           min: number;
           max: number;
         };
-        allowEmptySpeech: boolean;
-        allowRepeatSpeech: boolean;
-      };
-      advancedRules: {
         allowQuoting: boolean;
         requireResponse: boolean;
         allowStanceChange: boolean;

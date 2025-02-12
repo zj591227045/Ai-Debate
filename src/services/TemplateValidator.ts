@@ -40,7 +40,7 @@ export class TemplateValidator {
     }
 
     // 验证基础规则
-    if (!config.rules?.basicRules) {
+    if (!config.rules?.advancedRules) {
       errors.push({
         field: 'rules.basicRules',
         message: '基础规则不能为空'
@@ -48,9 +48,9 @@ export class TemplateValidator {
     }
 
     // 验证发言长度限制
-    if (!config.rules?.basicRules?.speechLengthLimit) {
+    if (!config.rules?.advancedRules?.speechLengthLimit) {
       errors.push({
-        field: 'rules.basicRules.speechLengthLimit',
+        field: 'rules.advancedRules.speechLengthLimit',
         message: '发言长度限制不能为空'
       });
     }
@@ -93,9 +93,9 @@ export class TemplateValidator {
     }
 
     // 验证基础规则
-    if (!config.rules?.basicRules) {
+    if (!config.rules?.advancedRules) {
       errors.push({
-        field: 'rules.basicRules',
+        field: 'rules.advancedRules',
         message: '基础规则不能为空'
       });
     }

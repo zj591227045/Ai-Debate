@@ -151,14 +151,6 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
 export const defaultRuleConfig: RuleConfig = {
   format: 'free',
   description: '',
-  basicRules: {
-    speechLengthLimit: {
-      min: 100,
-      max: 1000
-    },
-    allowEmptySpeech: false,
-    allowRepeatSpeech: false
-  },
   advancedRules: {
     speechLengthLimit: {
       min: 200,

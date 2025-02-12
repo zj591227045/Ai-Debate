@@ -106,7 +106,6 @@ const DebugTitle = styled.h4`
 const gameConfigStore = GameConfigStore.getInstance();
 
 export const StateDebugger: React.FC = () => {
-  const { state: unifiedState } = useUnifiedState();
   const { state: gameConfig } = useStore('gameConfig');
   const [isVisible, setIsVisible] = useState(true);
   const [viewMode, setViewMode] = useState<'simple' | 'detailed'>('simple');

@@ -123,15 +123,11 @@ const GameConfigContent: React.FC = () => {
       rules: {
         debateFormat: 'structured',
         description: '',
-        basicRules: {
+        advancedRules: {
           speechLengthLimit: {
             min: 100,
             max: 1000,
           },
-          allowEmptySpeech: false,
-          allowRepeatSpeech: false,
-        },
-        advancedRules: {
           allowQuoting: true,
           requireResponse: true,
           allowStanceChange: false,
@@ -177,10 +173,53 @@ const GameConfigContent: React.FC = () => {
 
   // 更新规则配置
   const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
+    // 先更新本地的规则状态
     setRuleConfig(newRuleConfig);
-    const store = GameConfigStore.getInstance();
-    store.updateRuleConfig(newRuleConfig);
-    setGameConfig(store.getState());
+    
+    // 确保有默认值
+    const currentDebate = gameConfig.debate || {
+      topic: {
+        title: '',
+        description: '',
+        rounds: 3
+      },
+      rules: {
+        debateFormat: 'structured',
+        description: '',
+        advancedRules: {
+          speechLengthLimit: {
+            min: 100,
+            max: 1000
+          },
+          allowQuoting: true,
+          requireResponse: true,
+          allowStanceChange: false,
+          requireEvidence: true
+        }
+      },
+      judging: {
+        description: '',
+        dimensions: [],
+        totalScore: 100
+      }
+    };
+    
+    // 更新全局状态，只修改 debate.rules 字段，保持其他字段不变
+    const updatedConfig: Partial<GameConfigState> = {
+      ...gameConfig,
+      debate: {
+        ...currentDebate,
+        rules: {
+          debateFormat: newRuleConfig.format,
+          description: newRuleConfig.description,
+          advancedRules: {
+            ...newRuleConfig.advancedRules
+          }
+        }
+      }
+    };
+    
+    setGameConfig(updatedConfig);
   };
 
   // 更新辩论配置
@@ -208,8 +247,15 @@ const GameConfigContent: React.FC = () => {
       debate: {
         ...debateConfig,
         rules: {
-          ...debateConfig.rules,
-          debateFormat: ruleConfig.format || 'structured'
+          debateFormat: ruleConfig.format || 'structured',
+          description: ruleConfig.description,
+          advancedRules: {
+            ...ruleConfig.advancedRules,
+            speechLengthLimit: {
+              min: ruleConfig.advancedRules.speechLengthLimit.min,
+              max: ruleConfig.advancedRules.speechLengthLimit.max
+            }
+          }
         }
       },
       players: players.map(player => ({
@@ -260,20 +306,16 @@ const GameConfigContent: React.FC = () => {
         rules: {
           debateFormat: 'structured',
           description: '',
-          basicRules: {
+          advancedRules: {
             speechLengthLimit: {
               min: 100,
               max: 1000,
             },
-            allowEmptySpeech: false,
-            allowRepeatSpeech: false,
-          },
-          advancedRules: {
             allowQuoting: true,
             requireResponse: true,
             allowStanceChange: false,
             requireEvidence: true,
-          },
+          }
         },
         judging: {
           description: '',
@@ -349,15 +391,11 @@ const GameConfigContent: React.FC = () => {
       rules: {
         debateFormat: ruleConfig.format,
         description: ruleConfig.description,
-        basicRules: {
+        advancedRules: {
           speechLengthLimit: {
             min: ruleConfig.advancedRules.speechLengthLimit.min,
             max: ruleConfig.advancedRules.speechLengthLimit.max,
           },
-          allowEmptySpeech: false,
-          allowRepeatSpeech: ruleConfig.advancedRules.allowQuoting,
-        },
-        advancedRules: {
           allowQuoting: ruleConfig.advancedRules.allowQuoting,
           requireResponse: ruleConfig.advancedRules.requireResponse,
           allowStanceChange: ruleConfig.advancedRules.allowStanceChange,

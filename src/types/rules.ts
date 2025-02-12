@@ -52,7 +52,6 @@ export interface ScoringRules {
 export interface RuleConfig {
   format: 'structured' | 'free';
   description: string;
-  basicRules: BasicRules;
   advancedRules: AdvancedRules;
   roundRules: RoundRules[];
   scoringRules: ScoringRules[];
@@ -64,22 +63,14 @@ export interface RuleConfig {
 export const DEFAULT_RULE_CONFIG: RuleConfig = {
   format: 'free',
   description: '',
-  basicRules: {
-    speechLengthLimit: {
-      min: 100,
-      max: 1000
-    },
-    allowEmptySpeech: false,
-    allowRepeatSpeech: false
-  },
   advancedRules: {
     allowQuoting: true,
     requireResponse: true,
     allowStanceChange: false,
     requireEvidence: true,
     speechLengthLimit: {
-      min: 200,
-      max: 2000
+      min: 100,
+      max: 1000
     }
   },
   roundRules: [],

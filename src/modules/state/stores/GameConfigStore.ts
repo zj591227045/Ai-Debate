@@ -94,15 +94,11 @@ type DebateState = {
     rules: {
       debateFormat: string;
       description: string;
-      basicRules: {
+      advancedRules: {
         speechLengthLimit: {
           min: number;
           max: number;
         };
-        allowEmptySpeech: boolean;
-        allowRepeatSpeech: boolean;
-      };
-      advancedRules: {
         allowQuoting: boolean;
         requireResponse: boolean;
         allowStanceChange: boolean;
@@ -117,7 +113,6 @@ type DebateState = {
   },
   players: any[];
   isConfiguring: boolean;
-  isLoading: boolean;
 };
 
 type TopicConfig = DebateState['debate']['topic'];
@@ -160,15 +155,11 @@ export class GameConfigStore extends BaseStore<DebateState> {
         rules: {
           debateFormat: 'structured',
           description: '',
-          basicRules: {
+          advancedRules: {
             speechLengthLimit: {
               min: 100,
               max: 1000
             },
-            allowEmptySpeech: false,
-            allowRepeatSpeech: false
-          },
-          advancedRules: {
             allowQuoting: true,
             requireResponse: true,
             allowStanceChange: false,
@@ -182,8 +173,7 @@ export class GameConfigStore extends BaseStore<DebateState> {
         }
       },
       players: [],
-      isConfiguring: true,
-      isLoading: false
+      isConfiguring: true
     };
 
     return StateContainerFactory.create(

@@ -31,18 +31,20 @@ export const AIPlayerList: React.FC<AIPlayerListProps> = ({
   disabled = false
 }) => {
   // 转换角色映射
-  const mapRole = (role: string): UnifiedPlayer['role'] => {
+  const getRoleDisplay = (role: string): UnifiedPlayer['role'] => {
     switch (role) {
       case 'affirmative1':
       case 'affirmative2':
-        return 'affirmative';
+        return 'affirmative1';
       case 'negative1':
       case 'negative2':
-        return 'negative';
+        return 'negative1';
       case 'timekeeper':
-        return 'free';
+        return 'timekeeper';
       case 'judge':
         return 'judge';
+      case 'observer':
+        return 'observer';
       default:
         return 'unassigned';
     }
@@ -55,7 +57,7 @@ export const AIPlayerList: React.FC<AIPlayerListProps> = ({
         // 创建符合 UnifiedPlayer 类型的对象
         const unifiedPlayer: UnifiedPlayer = {
           ...player,
-          role: mapRole(player.role)
+          role: getRoleDisplay(player.role)
         };
 
         return (

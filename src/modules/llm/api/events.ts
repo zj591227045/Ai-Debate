@@ -1,6 +1,7 @@
-import type { ChatResponse, ServiceStatus } from './types';
-import type { LLMError } from '../types/error';
 import type { IEventEmitter } from '../services/events';
+import type { ChatResponse } from './types';
+import type { LLMError } from '../types/error';
+import type { ServiceStatus } from '../../state/types/llm';
 
 export enum LLMEvents {
   RESPONSE_RECEIVED = 'llm:response_received',
@@ -9,33 +10,19 @@ export enum LLMEvents {
   MODEL_CHANGED = 'llm:model_changed'
 }
 
-export interface LLMEventPayloads {
-  [LLMEvents.RESPONSE_RECEIVED]: ChatResponse;
-  [LLMEvents.ERROR_OCCURRED]: LLMError;
-  [LLMEvents.STATUS_CHANGED]: ServiceStatus;
-  [LLMEvents.MODEL_CHANGED]: string;
+export interface LLMEventHandlers {
+  [LLMEvents.RESPONSE_RECEIVED]: (response: ChatResponse) => void;
+  [LLMEvents.ERROR_OCCURRED]: (error: LLMError) => void;
+  [LLMEvents.STATUS_CHANGED]: (status: ServiceStatus) => void;
+  [LLMEvents.MODEL_CHANGED]: (modelId: string) => void;
 }
 
-export const registerLLMEvents = (eventBus: IEventEmitter) => {
-  const handlers: Partial<{
-    [K in LLMEvents]: (data: LLMEventPayloads[K]) => void;
-  }> = {
-    [LLMEvents.RESPONSE_RECEIVED]: (response) => {
-      console.log('LLM Response:', response);
-    },
-    [LLMEvents.ERROR_OCCURRED]: (error) => {
-      console.error('LLM Error:', error);
-    },
-    [LLMEvents.STATUS_CHANGED]: (status) => {
-      console.log('LLM Status Changed:', status);
-    },
-    [LLMEvents.MODEL_CHANGED]: (modelId) => {
-      console.log('LLM Model Changed:', modelId);
-    },
-  };
-
+export const registerEventHandlers = (
+  eventBus: IEventEmitter,
+  handlers: Partial<LLMEventHandlers>
+): void => {
   // 注册所有事件处理器
   Object.entries(handlers).forEach(([event, handler]) => {
-    eventBus.on(event, handler);
+    eventBus.on(event as LLMEvents, handler);
   });
 };

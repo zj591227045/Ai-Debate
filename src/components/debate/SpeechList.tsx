@@ -2,15 +2,14 @@ import React from 'react';
 import styled from '@emotion/styled';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SpeechRecord } from './SpeechRecord';
-import type { Speech } from '../../types/adapters';
-import type { UnifiedPlayer } from '../../types/adapters';
+import type { BaseDebateSpeech, UnifiedPlayer } from '../../types/adapters';
 
 interface SpeechListProps {
   players: UnifiedPlayer[];
   currentSpeakerId?: string;
-  speeches: Speech[];
+  speeches: BaseDebateSpeech[];
   onReference?: (speechId: string) => void;
-  getReferencedSpeeches?: (speechId: string) => Speech[];
+  getReferencedSpeeches?: (speechId: string) => BaseDebateSpeech[];
   streamingSpeech?: {
     playerId: string;
     content: string;
@@ -48,12 +47,6 @@ const NoSpeeches = styled.div`
   font-size: 16px;
 `;
 
-const SpeechListContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`;
-
 export const SpeechList: React.FC<SpeechListProps> = ({
   players,
   currentSpeakerId,
@@ -64,74 +57,54 @@ export const SpeechList: React.FC<SpeechListProps> = ({
 }) => {
   const getPlayerName = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
-    return player?.name || '未知选手';
+    return player?.name || playerId;
   };
 
-  // 自动滚动到底部
-  React.useEffect(() => {
-    if (streamingSpeech || speeches.length > 0) {
-      const container = document.querySelector('.speech-container');
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }
-  }, [streamingSpeech, speeches]);
-
-  if (speeches.length === 0 && !streamingSpeech) {
-    return (
-      <Container className="speech-container">
-        <NoSpeeches>暂无发言记录</NoSpeeches>
-      </Container>
-    );
-  }
-
   return (
-    <Container className="speech-container">
-      <SpeechListContainer>
-        <AnimatePresence>
-          {speeches.map((speech) => (
-            <motion.div
-              key={speech.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <SpeechRecord
-                speech={speech}
-                playerName={getPlayerName(speech.playerId)}
-                isCurrentSpeaker={speech.playerId === currentSpeakerId}
-                onReference={onReference}
-                referencedSpeeches={getReferencedSpeeches?.(speech.id)}
-              />
-            </motion.div>
-          ))}
-          
-          {streamingSpeech && (
-            <motion.div
-              key="streaming"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <SpeechRecord
-                speech={{
-                  id: 'streaming',
-                  playerId: streamingSpeech.playerId,
-                  content: streamingSpeech.content,
-                  timestamp: new Date().toISOString(),
-                  round: speeches.length > 0 ? speeches[speeches.length - 1].round : 1,
-                  references: []
-                }}
-                playerName={getPlayerName(streamingSpeech.playerId)}
-                isCurrentSpeaker={true}
-                isStreaming={true}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </SpeechListContainer>
+    <Container>
+      <AnimatePresence>
+        {speeches.length === 0 && !streamingSpeech ? (
+          <NoSpeeches>暂无发言记录</NoSpeeches>
+        ) : (
+          <>
+            {speeches.map((speech, index) => (
+              <motion.div
+                key={speech.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <SpeechRecord
+                  key={speech.id}
+                  speaker={getPlayerName(speech.playerId)}
+                  content={speech.content}
+                  timestamp={speech.timestamp}
+                  isCurrentSpeaker={speech.playerId === currentSpeakerId}
+                  onReference={() => onReference?.(speech.id)}
+                  referencedSpeeches={getReferencedSpeeches?.(speech.id)}
+                />
+              </motion.div>
+            ))}
+            {streamingSpeech && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <SpeechRecord
+                  speaker={getPlayerName(streamingSpeech.playerId)}
+                  content={streamingSpeech.content}
+                  timestamp={new Date().toISOString()}
+                  isCurrentSpeaker={streamingSpeech.playerId === currentSpeakerId}
+                  streaming
+                />
+              </motion.div>
+            )}
+          </>
+        )}
+      </AnimatePresence>
     </Container>
   );
 }; 

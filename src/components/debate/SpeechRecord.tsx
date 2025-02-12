@@ -2,15 +2,16 @@ import React from 'react';
 import styled from '@emotion/styled';
 import { motion } from 'framer-motion';
 import { formatTimestamp } from '../../utils/timestamp';
-import type { Speech } from '../../types/adapters';
+import type { Speech, BaseDebateSpeech } from '../../types/adapters';
 
 interface SpeechRecordProps {
-  speech: Speech;
-  playerName: string;
+  speaker: string;
+  content: string;
+  timestamp: string;
   isCurrentSpeaker: boolean;
-  onReference?: (speechId: string) => void;
-  referencedSpeeches?: Speech[];
-  isStreaming?: boolean;
+  onReference?: () => void;
+  referencedSpeeches?: BaseDebateSpeech[];
+  streaming?: boolean;
 }
 
 const Container = styled(motion.div)<{ $isCurrentSpeaker: boolean }>`
@@ -49,11 +50,16 @@ const Content = styled.div<{ $isStreaming?: boolean }>`
   white-space: pre-wrap;
   line-height: 1.6;
   color: #1f1f1f;
+  
   ${props => props.$isStreaming && `
-    &::after {
-      content: '|';
+    &:after {
+      content: '▋';
+      display: inline-block;
       animation: blink 1s infinite;
+      margin-left: 2px;
+      color: #1890ff;
     }
+    
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
@@ -61,77 +67,56 @@ const Content = styled.div<{ $isStreaming?: boolean }>`
   `}
 `;
 
-const References = styled.div`
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-`;
-
-const ReferenceItem = styled.div`
-  font-size: 13px;
-  color: #666;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 4px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  
-  &:hover {
-    background: rgba(0, 0, 0, 0.04);
-  }
-`;
-
 export const SpeechRecord: React.FC<SpeechRecordProps> = ({
-  speech,
-  playerName,
+  speaker,
+  content,
+  timestamp,
   isCurrentSpeaker,
   onReference,
   referencedSpeeches,
-  isStreaming
+  streaming
 }) => {
   return (
-    <Container 
-      $isCurrentSpeaker={isCurrentSpeaker}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <Container $isCurrentSpeaker={isCurrentSpeaker}>
       <Header>
         <PlayerInfo>
-          <PlayerName>{playerName}</PlayerName>
-          {isStreaming && (
+          <PlayerName>{speaker}</PlayerName>
+          {streaming && (
             <span style={{ 
               fontSize: '12px',
               padding: '2px 8px',
-              background: '#1890ff',
-              color: '#fff',
-              borderRadius: '10px'
+              background: 'rgba(24, 144, 255, 0.1)',
+              color: '#1890ff',
+              borderRadius: '4px'
             }}>
-              正在发言...
+              正在输入...
             </span>
           )}
         </PlayerInfo>
-        <Timestamp>{formatTimestamp(speech.timestamp)}</Timestamp>
+        <Timestamp>{formatTimestamp(timestamp)}</Timestamp>
       </Header>
-      
-      <Content $isStreaming={isStreaming}>
-        {speech.content}
+      <Content $isStreaming={streaming}>
+        {content}
       </Content>
-
       {referencedSpeeches && referencedSpeeches.length > 0 && (
-        <References>
-          <div style={{ fontSize: '12px', color: '#8c8c8c', marginBottom: '8px' }}>
-            引用发言:
-          </div>
-          {referencedSpeeches.map(ref => (
-            <ReferenceItem 
-              key={ref.id}
-              onClick={() => onReference?.(ref.id)}
-            >
-              {ref.content}
-            </ReferenceItem>
+        <div style={{ 
+          marginTop: '8px',
+          padding: '8px',
+          background: 'rgba(0, 0, 0, 0.02)',
+          borderRadius: '4px',
+          fontSize: '13px'
+        }}>
+          <div style={{ color: '#8c8c8c', marginBottom: '4px' }}>引用内容：</div>
+          {referencedSpeeches.map((speech, index) => (
+            <div key={speech.id} style={{ 
+              padding: '4px 8px',
+              color: '#666',
+              borderLeft: '2px solid rgba(24, 144, 255, 0.3)'
+            }}>
+              {speech.content}
+            </div>
           ))}
-        </References>
+        </div>
       )}
     </Container>
   );

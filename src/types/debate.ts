@@ -52,14 +52,6 @@ export interface Participants {
   };
 }
 
-export interface TimeConfig {
-  roundDuration: number;  // 每轮时间限制（秒）
-  totalDuration: number;  // 总时长限制（秒）
-  warningTime: number;    // 警告时间（秒）
-  overtimeAllowed: boolean; // 是否允许超时
-  maxOvertime?: number;   // 最大超时时间（秒）
-}
-
 export interface ScoringCriteria {
   id: string;
   name: string;
@@ -76,7 +68,6 @@ export interface DebateConfig {
   topic: {
     title: string;          
     description: string;    
-    type: 'binary' | 'open';
   };
   // 规则配置
   rules: {
@@ -117,30 +108,7 @@ export interface DebateConfig {
     };
   };
   // 参与者配置
-  participants?: {
-    totalCount: number;
-    userParticipation: {
-      isParticipating: boolean;
-      role?: string;
-    };
-    aiPlayers: {
-      playerId: string;
-      role?: string;
-      team?: number;
-    }[];
-    teamSetup?: {
-      teamCount: number;
-      playersPerTeam: number;
-    };
-  };
-  // 时间配置
-  timeConfig?: {
-    roundDuration: number;
-    totalDuration: number;
-    warningTime: number;
-    overtimeAllowed: boolean;
-    maxOvertime?: number;
-  };
+  participants?: Participants;
   // 元数据
   createdAt?: Date;
   updatedAt?: Date;

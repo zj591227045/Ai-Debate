@@ -6,7 +6,7 @@ import type { ModelConfig } from '../types/config';
 import type { LLMProvider } from './provider/base';
 import { ProviderFactory } from './provider/factory';
 import { LLMError, LLMErrorCode } from '../types/error';
-import { StoreManager } from '../../store/StoreManager';
+import { StoreManager } from '@state/core/StoreManager';
 
 export class ProviderManager {
   private providers: Map<string, LLMProvider>;
@@ -111,10 +111,26 @@ export class ProviderManager {
     const modelStore = this.storeManager.getModelStore();
     const storedConfig = await modelStore.getById(modelId);
     
-    // 如果找到了配置，缓存到内存中
+    // 如果找到了配置，转换为 ModelConfig 类型并缓存
     if (storedConfig) {
-      this.modelConfigs.set(modelId, storedConfig);
-      return storedConfig;
+      const modelConfig: ModelConfig = {
+        id: storedConfig.id,
+        name: storedConfig.name,
+        provider: storedConfig.provider,
+        model: storedConfig.model || '',
+        parameters: {
+          temperature: storedConfig.parameters?.temperature ?? 0.7,
+          maxTokens: storedConfig.parameters?.maxTokens ?? 2048,
+          topP: storedConfig.parameters?.topP ?? 1.0,
+          ...storedConfig.parameters
+        },
+        auth: storedConfig.auth || { baseUrl: '', apiKey: '' },
+        isEnabled: storedConfig.isEnabled || false,
+        createdAt: storedConfig.createdAt || Date.now(),
+        updatedAt: storedConfig.updatedAt || Date.now()
+      };
+      this.modelConfigs.set(modelId, modelConfig);
+      return modelConfig;
     }
     
     return null;

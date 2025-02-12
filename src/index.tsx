@@ -26,7 +26,27 @@ if (typeof window !== 'undefined') {
 }
 
 // 初始化 LLM 服务提供者
-initializeProviders();
+initializeProviders([
+  // 默认配置
+  {
+    id: 'default-model',
+    name: '默认模型',
+    provider: 'default',
+    model: 'default',
+    parameters: {
+      temperature: 0.7,
+      maxTokens: 2000,
+      topP: 1.0
+    },
+    auth: {
+      baseUrl: '',
+      apiKey: ''
+    },
+    isEnabled: true,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  }
+]);
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

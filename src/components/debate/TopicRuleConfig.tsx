@@ -1,15 +1,13 @@
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { Input, Radio, Checkbox, Button, InputNumber, Select, Space } from 'antd';
-import { DownOutlined, RightOutlined } from '@ant-design/icons';
-import { useJudgeConfig } from '../../hooks/useJudgeConfig';
-import { Judge } from '../../types/judge';
+import { Input, Radio, Checkbox, Button, InputNumber, Select, Space, Form } from 'antd';
+import { DownOutlined, RightOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { RuleConfig } from '../../types/rules';
-import { useDispatch } from 'react-redux';
-import { updateRuleConfig, updateDebateConfig } from '../../store/slices/gameConfigSlice';
 import type { DebateConfig } from '../../types/debate';
-import { useCharacter } from '../../modules/character/context/CharacterContext';
+import { useStore } from '../../modules/state';
+import { StateLogger } from '../../modules/state/utils';
 import type { CharacterConfig } from '../../modules/character/types';
+import { useCharacter } from '../../modules/character';
 
 const { TextArea } = Input;
 
@@ -232,143 +230,79 @@ const JudgeOption = styled.div`
   }
 `;
 
+const logger = StateLogger.getInstance();
+
 interface TopicRuleConfigProps {
   ruleConfig: RuleConfig;
-  onRuleConfigChange: (config: RuleConfig) => void;
+  onRuleConfigChange: (newRuleConfig: RuleConfig) => void;
   debateConfig: DebateConfig;
   onDebateConfigChange: (config: Partial<DebateConfig>) => void;
 }
 
-export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
+const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
   ruleConfig,
   onRuleConfigChange,
   debateConfig,
-  onDebateConfigChange,
+  onDebateConfigChange
 }) => {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showDimensions, setShowDimensions] = useState(false);
-  
-  const {
-    config: judgeConfig,
-    handleJudgeSelect,
-    handleScoringRuleChange,
-    handleDimensionChange,
-    addCustomScoreRule,
-    removeCustomScoreRule,
-    getTotalScore,
-    availableJudges,
-  } = useJudgeConfig();
-
-  const dispatch = useDispatch();
+  const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
   const { state: characterState } = useCharacter();
+  const [showDimensions, setShowDimensions] = useState(false);
+  const [showAdvancedRules, setShowAdvancedRules] = useState(false);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    onDebateConfigChange({
+      topic: {
+        ...debateConfig.topic,
+        title: newTitle
+      }
+    });
+  };
+
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newDescription = e.target.value;
+    onDebateConfigChange({
+      topic: {
+        ...debateConfig.topic,
+        description: newDescription
+      }
+    });
+  };
 
   const handleRuleChange = (newConfig: Partial<RuleConfig>) => {
     const updatedConfig = {
       ...ruleConfig,
       ...newConfig
     };
-    console.log('TopicRuleConfig - Updating rule config:', updatedConfig);
     onRuleConfigChange(updatedConfig);
-    dispatch(updateRuleConfig(updatedConfig));
   };
 
   const handleJudgeConfigChange = (judging: Partial<DebateConfig['judging']>) => {
-    console.group('=== 裁判配置更新 ===');
-    console.log('当前配置:', debateConfig.judging);
-    console.log('更新内容:', judging);
-    
-    // 保持现有维度的权重和描述
-    const updatedDimensions = judging.dimensions || debateConfig.judging.dimensions.map(dim => ({
-      ...dim,
-      weight: Number(dim.weight) || 0,  // 确保权重是数字
-      description: dim.description || ''
-    }));
-
-    const updatedJudging = {
-      description: judging.description || debateConfig.judging.description,
-      dimensions: updatedDimensions,
-      totalScore: judging.totalScore || debateConfig.judging.totalScore,
-      selectedJudge: judging.selectedJudge || debateConfig.judging.selectedJudge
-    };
-    
-    console.log('更新后的配置:', updatedJudging);
-    console.groupEnd();
-    
-    // 更新本地状态
     onDebateConfigChange({
-      judging: updatedJudging
+      judging: {
+        ...debateConfig.judging,
+        ...judging
+      }
     });
-
-    // 同时更新 Redux store
-    dispatch(updateDebateConfig({
-      ...debateConfig,
-      judging: updatedJudging
-    }));
   };
 
-  // 计算总分
   const calculateTotalScore = (dimensions: DebateConfig['judging']['dimensions']) => {
     return dimensions.reduce((total, dim) => total + (Number(dim.weight) || 0), 0);
   };
 
   const handleDimensionWeightChange = (index: number, weight: number) => {
-    console.group('=== 评分维度权重更新 ===');
-    console.log('维度索引:', index);
-    console.log('新权重:', weight);
-    console.log('当前维度:', debateConfig.judging.dimensions[index]);
-
-    const updatedDimensions = [...debateConfig.judging.dimensions];
-    updatedDimensions[index] = {
-      ...updatedDimensions[index],
-      weight: Number(weight)
-    };
-
-    const totalScore = calculateTotalScore(updatedDimensions);
-    console.log('更新后的总分:', totalScore);
-    console.log('更新后的维度:', updatedDimensions);
-
-    const updatedJudging = {
-      ...debateConfig.judging,
-      dimensions: updatedDimensions,
-      totalScore
-    };
-
-    console.log('更新后的裁判配置:', updatedJudging);
-    console.groupEnd();
-
-    // 更新本地状态和 Redux store
-    handleJudgeConfigChange(updatedJudging);
+    if (debateConfig.judging?.dimensions) {
+      const updatedDimensions = [...debateConfig.judging.dimensions];
+      updatedDimensions[index] = {
+        ...updatedDimensions[index],
+        weight
+      };
+      handleJudgeConfigChange({
+        dimensions: updatedDimensions
+      });
+    }
   };
-
-  const handleTopicChange = (topic: Partial<DebateConfig['topic']>) => {
-    //console.log('TopicRuleConfig - handleTopicChange - Input:', topic);
-    //console.log('TopicRuleConfig - handleTopicChange - Current Config:', debateConfig.topic);
-    
-    const updatedTopic = {
-      ...debateConfig.topic,
-      ...topic
-    };
-    
-    //console.log('TopicRuleConfig - handleTopicChange - Updated Topic:', updatedTopic);
-    
-    // 更新本地状态
-    onDebateConfigChange({ 
-      topic: updatedTopic
-    });
-    
-    // 更新 Redux store
-    dispatch(updateDebateConfig({ 
-      topic: updatedTopic,
-      rules: debateConfig.rules,
-      judging: debateConfig.judging
-    }));
-  };
-
-  const toggleDimensions = () => {
-    setShowDimensions(prev => !prev);
-  };
-
-  //console.log('TopicRuleConfig - Render - Current debateConfig:', debateConfig);
 
   return (
     <Container>
@@ -377,7 +311,12 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           <CardHeader>
             <CardTitle>主题配置</CardTitle>
             <ButtonGroup>
-              <StyledButton>重置</StyledButton>
+              <StyledButton onClick={() => onDebateConfigChange({
+                topic: {
+                  title: '',
+                  description: '',
+                }
+              })}>重置</StyledButton>
               <StyledButton type="primary">保存</StyledButton>
             </ButtonGroup>
           </CardHeader>
@@ -386,12 +325,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <Input 
               placeholder="请输入辩题" 
               value={debateConfig.topic.title}
-              onChange={e => {
-                console.log('TopicRuleConfig - Title Input - Value:', e.target.value);
-                handleTopicChange({ 
-                  title: e.target.value
-                });
-              }}
+              onChange={handleTitleChange}
             />
           </FormItem>
           <FormItem>
@@ -400,12 +334,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               rows={4} 
               placeholder="输入主题背景说明" 
               value={debateConfig.topic.description}
-              onChange={e => {
-                console.log('TopicRuleConfig - Description Input - Value:', e.target.value);
-                handleTopicChange({ 
-                  description: e.target.value
-                });
-              }}
+              onChange={handleDescriptionChange}
             />
           </FormItem>
         </Card>
@@ -414,8 +343,8 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           <CardHeader>
             <CardTitle>规则配置</CardTitle>
             <ButtonGroup>
-              <StyledButton onClick={() => onRuleConfigChange({ ...ruleConfig })}>重置</StyledButton>
-              <StyledButton type="primary" onClick={() => onRuleConfigChange({ ...ruleConfig })}>保存</StyledButton>
+              <StyledButton onClick={() => handleRuleChange({ ...ruleConfig })}>重置</StyledButton>
+              <StyledButton type="primary" onClick={() => handleRuleChange({ ...ruleConfig })}>保存</StyledButton>
             </ButtonGroup>
           </CardHeader>
           <FormItem>
@@ -438,19 +367,19 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             />
           </FormItem>
           <Checkbox
-            checked={showAdvanced}
-            onChange={e => setShowAdvanced(e.target.checked)}
+            checked={showAdvancedRules}
+            onChange={e => setShowAdvancedRules(e.target.checked)}
           >
             高级规则
           </Checkbox>
-          <AdvancedSection visible={showAdvanced}>
+          <AdvancedSection visible={showAdvancedRules}>
             <FormItem>
               <div className="label">字数限制</div>
               <Space>
                 <InputNumber
                   min={0}
                   placeholder="最小字数"
-                  value={ruleConfig.advancedRules.minLength}
+                  value={ruleConfig.advancedRules?.minLength}
                   onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
@@ -461,7 +390,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 <InputNumber
                   min={0}
                   placeholder="最大字数"
-                  value={ruleConfig.advancedRules.maxLength}
+                  value={ruleConfig.advancedRules?.maxLength}
                   onChange={value => handleRuleChange({
                     advancedRules: {
                       ...ruleConfig.advancedRules,
@@ -473,7 +402,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             </FormItem>
             <FormItem>
               <Checkbox
-                checked={ruleConfig.advancedRules.allowQuoting}
+                checked={ruleConfig.advancedRules?.allowQuoting}
                 onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
@@ -486,7 +415,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             </FormItem>
             <FormItem>
               <Checkbox
-                checked={ruleConfig.advancedRules.requireResponse}
+                checked={ruleConfig.advancedRules?.requireResponse}
                 onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
@@ -499,7 +428,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             </FormItem>
             <FormItem>
               <Checkbox
-                checked={ruleConfig.advancedRules.allowStanceChange}
+                checked={ruleConfig.advancedRules?.allowStanceChange}
                 onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
@@ -512,7 +441,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             </FormItem>
             <FormItem>
               <Checkbox
-                checked={ruleConfig.advancedRules.requireEvidence}
+                checked={ruleConfig.advancedRules?.requireEvidence}
                 onChange={e => handleRuleChange({
                   advancedRules: {
                     ...ruleConfig.advancedRules,
@@ -531,15 +460,6 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <CardTitle>裁判配置</CardTitle>
             <ButtonGroup>
               <StyledButton onClick={() => {
-                console.log('重置裁判配置:', {
-                  current: debateConfig.judging,
-                  default: {
-                    description: '',
-                    dimensions: [],
-                    totalScore: 100,
-                    selectedJudge: undefined
-                  }
-                });
                 handleJudgeConfigChange({
                   description: '',
                   dimensions: [],
@@ -548,8 +468,6 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 });
               }}>重置</StyledButton>
               <StyledButton type="primary" onClick={() => {
-                console.log('保存裁判配置:', debateConfig.judging);
-                // 这里可以添加保存前的验证逻辑
                 handleJudgeConfigChange(debateConfig.judging);
               }}>保存</StyledButton>
             </ButtonGroup>
@@ -562,10 +480,6 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               placeholder="选择裁判"
               value={debateConfig.judging.selectedJudge?.id}
               onChange={(value: string) => {
-                console.log('选择裁判:', {
-                  selectedId: value,
-                  availableCharacters: characterState.characters
-                });
                 const selectedJudge = characterState.characters.find(
                   (c: CharacterConfig) => c.id === value
                 );
@@ -600,11 +514,9 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             <TextArea 
               rows={4} 
               placeholder="输入评分规则说明"
-              value={judgeConfig.scoringRule}
+              value={debateConfig.judging.description}
               onChange={e => {
-                handleScoringRuleChange(e.target.value);
                 handleJudgeConfigChange({
-                  ...debateConfig.judging,
                   description: e.target.value
                 });
               }}
@@ -614,7 +526,7 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           <ScoreHeader>
             <ExpandButton 
               type="text"
-              onClick={toggleDimensions}
+              onClick={() => setShowDimensions(!showDimensions)}
               icon={showDimensions ? <DownOutlined /> : <RightOutlined />}
             >
               评分维度配置（高级）
@@ -637,7 +549,6 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                             name: e.target.value
                           };
                           handleJudgeConfigChange({
-                            ...debateConfig.judging,
                             dimensions: updatedDimensions
                           });
                         }}
@@ -666,7 +577,6 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                           description: e.target.value
                         };
                         handleJudgeConfigChange({
-                          ...debateConfig.judging,
                           dimensions: updatedDimensions
                         });
                       }}
@@ -685,17 +595,9 @@ export const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                     description: '',
                     criteria: []
                   };
-                  const updatedDimensions = [...debateConfig.judging.dimensions, newDimension];
-                  const totalScore = calculateTotalScore(updatedDimensions);
-                  
-                  const updatedJudging = {
-                    ...debateConfig.judging,
-                    dimensions: updatedDimensions,
-                    totalScore
-                  };
-
-                  // 更新本地状态和 Redux store
-                  handleJudgeConfigChange(updatedJudging);
+                  handleJudgeConfigChange({
+                    dimensions: [...debateConfig.judging.dimensions, newDimension]
+                  });
                 }}
                 style={{ width: '100%', marginTop: '8px' }}
               >

@@ -38,7 +38,7 @@ export type CharacterTemplate = z.infer<typeof characterTemplateSchema>;
 // 预设模板列表
 export const defaultTemplates: CharacterTemplate[] = [
   {
-    id: 'template_1',
+    id: 'template_default',
     name: '默认模板',
     description: '基础AI角色模板',
     persona: {
@@ -61,7 +61,7 @@ export const defaultTemplates: CharacterTemplate[] = [
     updatedAt: Date.now(),
   },
   {
-    id: 'template_academic',
+    id: 'template_academic_debater',
     name: '学术型辩手',
     description: '严谨的学术派辩手，擅长使用数据和逻辑论证',
     persona: {
@@ -85,7 +85,7 @@ export const defaultTemplates: CharacterTemplate[] = [
     updatedAt: Date.now(),
   },
   {
-    id: 'template_emotional',
+    id: 'template_emotional_debater',
     name: '感性型辩手',
     description: '富有感染力的辩手，善于调动情感共鸣',
     persona: {
@@ -109,7 +109,7 @@ export const defaultTemplates: CharacterTemplate[] = [
     updatedAt: Date.now(),
   },
   {
-    id: 'template_pragmatic',
+    id: 'template_pragmatic_debater',
     name: '实用型辩手',
     description: '注重实践的辩手，擅长从现实角度分析问题',
     persona: {

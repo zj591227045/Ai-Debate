@@ -100,4 +100,32 @@ export interface Theme {
     normal: string;
     slow: string;
   };
-} 
+}
+
+export * from './player';
+export * from './rules';
+export * from './debate';
+export { 
+  configToUnifiedPlayer,
+  unifiedToConfigPlayer,
+  roomToUnifiedPlayer,
+  DEFAULT_PLAYER,
+  GameConfigTransformer
+} from './adapters';
+export type { 
+  UnifiedPlayer,
+  PlayerDisplayAdapter,
+  PlayerTypeAdapter,
+  StateTransformer,
+  BaseDebateSpeech,
+  BaseDebateScore,
+  DebateRoomLayout,
+  DebateStatus,
+  DebateEvent,
+  DebateProgress,
+  DebateHistory,
+  IDebateAdapter,
+  ICharacterAdapter,
+  BaseAdapter
+} from './adapters';
+export * from './config'; 

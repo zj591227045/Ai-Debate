@@ -7,29 +7,21 @@ import { Player, DebateRole } from '../types/player';
 import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
 import { ModelProvider } from '../modules/model/context/ModelContext';
 import ModelList from '../modules/model/components/ModelList';
-import { TopicRuleConfig } from '../components/debate/TopicRuleConfig';
+import TopicRuleConfig from '../components/debate/TopicRuleConfig';
 import TemplateActions from '../components/debate/TemplateActions';
 import { defaultRuleConfig } from '../components/debate/RuleConfig';
 import type { RuleConfig } from '../types/rules';
 import { TemplateManager } from '../components/template/TemplateManager';
 import type { DebateConfig } from '../types/debate';
 import { message } from 'antd';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '../store';
-import { 
-  setGameConfig, 
-  clearGameConfig, 
-  updateRuleConfig, 
-  updatePlayers,
-  updateDebateConfig,
-  setConfiguring
-} from '../store/slices/gameConfigSlice';
-import { store } from '../store';
+import { useStore } from '../modules/state';
 import { useDebate } from '../contexts/DebateContext';
 import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
-import { adaptRoleAssignmentToGameConfig, adaptConfigToGameConfig } from '../store/adapters/gameConfigAdapter';
+import { StateLogger } from '../modules/state/utils';
 import { StateDebugger } from '../components/debug/StateDebugger';
+
+const logger = StateLogger.getInstance();
 
 const Container = styled.div`
   display: flex;
@@ -111,12 +103,11 @@ const GameConfigContent: React.FC = () => {
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'roles' | 'characters' | 'models'>('roles');
   const { state: characterState } = useCharacter();
+  const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>(() => {
     if (location.state?.lastConfig?.ruleConfig) {
-      // console.log('使用上次的规则配置:', location.state.lastConfig.ruleConfig);
       return location.state.lastConfig.ruleConfig;
     }
-    //console.log('使用默认规则配置');
     return defaultRuleConfig;
   });
   const [debateConfig, setDebateConfig] = useState<DebateConfig>(() => {
@@ -127,7 +118,6 @@ const GameConfigContent: React.FC = () => {
       topic: {
         title: '',
         description: '',
-        type: 'binary',
       },
       rules: {
         debateFormat: 'structured',
@@ -149,59 +139,26 @@ const GameConfigContent: React.FC = () => {
       },
       judging: {
         description: '',
-        dimensions: [
-          {
-            name: '逻辑性',
-            weight: 30,
-            description: '论证的逻辑严密程度',
-            criteria: ['论点清晰', '论证充分', '结构完整'],
-          },
-          {
-            name: '创新性',
-            weight: 20,
-            description: '观点和论证的创新程度',
-            criteria: ['视角新颖', '论证方式创新', '例证独特'],
-          },
-          {
-            name: '表达性',
-            weight: 20,
-            description: '语言表达的准确性和流畅性',
-            criteria: ['用词准确', '语言流畅', '表达清晰'],
-          },
-          {
-            name: '互动性',
-            weight: 30,
-            description: '与对方观点的互动和回应程度',
-            criteria: ['回应准确', '反驳有力', '互动充分'],
-          },
-        ],
+        dimensions: [],
         totalScore: 100,
       },
     };
   });
 
-  const dispatch = useDispatch();
-  const gameConfig = useSelector((state: RootState) => state.gameConfig);
   const { setGameConfig: setDebateContextGameConfig, validateConfig } = useDebate();
   
-  //console.log('GameConfigContent - Current Redux State:', gameConfig);
-
   // 使用上次的配置或默认配置
   const getInitialPlayers = () => {
     if (location.state?.lastConfig?.players) {
-      //console.log('使用上次的玩家配置:', location.state.lastConfig.players);
       return location.state.lastConfig.players;
     }
-  //  console.log('使用默认玩家配置');
     return defaultInitialPlayers;
   };
 
   const getInitialConfig = () => {
     if (location.state?.lastConfig?.config) {
-      //console.log('使用上次的游戏配置:', location.state.lastConfig.config);
       return location.state.lastConfig.config;
     }
-   // console.log('使用默认游戏配置');
     return defaultConfig;
   };
 
@@ -217,46 +174,51 @@ const GameConfigContent: React.FC = () => {
     getAssignedCount,
   } = useRoleAssignment(getInitialPlayers(), getInitialConfig());
 
-  // 更新规则配置时同时更新 Redux store
+  // 更新规则配置
   const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
-    //console.log('GameConfig - handleRuleConfigChange:', newRuleConfig);
     setRuleConfig(newRuleConfig);
-    dispatch(updateRuleConfig(newRuleConfig));
+    setGameConfig({
+      ...gameConfig,
+      ruleConfig: newRuleConfig
+    });
   };
 
-  // 更新辩论配置时同时更新本地状态
+  // 更新辩论配置
   const handleDebateConfigChange = (config: Partial<DebateConfig>) => {
-    //console.log('GameConfig - handleDebateConfigChange - Before:', debateConfig);
     const newConfig = {
       ...debateConfig,
-      ...config
-    };
-    //console.log('GameConfig - handleDebateConfigChange - After:', newConfig);
-    setDebateConfig(newConfig);
-  };
-
-  // 添加 Redux store 更新的监听
-  useEffect(() => {
-    const unsubscribe = store.subscribe(() => {
-      const state = store.getState();
-      //console.log('GameConfig - Redux State Updated:', state.gameConfig);
-      if (state.gameConfig?.debate) {
-        handleDebateConfigChange(state.gameConfig.debate);
+      ...config,
+      topic: {
+        ...debateConfig.topic,
+        ...config.topic,
+        type: ruleConfig.format || 'structured'
       }
+    };
+    setDebateConfig(newConfig);
+    setGameConfig({
+      ...gameConfig,
+      debate: newConfig
     });
-    return () => unsubscribe();
-  }, []);
+  };
 
   // 修改 handleStartGame 函数
   const handleStartGame = () => {
     // 构建完整的配置对象
-    const fullConfig = {
+    const fullConfig: GameConfigState = {
+      topic: {
+        title: debateConfig.topic.title || '未设置主题',
+        description: debateConfig.topic.description || '未设置描述',
+        background: debateConfig.topic.description || ''
+      },
+      rules: {
+        totalRounds: 4,
+        format: ruleConfig.format || 'structured'
+      },
       debate: {
         ...debateConfig,
-        topic: {
-          ...debateConfig.topic,
-          title: debateConfig.topic.title || '未设置主题',
-          description: debateConfig.topic.description || '未设置描述'
+        rules: {
+          ...debateConfig.rules,
+          debateFormat: ruleConfig.format || 'structured'
         }
       },
       players: players.map(player => ({
@@ -265,59 +227,95 @@ const GameConfigContent: React.FC = () => {
       })),
       ruleConfig: {
         ...ruleConfig,
-        format: ruleConfig.format || 'structured'
+        format: ruleConfig.format || 'structured',
+        description: ruleConfig.description || ''
       },
       isConfiguring: false
     };
-
-    // 使用适配器转换配置
-    const gameConfig = adaptConfigToGameConfig(fullConfig);
     
-    if (validateConfig && !validateConfig(gameConfig)) {
+    if (validateConfig && !validateConfig(fullConfig)) {
       message.error('游戏配置验证失败，请检查配置是否完整');
       return;
     }
 
-    // 更新 Redux store
-    dispatch(setGameConfig(gameConfig));
+    // 更新状态
+    setGameConfig({
+      ...gameConfig,
+      ...fullConfig
+    });
     
     // 更新 DebateContext
-    setDebateContextGameConfig(gameConfig);
+    setDebateContextGameConfig(fullConfig);
     
     // 导航到辩论室
-    navigate('/debate-room');
+    navigate('/debate-room', { 
+      state: { 
+        config: fullConfig,
+        lastConfig: {
+          config,
+          players,
+          ruleConfig,
+          debateConfig
+        }
+      } 
+    });
   };
 
   // 修改 handleBack 函数
   const handleBack = () => {
-    dispatch(clearGameConfig());
+    setGameConfig({
+      ...gameConfig,
+      ruleConfig: defaultRuleConfig,
+      debate: {
+        topic: {
+          title: '',
+          description: '',
+        },
+        rules: {
+          debateFormat: 'structured',
+          description: '',
+          basicRules: {
+            speechLengthLimit: {
+              min: 100,
+              max: 1000,
+            },
+            allowEmptySpeech: false,
+            allowRepeatSpeech: false,
+          },
+          advancedRules: {
+            allowQuoting: true,
+            requireResponse: true,
+            allowStanceChange: false,
+            requireEvidence: true,
+          },
+        },
+        judging: {
+          description: '',
+          dimensions: [],
+          totalScore: 100,
+        },
+      },
+    });
     navigate('/');
   };
 
   // 修改 handleLoadTemplate 函数
   const handleLoadTemplate = (config: DebateConfig) => {
     setDebateConfig(config);
-    
-    // 更新规则配置
-    const newRuleConfig: RuleConfig = {
-      format: config.rules.debateFormat === 'structured' ? 'structured' : 'free',
-      description: config.rules.description,
-      advancedRules: {
-        maxLength: config.rules.basicRules.speechLengthLimit.max,
-        minLength: config.rules.basicRules.speechLengthLimit.min,
-        allowQuoting: config.rules.advancedRules.allowQuoting,
-        requireResponse: config.rules.advancedRules.requireResponse,
-        allowStanceChange: config.rules.advancedRules.allowStanceChange,
-        requireEvidence: config.rules.advancedRules.requireEvidence,
+    setRuleConfig({
+      ...ruleConfig,
+      format: config.rules.debateFormat,
+      description: config.rules.description
+    });
+    setGameConfig({
+      ...gameConfig,
+      debate: config,
+      ruleConfig: {
+        ...ruleConfig,
+        format: config.rules.debateFormat,
+        description: config.rules.description
       }
-    };
-    
-    setRuleConfig(newRuleConfig);
-    
-    // 同时更新 Redux store
-    dispatch(updateDebateConfig(config));
-    dispatch(updateRuleConfig(newRuleConfig));
-
+    });
     message.success('模板加载成功');
   };
 
@@ -335,7 +333,10 @@ const GameConfigContent: React.FC = () => {
     const updatedPlayers = players.map(p => 
       p.id === playerId ? { ...p, ...updatedPlayer } : p
     );
-    dispatch(updatePlayers(updatedPlayers));
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
+    });
   };
 
   // 修改 handleAddAIPlayer 函数
@@ -350,7 +351,10 @@ const GameConfigContent: React.FC = () => {
     
     addPlayer(newPlayer.name, true);
     // 同步到 Redux store
-    dispatch(updatePlayers([...players, newPlayer]));
+    setGameConfig({
+      ...gameConfig,
+      players: [...players, newPlayer]
+    });
   };
 
   const handleSaveTemplate = () => {
@@ -359,7 +363,6 @@ const GameConfigContent: React.FC = () => {
       topic: {
         title: debateConfig.topic.title,
         description: debateConfig.topic.description,
-        type: ruleConfig.format === 'structured' ? 'binary' : 'open',
       },
       rules: {
         debateFormat: ruleConfig.format,
@@ -397,28 +400,18 @@ const GameConfigContent: React.FC = () => {
 
   const handleJudgeConfigChange = (judging: Partial<DebateConfig['judging']>) => {
     const updatedJudging = {
-      description: judging.description || debateConfig.judging.description,
-      dimensions: judging.dimensions || debateConfig.judging.dimensions,
-      totalScore: judging.totalScore || debateConfig.judging.totalScore,
-      selectedJudge: judging.selectedJudge
+      ...debateConfig.judging,
+      ...judging
     };
-    
-    // 如果选择了裁判，更新玩家列表
-    if (judging.selectedJudge) {
-      const judgePlayer = players.find(p => p.characterId === judging.selectedJudge?.id);
-      
-      // 如果找到对应的玩家，将其角色设置为裁判
-      if (judgePlayer) {
-        const updatedPlayers = players.map(p => 
-          p.id === judgePlayer.id 
-            ? { ...p, role: 'judge' as DebateRole }
-            : p
-        );
-        dispatch(updatePlayers(updatedPlayers));
-      }
-    }
-    
-    dispatch(updateDebateConfig({ judging: updatedJudging }));
+    const newConfig = {
+      ...debateConfig,
+      judging: updatedJudging
+    };
+    setDebateConfig(newConfig);
+    setGameConfig({
+      ...gameConfig,
+      debate: newConfig
+    });
   };
 
   const renderContent = () => {
@@ -459,6 +452,13 @@ const GameConfigContent: React.FC = () => {
         return null;
     }
   };
+
+  useEffect(() => {
+    logger.info('gameConfig', '组件已初始化', { initialState: gameConfig });
+    return () => {
+      logger.info('gameConfig', '组件已卸载');
+    };
+  }, []);
 
   return (
     <Container>
@@ -506,6 +506,7 @@ const GameConfigContent: React.FC = () => {
       <div className="game-config-content">
         {renderContent()}
       </div>
+
       <StateDebugger />
     </Container>
   );

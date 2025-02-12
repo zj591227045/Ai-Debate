@@ -9,29 +9,33 @@ import type { ChatRequest, ChatResponse, ServiceStatus } from '../api/types';
 import { ModelConfig } from '../types/config';
 import { moduleEventBus } from './events';
 import { LLMEvents } from '../api/events';
-import { moduleStore, type IStateStore, type LLMState } from './store';
+import { StoreManager } from '../../state/core/StoreManager';
+import { LLMStore } from '../../state/stores/LLMStore';
+import type { LLMState } from '../../state/types/llm';
 import { ProviderFactory } from './provider/factory';
 
 export class UnifiedLLMService {
   private static instance: UnifiedLLMService;
   private currentConfig: ModelConfig | null = null;
   private readonly providerManager: ProviderManager;
-  private readonly store: IStateStore<LLMState>;
-  private readonly eventBus = moduleEventBus;
+  private readonly storeManager: StoreManager;
 
-  constructor(providerManager: ProviderManager, store: IStateStore<LLMState>) {
+  constructor(providerManager: ProviderManager) {
     this.providerManager = providerManager;
-    this.store = store;
+    this.storeManager = StoreManager.getInstance();
   }
 
   public static getInstance(): UnifiedLLMService {
     if (!UnifiedLLMService.instance) {
       UnifiedLLMService.instance = new UnifiedLLMService(
-        new ProviderManager(), 
-        moduleStore
+        new ProviderManager()
       );
     }
     return UnifiedLLMService.instance;
+  }
+
+  private getLLMStore(): LLMStore {
+    return this.storeManager.getStore<LLMState>('llm') as LLMStore;
   }
 
   async setModel(modelId: string): Promise<void> {
@@ -46,12 +50,8 @@ export class UnifiedLLMService {
     }
 
     this.currentConfig = config;
-    this.store.setState({
-      currentModelId: modelId,
-      isReady: true,
-      error: undefined
-    });
-    this.eventBus.emit(LLMEvents.MODEL_CHANGED, modelId);
+    const llmStore = this.getLLMStore();
+    llmStore.setCurrentModel(modelId);
     console.log('Model config set:', config);
   }
 
@@ -99,34 +99,26 @@ export class UnifiedLLMService {
   }
 
   getStatus(): ServiceStatus {
-    const state = this.store.getState();
-    return {
-      isReady: state.isReady,
-      currentModel: state.currentModelId,
-      provider: this.currentConfig?.provider || '',
-      error: state.error
-    };
+    const llmStore = this.getLLMStore();
+    return llmStore.getServiceStatus();
   }
 
   private async getModelConfig(modelId: string): Promise<ModelConfig | null> {
-    // 从 store 或其他配置源获取模型配置
-    const config = await this.providerManager.getModelConfig(modelId);
-    if (!config) {
-      console.warn(`未找到模型配置: ${modelId}`);
+    try {
+      const config = await this.providerManager.getModelConfig(modelId);
+      return config;
+    } catch (error) {
+      console.error('Failed to get model config:', error);
+      const llmStore = this.getLLMStore();
+      llmStore.setError(error instanceof Error ? error.message : 'Unknown error');
       return null;
     }
-    return config;
   }
 
-  // 添加一个新方法用于直接设置配置
   public async setModelConfig(config: ModelConfig): Promise<void> {
     this.currentConfig = config;
-    this.store.setState({
-      currentModelId: config.model,
-      isReady: true,
-      error: undefined
-    });
-    this.eventBus.emit(LLMEvents.MODEL_CHANGED, config.model);
+    const llmStore = this.getLLMStore();
+    llmStore.setCurrentModel(config.model);
     console.log('Model config set:', config);
   }
 } 

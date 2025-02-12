@@ -4,6 +4,9 @@ import type { RuleConfig } from './rules';
 import type { DebateConfig, Topic as LegacyTopic } from './debate';
 import type { CSSProperties } from 'react';
 import { Message } from '../modules/llm/types/common';
+import type { UnifiedRole, RoleStatus } from './roles';
+import type { GameConfigState } from './config';
+import { generateId } from './roles';
 
 // AI角色特征接口
 export interface AICharacteristics {
@@ -36,23 +39,27 @@ declare module './index' {
 // 自定义样式类型
 export type StyleProperties = CSSProperties & Record<string, string | number>;
 
-// 新的统一类型定义（从 type_definitions.md）
-export interface UnifiedPlayer {
+// 玩家显示适配器接口
+export interface PlayerDisplayAdapter {
+  avatar?: string;
+  isActive?: boolean;
+}
+
+// 玩家类型适配器接口
+export interface PlayerTypeAdapter extends PlayerDisplayAdapter {
+  characterId?: string;
+}
+
+// 统一玩家类型
+export interface UnifiedPlayer extends AICharacteristics {
   id: string;
   name: string;
-  role: 'affirmative' | 'negative' | 'free' | 'judge' | 'unassigned';
+  role: UnifiedRole;
   isAI: boolean;
   characterId?: string;
-  modelId?: string;
+  order?: number;
+  status?: RoleStatus;
   avatar?: string;
-  status: 'ready' | 'speaking' | 'waiting' | 'finished';
-  
-  // AI角色特征
-  personality?: string;    // 性格特征
-  speakingStyle?: string; // 说话风格
-  background?: string;    // 专业背景
-  values?: string;        // 价值观
-  argumentationStyle?: string; // 论证风格
 }
 
 export interface UnifiedTopic {
@@ -72,66 +79,114 @@ export interface UnifiedScore {
   comment: string;
 }
 
-// 现有的角色映射
-export const roleMap: Record<DebateRole, RoomPlayer['role']> = {
-  affirmative1: 'for',
-  affirmative2: 'for',
-  negative1: 'against',
-  negative2: 'against',
-  judge: 'neutral',
-  timekeeper: 'neutral',
-  unassigned: 'neutral'
+// 角色映射
+export const roleMap: Record<DebateRole, 'for' | 'against' | 'neutral'> = {
+  'affirmative1': 'for',
+  'affirmative2': 'for',
+  'negative1': 'against',
+  'negative2': 'against',
+  'judge': 'neutral',
+  'timekeeper': 'neutral',
+  'unassigned': 'neutral',
+  'observer': 'neutral'
 };
 
 // 统一角色映射
-export const unifiedRoleMap: Record<DebateRole, UnifiedPlayer['role']> = {
-  affirmative1: 'affirmative',
-  affirmative2: 'affirmative',
-  negative1: 'negative',
-  negative2: 'negative',
+export const unifiedRoleMap: Record<string, UnifiedRole> = {
+  affirmative1: 'affirmative1',
+  affirmative2: 'affirmative2',
+  negative1: 'negative1',
+  negative2: 'negative2',
   judge: 'judge',
-  timekeeper: 'unassigned',
+  timekeeper: 'observer',
   unassigned: 'unassigned'
 };
 
+// 反向角色映射
+export const reverseRoleMap: Record<'for' | 'against' | 'neutral', DebateRole> = {
+  'for': 'affirmative1',
+  'against': 'negative1',
+  'neutral': 'unassigned'
+};
+
 // 配置玩家到统一玩家的转换
-export const configToUnifiedPlayer = (player: ConfigPlayer): UnifiedPlayer => ({
-  id: player.id,
-  name: player.name,
-  role: unifiedRoleMap[player.role],
-  isAI: player.isAI,
-  characterId: player.characterId,
-  avatar: undefined,
-  status: 'ready',
-  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
-});
+export function configToUnifiedPlayer(player: any): UnifiedPlayer {
+  return {
+    id: player.id || generateId(),
+    name: player.name || '未命名选手',
+    role: mapLegacyRole(player.role || 'unassigned'),
+    isAI: player.isAI ?? true,
+    characterId: player.characterId,
+    order: player.order,
+    status: player.status || 'waiting',
+    avatar: player.avatar
+  };
+}
+
+// 映射旧的角色类型到新的统一角色类型
+function mapLegacyRole(role: string): UnifiedRole {
+  switch (role) {
+    case 'affirmative':
+      return 'affirmative1';
+    case 'negative':
+      return 'negative1';
+    case 'unassigned':
+      return 'observer';
+    default:
+      return role as UnifiedRole;
+  }
+}
 
 // 统一玩家到配置玩家的转换
 export const unifiedToConfigPlayer = (
   player: UnifiedPlayer,
   existingPlayers: ConfigPlayer[]
-): ConfigPlayer => ({
-  id: player.id,
-  name: player.name,
-  role: player.role === 'judge' ? 'judge' : 
-        player.role === 'free' ? 'unassigned' :
-        getSpecificRole(player.role, existingPlayers),
-  isAI: player.isAI,
-  characterId: player.characterId,
-  order: existingPlayers.length + 1,
-  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
-});
+): ConfigPlayer => {
+  const baseRole = player.role === 'judge' ? 'judge' : 
+                  player.role === 'unassigned' ? 'unassigned' :
+                  player.role as 'affirmative' | 'negative';
+                  
+  return {
+    id: player.id,
+    name: player.name,
+    role: baseRole === 'judge' ? 'judge' : 
+          baseRole === 'unassigned' ? 'unassigned' :
+          getSpecificRole(baseRole, existingPlayers),
+    isAI: player.isAI,
+    characterId: player.characterId,
+    order: player.order ?? existingPlayers.length + 1,
+    personality: player.personality,
+    speakingStyle: player.speakingStyle,
+    background: player.background,
+    values: player.values,
+    argumentationStyle: player.argumentationStyle
+  };
+};
 
 // 房间玩家到统一玩家的转换
-export const roomToUnifiedPlayer = (player: RoomPlayer): UnifiedPlayer => ({
-  id: player.id,
-  name: player.name,
-  role: reverseRoleMap[player.role],
-  isAI: false,
-  avatar: player.avatar,
-  status: player.isActive ? 'ready' : 'waiting',
-  ...(player as AICharacteristics) // 使用类型断言安全地传递AI特征
-});
+export const roomToUnifiedPlayer = (player: RoomPlayer & PlayerTypeAdapter): UnifiedPlayer => {
+  const unified: UnifiedPlayer = {
+    id: player.id,
+    name: player.name,
+    role: reverseRoleMap[player.role],
+    isAI: false,
+    status: player.isActive ? 'ready' : 'waiting',
+    avatar: player.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`
+  };
+  
+  if ('characterId' in player && player.characterId) {
+    unified.characterId = player.characterId;
+  }
+
+  // 复制 AI 特征
+  if ('personality' in player) unified.personality = player.personality;
+  if ('speakingStyle' in player) unified.speakingStyle = player.speakingStyle;
+  if ('background' in player) unified.background = player.background;
+  if ('values' in player) unified.values = player.values;
+  if ('argumentationStyle' in player) unified.argumentationStyle = player.argumentationStyle;
+  
+  return unified;
+};
 
 // 旧主题到统一主题的转换
 export const legacyToUnifiedTopic = (topic: LegacyTopic): UnifiedTopic => ({
@@ -150,23 +205,49 @@ export const unifiedToLegacyTopic = (topic: UnifiedTopic): LegacyTopic => {
   };
 };
 
-// 其他现有的导出
+// 删除本地的 GameConfigState 接口定义
 export type ConfigToRoomPlayer = (player: ConfigPlayer) => RoomPlayer;
 export type RoomToConfigPlayer = (player: RoomPlayer, existingPlayers: ConfigPlayer[]) => ConfigPlayer;
 
-export interface GameConfigState {
-  topic: {
-    title: string;
-    description: string;
-  };
-  rules: {
-    totalRounds: number;
-    debateFormat: string;
-  };
-  debate: DebateConfig;
-  players: ConfigPlayer[];
-  ruleConfig: RuleConfig;
-  isConfiguring: boolean;
+// 状态转换层接口
+export interface StateTransformer<T, U> {
+  transform(state: T): U;
+  reverseTransform(state: U): T;
+}
+
+// 游戏配置状态转换器
+export class GameConfigTransformer implements StateTransformer<GameConfigState, any> {
+  public toUnified(state: Partial<GameConfigState>): Partial<GameConfigState> {
+    if (!state) return {};
+    
+    return {
+      ...state,
+      players: state.players?.map((player: UnifiedPlayer) => ({
+        ...player,
+        role: unifiedRoleMap[player.role] || 'unassigned',
+        isAI: player.isAI ?? true
+      }))
+    };
+  }
+
+  public fromUnified(state: GameConfigState): GameConfigState {
+    return {
+      ...state,
+      players: state.players.map((player: UnifiedPlayer) => ({
+        ...player,
+        role: player.role,
+        isAI: player.isAI ?? true
+      }))
+    };
+  }
+
+  public transform(state: GameConfigState): any {
+    return this.toUnified(state);
+  }
+
+  public reverseTransform(state: any): GameConfigState {
+    return this.fromUnified(state as GameConfigState);
+  }
 }
 
 // 类型守卫函数
@@ -175,9 +256,7 @@ export const isUnifiedPlayer = (player: any): player is UnifiedPlayer => {
     typeof player === 'object' &&
     'id' in player &&
     'name' in player &&
-    'role' in player &&
-    'isAI' in player &&
-    'status' in player
+    'role' in player
   );
 };
 
@@ -193,25 +272,26 @@ export const isLegacyPlayer = (player: any): player is ConfigPlayer => {
 
 // 获取具体角色
 export const getSpecificRole = (
-  baseRole: 'affirmative' | 'negative' | 'unassigned',
+  baseRole: string,
   players: ConfigPlayer[]
-): DebateRole => {
-  if (baseRole === 'unassigned') return 'unassigned';
+): UnifiedRole => {
+  if (baseRole === 'unassigned' || baseRole === 'judge' || baseRole === 'timekeeper' || baseRole === 'observer') {
+    return baseRole as UnifiedRole;
+  }
   
   const existingRoles = players
     .filter(p => p.role.startsWith(baseRole))
     .map(p => p.role);
 
-  if (!existingRoles.includes(`${baseRole}1`)) return `${baseRole}1` as DebateRole;
-  if (!existingRoles.includes(`${baseRole}2`)) return `${baseRole}2` as DebateRole;
+  if (baseRole === 'affirmative') {
+    if (!existingRoles.includes('affirmative1')) return 'affirmative1';
+    if (!existingRoles.includes('affirmative2')) return 'affirmative2';
+  } else if (baseRole === 'negative') {
+    if (!existingRoles.includes('negative1')) return 'negative1';
+    if (!existingRoles.includes('negative2')) return 'negative2';
+  }
+  
   return 'unassigned';
-};
-
-// 反向角色映射
-export const reverseRoleMap: Record<RoomPlayer['role'], 'affirmative' | 'negative' | 'unassigned'> = {
-  for: 'affirmative',
-  against: 'negative',
-  neutral: 'unassigned'
 };
 
 // 基础类型定义
@@ -351,4 +431,18 @@ export type IDebateAdapter = BaseAdapter & {
 
 export type ICharacterAdapter = BaseAdapter & {
   processCharacter?: (context: any) => Promise<any>;
+};
+
+// 只保留一个导出声明
+export type { GameConfigState } from './config';
+
+// 移除重复的导出声明 
+
+// 默认玩家配置
+export const DEFAULT_PLAYER: UnifiedPlayer = {
+  id: '',
+  name: '',
+  role: 'unassigned',
+  isAI: false,
+  status: 'waiting'
 }; 

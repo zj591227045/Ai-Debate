@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { ModelConfig } from '../types';
-import { StoreManager } from '../../store/StoreManager';
+import { StoreManager } from '@state/core';
 
 interface ModelState {
   models: ModelConfig[];
@@ -89,16 +89,32 @@ export function ModelProvider({ children }: { children: React.ReactNode }) {
 
   // 加载模型配置
   const loadModels = useCallback(async () => {
+    dispatch({ type: 'LOAD_MODELS_START' });
     try {
-      dispatch({ type: 'LOAD_MODELS_START' });
       const modelStore = storeManager.getModelStore();
-      const models = await modelStore.getAll();
+      const rawModels = await modelStore.getAll();
+      const models = rawModels.map(model => ({
+        id: model.id,
+        name: model.name,
+        provider: model.provider,
+        model: model.model || '',
+        parameters: {
+          temperature: model.parameters?.temperature ?? 0.7,
+          maxTokens: model.parameters?.maxTokens ?? 2048,
+          topP: model.parameters?.topP ?? 1.0,
+          ...model.parameters
+        },
+        auth: model.auth || { baseUrl: '', apiKey: '' },
+        isEnabled: model.isEnabled || false,
+        createdAt: model.createdAt || Date.now(),
+        updatedAt: model.updatedAt || Date.now()
+      }));
       dispatch({ type: 'LOAD_MODELS_SUCCESS', payload: models });
     } catch (error) {
       console.error('加载模型配置失败:', error);
       dispatch({
         type: 'LOAD_MODELS_ERROR',
-        payload: error instanceof Error ? error.message : '加载模型配置失败'
+        payload: error instanceof Error ? error.message : '未知错误'
       });
     }
   }, []);

@@ -1,10 +1,11 @@
 import { ModelProvider } from '../../llm/types/providers';
 import { Message } from '../../llm/types/common';
-import { ApiConfig } from '../../llm/types/config';
+import { ApiConfig, ModelConfig } from '../../llm/types/config';
 import { Character } from '../types/character';
 import { DebateState } from '../types/debate';
 import { UnifiedLLMService } from '../../llm/services/UnifiedLLMService';
-import { StoreManager } from '../../store/StoreManager';
+import { StoreManager } from '@state/core/StoreManager';
+import { Service } from 'typedi';
 
 interface DebugError {
   name?: string;
@@ -67,6 +68,7 @@ const PROVIDER_CONFIG_REQUIREMENTS: Record<string, ConfigValidation> = {
   }
 };
 
+@Service()
 export class AIDebateService {
   private llmService: UnifiedLLMService;
   private storeManager: StoreManager;
@@ -77,244 +79,116 @@ export class AIDebateService {
   }
 
   private async getProviderForCharacter(character: Character) {
-    // 1. 获取角色信息
-    console.log('【URL追踪】1. 角色信息:', {
-      characterId: character.id,
-      characterName: character.name,
-      modelId: character.config.modelId,
-      characterConfig: character.config
-    });
-
-    // 2. 获取模型配置
     const modelStore = this.storeManager.getModelStore();
     const modelConfig = await modelStore.getById(character.config.modelId);
-    
-    console.log('【URL追踪】2. 模型配置获取结果:', {
-      searchedModelId: character.config.modelId,
-      found: !!modelConfig,
-      rawConfig: modelConfig
-    });
 
     if (!modelConfig) {
-      console.error('【URL追踪】错误: 未找到模型配置', {
-        characterId: character.id,
-        characterName: character.name,
-        searchedModelId: character.config.modelId,
-        fullConfig: character.config
-      });
-      throw new Error(`未找到角色${character.name}对应的模型配置(ID: ${character.config.modelId})`);
+      throw new Error(`未找到角色 ${character.name} 的模型配置`);
     }
 
-    // 3. 检查模型配置完整性
-    console.log('【URL追踪】3. 模型配置详情:', {
-      modelId: modelConfig.id,
+    // 确保配置包含所有必要字段
+    const config: ModelConfig = {
+      id: modelConfig.id,
+      name: modelConfig.name,
       provider: modelConfig.provider,
-      auth: {
-        hasBaseUrl: !!modelConfig.auth.baseUrl,
-        baseUrl: modelConfig.auth.baseUrl,
-        hasApiKey: !!modelConfig.auth.apiKey,
-        hasOrgId: !!modelConfig.auth.organizationId
+      model: modelConfig.model || '',
+      parameters: {
+        temperature: modelConfig.parameters?.temperature ?? 0.7,
+        maxTokens: modelConfig.parameters?.maxTokens ?? 2048,
+        topP: modelConfig.parameters?.topP ?? 1.0,
+        ...modelConfig.parameters
       },
-      parameters: modelConfig.parameters
-    });
-    
-    // 获取提供商特定的配置要求
-    const configRequirements = PROVIDER_CONFIG_REQUIREMENTS[modelConfig.provider] || PROVIDER_CONFIG_REQUIREMENTS.default;
-    
-    // 根据提供商要求检查配置
-    const configErrors: string[] = [];
-    
-    if (configRequirements.requiresBaseUrl && !modelConfig.auth.baseUrl) {
-      configErrors.push('缺少服务器地址');
-    }
-    
-    if (configRequirements.requiresApiKey && !modelConfig.auth.apiKey) {
-      configErrors.push('缺少API密钥');
-    }
-    
-    if (configErrors.length > 0) {
-      console.error('【URL追踪】错误: 模型配置不完整', {
-        modelId: modelConfig.id,
-        provider: modelConfig.provider,
-        errors: configErrors,
-        auth: modelConfig.auth
-      });
-      throw new Error(`角色${character.name}的模型配置不完整: ${configErrors.join(', ')}`);
-    }
+      auth: {
+        baseUrl: modelConfig.auth?.baseUrl || '',
+        apiKey: modelConfig.auth?.apiKey || ''
+      },
+      isEnabled: modelConfig.isEnabled ?? true,
+      createdAt: modelConfig.createdAt || Date.now(),
+      updatedAt: modelConfig.updatedAt || Date.now()
+    };
 
-    // 4. URL 规范化
-    let baseUrl = modelConfig.auth.baseUrl;
-    console.log('【URL追踪】4. URL规范化开始:', {
-      originalUrl: baseUrl
-    });
-
-    if (!baseUrl.startsWith('http')) {
-      baseUrl = `http://${baseUrl}`;
-      console.log('【URL追踪】4.1 添加协议:', {
-        updatedUrl: baseUrl
-      });
+    // 验证配置
+    const configRequirements = PROVIDER_CONFIG_REQUIREMENTS[config.provider];
+    if (configRequirements) {
+      const configErrors: string[] = [];
+      
+      if (configRequirements.requiresBaseUrl && !config.auth.baseUrl) {
+        configErrors.push('缺少服务器地址');
+      }
+      
+      if (configRequirements.requiresApiKey && !config.auth.apiKey) {
+        configErrors.push('缺少API密钥');
+      }
+      
+      if (configErrors.length > 0) {
+        throw new Error(`模型配置无效: ${configErrors.join(', ')}`);
+      }
     }
 
-    // 移除末尾斜杠
-    baseUrl = baseUrl.replace(/\/+$/, '');
-    console.log('【URL追踪】4.2 规范化URL:', {
-      updatedUrl: baseUrl
-    });
+    // URL 规范化
+    if (config.auth.baseUrl) {
+      config.auth.baseUrl = config.auth.baseUrl.replace(/\/+$/, '');
+    }
 
-    // 5. 更新配置并获取 provider
     try {
-      console.log('【URL追踪】5. 开始创建Provider');
-      const updatedConfig = {
-        ...modelConfig,
-        auth: {
-          ...modelConfig.auth,
-          baseUrl
-        }
-      };
-      
-      const provider = await this.llmService.getInitializedProvider(updatedConfig);
-      
-      console.log('【URL追踪】5.1 Provider创建成功:', {
-        providerType: provider.constructor.name,
-        endpoint: baseUrl,
-        fullUrl: new URL('api/ai', baseUrl).toString()
-      });
-      
-      return provider;
-    } catch (err) {
-      const error = err as DebugError;
-      console.error('【URL追踪】5.2 Provider创建失败:', {
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        cause: error.cause,
-        endpoint: baseUrl,
-        fullUrl: new URL('api/ai', baseUrl).toString(),
-        providerConfig: {
-          provider: modelConfig.provider,
-          baseUrl: baseUrl
-        }
-      });
+      return await this.llmService.getInitializedProvider(config);
+    } catch (error) {
+      console.error('初始化提供者失败:', error);
       throw error;
     }
   }
 
   async generateInnerThoughts(character: Character, debateState: DebateState) {
-    console.log('开始生成内心OS:', {
-      characterName: character.name,
-      round: debateState.currentRound,
-      totalSpeeches: debateState.speeches.length,
-      characterConfig: {
-        modelId: character.config.modelId,
-        hasPersonality: !!character.personality,
-        hasSpeakingStyle: !!character.speakingStyle,
-        hasBackground: !!character.background
-      }
+    const provider = await this.getProviderForCharacter(character);
+    const messages = this.buildInnerThoughtsPrompt(character, debateState);
+    const response = await provider.chat({
+      message: messages[messages.length - 1].content,
+      systemPrompt: messages[0].content,
+      temperature: 0.8,
+      maxTokens: 500
     });
-
-    try {
-      const provider = await this.getProviderForCharacter(character);
-      const messages = this.buildInnerThoughtsPrompt(character, debateState);
-      
-      console.log('准备调用AI接口:', {
-        messageCount: messages.length,
-        systemPromptLength: messages[0].content.length,
-        userPromptLength: messages[1].content.length,
-        promptDetails: {
-          systemPromptPreview: messages[0].content.substring(0, 100) + '...',
-          userPromptPreview: messages[1].content.substring(0, 100) + '...'
-        }
-      });
-
-      const response = await provider.chat({
-        message: messages[messages.length - 1].content,
-        systemPrompt: messages[0].content,
-        temperature: 0.8,
-        maxTokens: 500
-      });
-
-      console.log('AI接口调用成功:', {
-        responseLength: response.content.length,
-        responsePreview: response.content.substring(0, 100) + '...'
-      });
-
-      return response.content;
-    } catch (err) {
-      const error = err as DebugError;
-      console.error('生成内心OS失败:', {
-        errorName: error.name,
-        errorMessage: error.message,
-        errorStack: error.stack,
-        cause: error.cause,
-        characterConfig: {
-          name: character.name,
-          modelId: character.config.modelId,
-          hasPersonality: !!character.personality,
-          hasSpeakingStyle: !!character.speakingStyle
-        }
-      });
-      throw error;
-    }
+    return response.content;
   }
 
   async generateSpeech(character: Character, debateState: DebateState, innerThoughts: string) {
-    try {
-      const provider = await this.getProviderForCharacter(character);
-      const messages = this.buildSpeechPrompt(character, debateState, innerThoughts);
-      
-      const response = await provider.chat({
-        message: messages[messages.length - 1].content,
-        systemPrompt: messages[0].content,
-        temperature: 0.6,
-        maxTokens: 800
-      });
-
-      return response.content;
-    } catch (error) {
-      console.error('生成发言失败:', error);
-      throw error;
-    }
+    const provider = await this.getProviderForCharacter(character);
+    const messages = this.buildSpeechPrompt(character, debateState, innerThoughts);
+    const response = await provider.chat({
+      message: messages[messages.length - 1].content,
+      systemPrompt: messages[0].content,
+      temperature: 0.6,
+      maxTokens: 800
+    });
+    return response.content;
   }
 
   async generateScore(judge: Character, debateState: DebateState) {
-    try {
-      const provider = await this.getProviderForCharacter(judge);
-      const messages = this.buildScoringPrompt(judge, debateState);
-      
-      const response = await provider.chat({
-        message: messages[messages.length - 1].content,
-        systemPrompt: messages[0].content,
-        temperature: 0.3,
-        maxTokens: 500
-      });
-
-      return response.content;
-    } catch (error) {
-      console.error('生成评分失败:', error);
-      throw error;
-    }
+    const provider = await this.getProviderForCharacter(judge);
+    const messages = this.buildScoringPrompt(judge, debateState);
+    const response = await provider.chat({
+      message: messages[messages.length - 1].content,
+      systemPrompt: messages[0].content,
+      temperature: 0.3,
+      maxTokens: 500
+    });
+    return response.content;
   }
 
   private buildInnerThoughtsPrompt(character: Character, state: DebateState): Message[] {
     return [
       {
         role: 'system',
-        content: `你是一个辩论选手，角色是${character.name}。
-性格：${character.personality || '未指定'}
-说话风格：${character.speakingStyle || '未指定'}
-专业背景：${character.background || '未指定'}
-价值观：${character.values?.join('、') || '未指定'}
-论证风格：${character.argumentationStyle?.join('、') || '未指定'}
-
-请根据当前辩论状态生成内心OS。`
+        content: `你是一个${character.personality}的辩手,正在参与一场关于"${state.topic.title}"的辩论。
+                 请基于当前辩论状态,生成你的内心想法。考虑以下因素:
+                 1. 你的性格特征和价值观
+                 2. 当前的辩论进展
+                 3. 其他选手的发言
+                 4. 可能的反驳点和论证方向`
       },
       {
         role: 'user',
-        content: `辩题：${state.topic.title}
-背景：${state.topic.background}
-当前回合：${state.currentRound}/${state.totalRounds}
-历史发言：
-${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
+        content: `当前回合：${state.currentRound}
+                 历史发言：${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
       }
     ];
   }
@@ -323,23 +197,18 @@ ${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
     return [
       {
         role: 'system',
-        content: `你是一个辩论选手，角色是${character.name}。
-性格：${character.personality || '未指定'}
-说话风格：${character.speakingStyle || '未指定'}
-专业背景：${character.background || '未指定'}
-价值观：${character.values?.join('、') || '未指定'}
-论证风格：${character.argumentationStyle?.join('、') || '未指定'}
-
-请根据内心OS生成正式发言。`
+        content: `基于你的内心想法,生成一段正式的辩论发言。要求:
+                 1. 保持你的辩论风格和个性特征
+                 2. 注意论证的逻辑性和连贯性
+                 3. 适当回应对方的论点
+                 4. 展现你的专业背景和知识储备
+                 
+                 你的内心想法是: ${innerThoughts}`
       },
       {
         role: 'user',
-        content: `辩题：${state.topic.title}
-背景：${state.topic.background}
-当前回合：${state.currentRound}/${state.totalRounds}
-内心OS：${innerThoughts}
-历史发言：
-${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
+        content: `当前回合：${state.currentRound}
+                 历史发言：${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
       }
     ];
   }
@@ -348,34 +217,18 @@ ${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
     return [
       {
         role: 'system',
-        content: `你是辩论比赛的裁判${judge.name}。
-专业背景：${judge.background || '未指定'}
-评判风格：${judge.speakingStyle || '未指定'}
-
-请对本轮辩论进行评分。评分维度包括：
-1. 论证逻辑性（30分）
-2. 论据充分性（30分）
-3. 表达清晰度（20分）
-4. 态度专业性（20分）
-
-请按以下JSON格式输出：
-{
-  "dimensions": {
-    "logic": number,
-    "evidence": number,
-    "clarity": number,
-    "professionalism": number
-  },
-  "totalScore": number,
-  "comment": string
-}`
+        content: `作为裁判,请根据以下维度评分:
+                 1. 论证的逻辑性 (30分)
+                 2. 论据的充分性 (25分)
+                 3. 表达的清晰性 (25分)
+                 4. 反驳的有效性 (20分)
+                 
+                 请给出详细的评分理由和建议。`
       },
       {
         role: 'user',
-        content: `辩题：${state.topic.title}
-背景：${state.topic.background}
-本轮发言记录：
-${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
+        content: `当前回合：${state.currentRound}
+                 历史发言：${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
       }
     ];
   }

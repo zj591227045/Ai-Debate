@@ -90,10 +90,12 @@ export const PlayersRegion: React.FC<PlayersRegionProps> = ({
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 'bold' }}>{player.name}</div>
               <div style={{ fontSize: '0.9em', color: 'var(--color-text-secondary)' }}>
-                {player.role === 'affirmative' ? '正方' : 
-                 player.role === 'negative' ? '反方' : 
-                 player.role === 'free' ? '自由辩手' : 
-                 player.role === 'judge' ? '裁判' : '未分配'}
+                {player.role.startsWith('affirmative') ? '正方' : 
+                 player.role.startsWith('negative') ? '反方' : 
+                 player.role === 'judge' ? '裁判' :
+                 player.role === 'timekeeper' ? '计时员' :
+                 player.role === 'observer' ? '观察者' : 
+                 '未分配'}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>

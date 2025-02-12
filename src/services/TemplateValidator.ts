@@ -32,17 +32,42 @@ export class TemplateValidator {
     }
 
     // 验证规则配置
-    if (!config.rules?.debateFormat) {
+    if (!config.rules) {
       errors.push({
-        field: 'rules.debateFormat',
-        message: '辩论形式不能为空'
+        field: 'rules',
+        message: '规则配置不能为空'
       });
     }
 
+    // 验证基础规则
+    if (!config.rules?.basicRules) {
+      errors.push({
+        field: 'rules.basicRules',
+        message: '基础规则不能为空'
+      });
+    }
+
+    // 验证发言长度限制
     if (!config.rules?.basicRules?.speechLengthLimit) {
       errors.push({
         field: 'rules.basicRules.speechLengthLimit',
-        message: '发言字数限制不能为空'
+        message: '发言长度限制不能为空'
+      });
+    }
+
+    // 验证评分维度
+    if (!config.judging?.dimensions || config.judging.dimensions.length === 0) {
+      errors.push({
+        field: 'judging.dimensions',
+        message: '评分维度不能为空'
+      });
+    }
+
+    // 验证总分
+    if (!config.judging?.totalScore) {
+      errors.push({
+        field: 'judging.totalScore',
+        message: '总分不能为空'
       });
     }
 
@@ -59,56 +84,27 @@ export class TemplateValidator {
   static validateDynamicConfig(config: DebateConfig): ValidationResult {
     const errors = [];
 
-    // 验证参与者配置
-    if (!config.participants) {
+    // 验证规则配置
+    if (!config.rules) {
       errors.push({
-        field: 'participants',
-        message: '参与者配置不能为空'
-      });
-      return {
-        isValid: false,
-        errors
-      };
-    }
-
-    const totalCount = config.participants.totalCount;
-    if (typeof totalCount !== 'number') {
-      errors.push({
-        field: 'participants.totalCount',
-        message: '参与人数不能为空'
-      });
-      return {
-        isValid: false,
-        errors
-      };
-    }
-
-    if (totalCount < 2) {
-      errors.push({
-        field: 'participants.totalCount',
-        message: '参与人数不能少于2人'
+        field: 'rules',
+        message: '规则配置不能为空'
       });
     }
 
-    if (totalCount > 6) {
+    // 验证基础规则
+    if (!config.rules?.basicRules) {
       errors.push({
-        field: 'participants.totalCount',
-        message: '参与人数不能超过6人'
+        field: 'rules.basicRules',
+        message: '基础规则不能为空'
       });
     }
 
-    // 验证时间配置
-    if (!config.timeConfig?.roundDuration) {
+    // 验证评分维度
+    if (!config.judging?.dimensions || config.judging.dimensions.length === 0) {
       errors.push({
-        field: 'timeConfig.roundDuration',
-        message: '每轮时间限制不能为空'
-      });
-    }
-
-    if (!config.timeConfig?.totalDuration) {
-      errors.push({
-        field: 'timeConfig.totalDuration',
-        message: '总时长不能为空'
+        field: 'judging.dimensions',
+        message: '评分维度不能为空'
       });
     }
 

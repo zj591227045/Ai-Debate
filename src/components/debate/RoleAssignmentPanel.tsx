@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
-import { Player, DebateRole } from '../../types/player';
-import { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
+import type { Player } from '../../types/player';
+import type { UnifiedRole } from '../../types/roles';
+import type { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
 import { Avatar, Space, Button as AntButton, Tooltip, Select, Modal, Input } from 'antd';
 import { UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
 import { useCharacter } from '../../modules/character/context/CharacterContext';
 import { useModel } from '../../modules/model/context/ModelContext';
-import { useDispatch } from 'react-redux';
-import { updatePlayers } from '../../store/slices/gameConfigSlice';
+import { useStore } from '../../modules/state';
+import { StateLogger } from '../../modules/state/utils';
+import type { GameConfigState } from '../../types/config';
+import { UnifiedPlayer, DEFAULT_PLAYER } from '../../types/adapters';
+
+const logger = StateLogger.getInstance();
 
 const Container = styled.div`
   background-color: white;
@@ -243,7 +248,7 @@ interface RoleAssignmentPanelProps {
   players: Player[];
   config: RoleAssignmentConfig;
   debateFormat: 'free' | 'structured';
-  onAssignRole: (playerId: string, role: DebateRole) => void;
+  onAssignRole: (playerId: string, role: UnifiedRole) => void;
   onAutoAssign: () => void;
   onReset: () => void;
   onTakeoverPlayer: (playerId: string, playerName: string, isTakeover: boolean) => void;
@@ -271,7 +276,14 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
   const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
-  const dispatch = useDispatch();
+  const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
+
+  useEffect(() => {
+    logger.info('roleAssignment', '组件已初始化', { initialState: gameConfig });
+    return () => {
+      logger.info('roleAssignment', '组件已卸载');
+    };
+  }, []);
 
   // 获取已被选择的角色ID列表
   const selectedCharacterIds = players
@@ -310,13 +322,15 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
     }
   };
 
-  const handleAssignRole = (playerId: string, role: DebateRole) => {
-    const updatedPlayers = players.map(p => 
-      p.id === playerId ? { ...p, role } : p
-    );
-    console.log('RoleAssignmentPanel - Updating player role:', { playerId, role, updatedPlayers });
+  const handleAssignRole = (playerId: string, role: UnifiedRole) => {
     onAssignRole(playerId, role);
-    dispatch(updatePlayers(updatedPlayers));
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...DEFAULT_PLAYER, ...p, role } : p
+    );
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
+    });
   };
 
   const handleRoleChange = (playerId: string, type: 'affirmative' | 'negative', currentRole: string) => {
@@ -329,40 +343,50 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
 
     // 如果当前选手已经是该阵营，取消选择
     if (currentRole.startsWith(type)) {
-      handleAssignRole(playerId, 'unassigned' as DebateRole);
+      handleAssignRole(playerId, 'unassigned' as UnifiedRole);
       return;
     }
 
     // 根据已有选手数量分配号位
     const nextNumber = playersByType.length + 1;
     if (nextNumber <= 3) {
-      handleAssignRole(playerId, `${type}${nextNumber}` as DebateRole);
+      handleAssignRole(playerId, `${type}${nextNumber}` as UnifiedRole);
     }
   };
 
   const handleSelectCharacter = (playerId: string, characterId: string) => {
+    onSelectCharacter(playerId, characterId);
     const updatedPlayers = players.map(p => 
       p.id === playerId ? { ...p, characterId } : p
     );
-    console.log('RoleAssignmentPanel - Updating player character:', { playerId, characterId, updatedPlayers });
-    onSelectCharacter(playerId, characterId);
-    dispatch(updatePlayers(updatedPlayers));
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
+    });
   };
 
   const handleAutoAssign = () => {
     onAutoAssign();
-    // 自动分配后更新 Redux store
-    const updatedPlayers = [...players];
-    console.log('RoleAssignmentPanel - Auto assigning players:', updatedPlayers);
-    dispatch(updatePlayers(updatedPlayers));
+    const updatedPlayers = players.map(p => ({ 
+      ...p, 
+      role: 'unassigned' as UnifiedRole 
+    }));
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
+    });
   };
 
   const handleReset = () => {
     onReset();
-    // 重置后更新 Redux store
-    const resetPlayers = players.map(p => ({ ...p, role: 'unassigned' as DebateRole }));
-    console.log('RoleAssignmentPanel - Resetting players:', resetPlayers);
-    dispatch(updatePlayers(resetPlayers));
+    const resetPlayers = players.map(p => ({ 
+      ...p, 
+      role: 'unassigned' as UnifiedRole 
+    }));
+    setGameConfig({
+      ...gameConfig,
+      players: resetPlayers
+    });
   };
 
   return (

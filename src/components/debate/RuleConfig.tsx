@@ -145,14 +145,22 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
 export const defaultRuleConfig: RuleConfig = {
   format: 'free',
   description: '',
-  advancedRules: {
+  basicRules: {
     maxLength: 1000,
     minLength: 100,
+    allowEmptySpeech: false,
+    allowRepeatSpeech: false
+  },
+  advancedRules: {
+    maxLength: 2000,
+    minLength: 200,
     allowQuoting: true,
     requireResponse: true,
     allowStanceChange: false,
-    requireEvidence: true,
-  }
+    requireEvidence: true
+  },
+  roundRules: [],
+  scoringRules: []
 };
 
 export default RuleConfigComponent; 

@@ -15,7 +15,7 @@ import { Resizable } from 're-resizable';
 import { useCharacter } from '../modules/character/context/CharacterContext';
 import { useModel } from '../modules/model/context/ModelContext';
 import type { CharacterConfig } from '../modules/character/types';
-import type { CharacterState } from '../modules/character/context/CharacterContext';
+import { CharacterConfigService } from '../modules/storage/services/CharacterConfigService';
 import { defaultTemplates, templateToCharacter } from '../modules/character/types/template';
 import { StateDebugger } from '../components/debug/StateDebugger';
 import { useStore } from '../modules/state';
@@ -103,53 +103,53 @@ const JudgeAvatar = styled.div`
   }
 
   &:hover .judge-tooltip {
-    display: block;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
   }
 `;
 
 const JudgeTooltip = styled.div`
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 10px);
-  right: -10px;
+  opacity: 0;
+  visibility: hidden;
+  position: fixed;
+  top: 80px;
+  right: 20px;
   width: 320px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 3px 6px -4px rgba(0,0,0,0.12), 0 6px 16px 0 rgba(0,0,0,0.08);
   padding: 16px;
   z-index: 1000;
-
-  &:before {
-    content: '';
-    position: absolute;
-    bottom: -6px;
-    right: 20px;
-    width: 12px;
-    height: 12px;
-    background: white;
-    transform: rotate(45deg);
-    box-shadow: 3px 3px 6px -3px rgba(0,0,0,0.12);
-  }
-`;
-
-const JudgeTooltipContent = styled.div`
-  .judge-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #f0f0f0;
-  }
+  transition: all 0.2s ease-in-out;
+  transform: translateY(-10px);
 
   .judge-avatar {
     width: 48px;
     height: 48px;
     border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .judge-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f0f0f0;
+
+    img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
   }
 
   .judge-basic-info {
     flex: 1;
+    overflow: hidden;
   }
 
   .judge-name {
@@ -157,6 +157,9 @@ const JudgeTooltipContent = styled.div`
     font-weight: 500;
     color: #1f1f1f;
     margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .judge-description {
@@ -174,7 +177,7 @@ const JudgeTooltipContent = styled.div`
 
   .persona-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     margin-bottom: 8px;
     font-size: 13px;
@@ -188,47 +191,55 @@ const JudgeTooltipContent = styled.div`
       color: #1f1f1f;
       font-weight: 500;
       min-width: 80px;
+      flex-shrink: 0;
     }
   }
 
-  .judge-model {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #f0f0f0;
-  }
+  .dimension-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
 
-  .judge-criteria {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid #f0f0f0;
-
-    .criteria-title {
-      font-weight: 500;
+    .dimension-name {
+      min-width: 80px;
       color: #1f1f1f;
-      margin-bottom: 8px;
+      flex-shrink: 0;
     }
 
-    .criteria-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-      font-size: 13px;
-      color: #666;
+    .dimension-content {
+      flex: 1;
+      overflow: hidden;
+    }
+  }
 
-      .dimension-name {
-        min-width: 80px;
-        color: #1f1f1f;
-      }
+  .section-title {
+    font-weight: 500;
+    color: #1f1f1f;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
 
-      .weight {
-        color: #1890ff;
-      }
+  .section-content {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 8px;
 
-      .description {
-        color: #8c8c8c;
-        font-size: 12px;
-      }
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #e8e8e8;
+      border-radius: 2px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
     }
   }
 `;
@@ -523,6 +534,84 @@ export const DebateRoom: React.FC = () => {
   // 获取当前玩家列表
   const currentPlayers = useMemo(() => gameConfig?.players || [], [gameConfig]);
 
+  // 添加角色配置服务和状态
+  const [characterConfigs, setCharacterConfigs] = useState<Record<string, CharacterConfig>>({});
+  const characterService = useMemo(() => new CharacterConfigService(), []);
+
+  // 修改获取裁判信息的函数
+  const getJudgeInfo = () => {
+    if (!gameConfig?.debate) {
+      console.log('没有辩论配置');
+      return null;
+    }
+
+    // 从 localStorage 中获取裁判信息
+    const judgeConfig = localStorage.getItem('state_gameConfig');
+    if (!judgeConfig) {
+      console.log('没有找到裁判配置');
+      return null;
+    }
+
+    try {
+      const config = JSON.parse(judgeConfig);
+      const selectedJudge = config.debate.judging.selectedJudge;
+      if (!selectedJudge) {
+        console.log('没有裁判配置');
+        return null;
+      }
+
+      console.log('找到的裁判信息:', selectedJudge);
+
+      // 从角色配置中获取更多信息
+      const judgeCharacter = characterConfigs[selectedJudge.id];
+      console.log('裁判角色配置:', judgeCharacter);
+      
+      return {
+        id: selectedJudge.id,
+        name: selectedJudge.name,
+        avatar: selectedJudge.avatar,
+        description: judgeCharacter?.description || '资深辩论裁判',
+        persona: judgeCharacter?.persona || {
+          background: '资深辩论裁判',
+          speakingStyle: '专业严谨',
+          personality: ['公正', '严谨', '专业']
+        },
+        callConfig: judgeCharacter?.callConfig
+      };
+    } catch (error) {
+      console.error('解析裁判配置失败:', error);
+      return null;
+    }
+  };
+
+  // 添加对 judgeInfo 的调试日志
+  const judgeInfo = getJudgeInfo();
+  console.log('最终的裁判信息:', judgeInfo);
+
+  // 修改加载角色配置的 effect
+  useEffect(() => {
+    const loadCharacterConfigs = async () => {
+      try {
+        console.log('开始加载角色配置...');
+        const characters = await characterService.getActiveCharacters();
+        console.log('获取到的角色列表:', characters);
+        
+        const configsMap = characters.reduce((acc, char) => {
+          acc[char.id] = char;
+          return acc;
+        }, {} as Record<string, CharacterConfig>);
+        
+        console.log('转换后的角色配置Map:', configsMap);
+        setCharacterConfigs(configsMap);
+      } catch (error) {
+        console.error('加载角色配置失败:', error);
+        message.error('加载角色配置失败');
+      }
+    };
+
+    loadCharacterConfigs();
+  }, [characterService]);
+
   // 修改状态更新函数
   const handleResizeStop = (e: any, direction: any, ref: any, d: { width: number }) => {
     setSession({
@@ -556,20 +645,34 @@ export const DebateRoom: React.FC = () => {
     previousSpeeches: session.debateState.history.speeches
   });
 
-  // 监听游戏配置和角色状态变化
+  // 添加初始化逻辑
   useEffect(() => {
     const initializeDebateRoom = async () => {
       try {
-        setSession({
-          ...session,
-          uiState: { ...session.uiState, isLoading: true }
-        });
+        if (!session.uiState) {
+          setSession({
+            ...session,
+            uiState: {
+              isLoading: true,
+              isDarkMode: false,
+              playerListWidth: 300
+            }
+          });
+        } else {
+          setSession({
+            ...session,
+            uiState: {
+              ...session.uiState,
+              isLoading: true
+            }
+          });
+        }
         
         if (!gameConfig) {
           throw new Error('游戏配置不存在');
         }
 
-        const initialState: DebateState = {
+        const initialState = {
           status: DebateStatus.NOT_STARTED,
           progress: {
             currentRound: 1,
@@ -589,42 +692,26 @@ export const DebateRoom: React.FC = () => {
         setSession({
           ...session,
           debateState: initialState,
-          uiState: { ...session.uiState, isLoading: false }
+          uiState: {
+            ...session.uiState,
+            isLoading: false
+          }
         });
       } catch (error) {
         console.error('初始化辩论室失败:', error);
         message.error('初始化辩论室失败');
         setSession({
           ...session,
-          uiState: { ...session.uiState, isLoading: false }
+          uiState: {
+            ...session.uiState,
+            isLoading: false
+          }
         });
       }
     };
 
     initializeDebateRoom();
-  }, [gameConfig, session, setSession]);
-
-  // 获取裁判信息
-  const getJudgeInfo = () => {
-    if (!gameConfig?.players) return null;
-    
-    const judge = gameConfig.players.find((p: UnifiedPlayer) => p.role === 'judge');
-    if (!judge?.characterId) return null;
-
-    const judgeCharacter = characterState.characters.find(c => c.id === judge.characterId);
-    if (!judgeCharacter) return null;
-
-    return {
-      id: judgeCharacter.id,
-      name: judgeCharacter.name,
-      avatar: judgeCharacter.avatar,
-      description: judgeCharacter.description,
-      persona: judgeCharacter.persona,
-      callConfig: judgeCharacter.callConfig
-    };
-  };
-
-  const judgeInfo = getJudgeInfo();
+  }, [gameConfig, setSession]);
 
   // 处理辩论状态变更
   const handleDebateStateChange = (newStatus: DebateStatus) => {
@@ -637,21 +724,20 @@ export const DebateRoom: React.FC = () => {
     });
   };
 
-  // 获取模型信息的辅助函数
+  // 修改获取模型信息的辅助函数
   const getModelInfo = useCallback((characterId: string) => {
-    const selectedCharacter = characterState.characters.find(c => c.id === characterId);
+    const selectedCharacter = characterConfigs[characterId];
     if (!selectedCharacter?.callConfig?.direct) return null;
     
-    const modelId = selectedCharacter.callConfig.direct.modelId;
-    const selectedModel = modelState.availableModels.find(m => m.id === modelId);
     const provider = selectedCharacter.callConfig.direct.provider;
+    const model = selectedCharacter.callConfig.direct.model;
     
     return (
       <ModelName>
-        {`${selectedModel?.provider || provider} · ${selectedModel?.model || modelId}`}
+        {`${provider} · ${model}`}
       </ModelName>
     );
-  }, [characterState.characters, modelState.availableModels]);
+  }, [characterConfigs]);
 
   // 获取当前辩论状态
   const { currentState, topic, players } = gameConfig?.debate || {
@@ -718,8 +804,8 @@ export const DebateRoom: React.FC = () => {
     message.error('生成发言时出错：' + error.message);
   };
 
-  // 添加加载状态检查
-  if (!gameConfig || session.uiState.isLoading) {
+  // 如果 session 或 uiState 未定义，显示加载状态
+  if (!session || !session.uiState) {
     return (
       <Container>
         <Spin tip="加载中...">
@@ -781,127 +867,102 @@ export const DebateRoom: React.FC = () => {
       {/* 主题信息区域 */}
       <TopicBar>
         <TopicSection>
-          <TopicTitle>{gameConfig?.debate?.topic?.title}</TopicTitle>
+          <TopicTitle>{gameConfig?.debate?.topic?.title || '未设置辩题'}</TopicTitle>
           <TopicInfo>
-            <div>
-              <span>辩论形式：{gameConfig?.debate?.rules?.debateFormat === 'structured' ? '正反方辩论' : '自由辩论'}</span>
-              <span style={{ margin: '0 16px' }}>|</span>
-              <span>{gameConfig?.debate?.topic?.description}</span>
-            </div>
+            <div>{gameConfig?.debate?.topic?.description || '暂无描述'}</div>
           </TopicInfo>
         </TopicSection>
-        
+
         {judgeInfo && (
           <JudgeSection>
             <JudgeAvatar>
               <img 
-                src={judgeInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${judgeInfo.id}`}
+                src={judgeInfo.avatar} 
                 alt={judgeInfo.name}
               />
               <JudgeTooltip className="judge-tooltip">
-                <JudgeTooltipContent>
-                  {/* 基本信息 */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '12px',
-                    marginBottom: '12px',
-                    paddingBottom: '12px',
-                    borderBottom: '1px solid #f0f0f0'
-                  }}>
-                    <img 
-                      src={judgeInfo.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${judgeInfo.id}`}
-                      alt={judgeInfo.name}
-                      style={{ width: '48px', height: '48px', borderRadius: '50%' }}
-                    />
-                    <div>
-                      <div style={{ fontSize: '16px', fontWeight: 500, marginBottom: '4px' }}>{judgeInfo.name}</div>
-                      <div style={{ fontSize: '13px', color: '#666' }}>{judgeInfo.description}</div>
-                    </div>
+                <div className="judge-header">
+                  <img src={judgeInfo.avatar} alt={judgeInfo.name} />
+                  <div className="judge-basic-info">
+                    <div className="judge-name">{judgeInfo.name}</div>
+                    <div className="judge-description">{judgeInfo.description}</div>
                   </div>
+                </div>
 
-                  {/* 人设信息 */}
-                  <div style={{ 
-                    margin: '12px 0',
-                    padding: '12px',
-                    background: '#f9f9f9',
-                    borderRadius: '6px'
-                  }}>
-                    <div style={{ marginBottom: '8px' }}>
-                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>说话风格</span>
-                      <span style={{ color: '#666' }}>{judgeInfo.persona.speakingStyle}</span>
-                    </div>
-                    <div style={{ marginBottom: '8px' }}>
-                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>专业背景</span>
-                      <span style={{ color: '#666' }}>{judgeInfo.persona.background}</span>
-                    </div>
-                    <div>
-                      <span style={{ color: '#1f1f1f', fontWeight: 500, minWidth: '80px', display: 'inline-block' }}>性格特征</span>
-                      <span style={{ color: '#666' }}>{judgeInfo.persona.personality.join('、')}</span>
-                    </div>
+                <div className="judge-persona">
+                  <div className="persona-item">
+                    <span className="label">背景</span>
+                    <span>{judgeInfo.persona.background}</span>
                   </div>
-
-                  {/* AI模型信息 */}
-                  <div style={{ 
-                    marginTop: '12px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid #f0f0f0'
-                  }}>
-                    <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>AI模型</div>
-                    {getModelInfo(judgeInfo.id)}
+                  <div className="persona-item">
+                    <span className="label">风格</span>
+                    <span>{judgeInfo.persona.speakingStyle}</span>
                   </div>
+                  <div className="persona-item">
+                    <span className="label">性格</span>
+                    <span>{judgeInfo.persona.personality.join('、')}</span>
+                  </div>
+                </div>
 
-                  {/* 评分规则 */}
-                  <div style={{ 
-                    marginTop: '12px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid #f0f0f0'
-                  }}>
-                    <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>评分规则</div>
-                    {gameConfig?.debate?.judging && (
-                      <div style={{ 
-                        fontSize: '13px',
-                        color: '#666',
-                        padding: '8px 12px',
-                        background: '#f9f9f9',
-                        borderRadius: '6px',
-                        marginBottom: '12px',
-                        lineHeight: '1.5'
-                      }}>
-                        {gameConfig.debate.judging.description || '暂无评分规则说明'}
-                      </div>
+                {/* AI模型信息 */}
+                <div style={{ 
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <div className="section-title">AI模型</div>
+                  <div className="section-content">
+                    {judgeInfo.callConfig?.direct && (
+                      <>
+                        <ModelBadge provider={judgeInfo.callConfig.direct.provider}>
+                          {judgeInfo.callConfig.direct.provider}
+                        </ModelBadge>
+                        <ModelName>
+                          {judgeInfo.callConfig.direct.model}
+                        </ModelName>
+                      </>
                     )}
                   </div>
+                </div>
 
-                  {/* 评分标准 */}
-                  {gameConfig?.debate?.judging?.dimensions && (
-                    <div style={{ 
-                      marginTop: '12px',
-                      paddingTop: '12px',
-                      borderTop: '1px solid #f0f0f0'
-                    }}>
-                      <div style={{ fontWeight: 500, color: '#1f1f1f', marginBottom: '8px' }}>评分标准</div>
+                {/* 评分规则 */}
+                <div style={{ 
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #f0f0f0'
+                }}>
+                  <div className="section-title">评分规则</div>
+                  <div className="section-content">
+                    {gameConfig?.debate?.judging?.description || '暂无评分规则说明'}
+                  </div>
+                </div>
+
+                {/* 评分标准 */}
+                {gameConfig?.debate?.judging?.dimensions && (
+                  <div style={{ 
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f0f0f0'
+                  }}>
+                    <div className="section-title">评分标准</div>
+                    <div className="section-content">
                       {gameConfig.debate.judging.dimensions.map((dimension: {
                         name: string;
                         weight: number;
                         description: string;
                         criteria: string[];
                       }, index: number) => (
-                        <div key={index} style={{ 
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: '6px',
-                          fontSize: '13px'
-                        }}>
-                          <span style={{ minWidth: '80px', color: '#1f1f1f' }}>{dimension.name}</span>
-                          <span style={{ color: '#1890ff' }}>{dimension.weight}分</span>
-                          <span style={{ color: '#8c8c8c', fontSize: '12px' }}>{dimension.description}</span>
+                        <div key={index} className="dimension-item">
+                          <span className="dimension-name">{dimension.name}</span>
+                          <div className="dimension-content">
+                            <span style={{ color: '#1890ff', marginRight: '8px' }}>{dimension.weight}分</span>
+                            <span style={{ color: '#8c8c8c' }}>{dimension.description}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  )}
-                </JudgeTooltipContent>
+                  </div>
+                )}
               </JudgeTooltip>
             </JudgeAvatar>
             <JudgeInfo>
@@ -930,8 +991,7 @@ export const DebateRoom: React.FC = () => {
             </PlayerListHeader>
             <PlayerListContainer>
               {currentPlayers.map((player: UnifiedPlayer) => {
-                const character = player.characterId ? 
-                  characterState.characters.find(c => c.id === player.characterId) : undefined;
+                const character = player.characterId ? characterConfigs[player.characterId] : undefined;
                 
                 return (
                   <PlayerCard 
@@ -946,7 +1006,6 @@ export const DebateRoom: React.FC = () => {
                       <PlayerInfo>
                         <PlayerName>
                           {player.name}
-
                         </PlayerName>
                         <PlayerRole>
                           {gameConfig?.debate?.rules?.debateFormat === 'structured' ? (
@@ -966,14 +1025,14 @@ export const DebateRoom: React.FC = () => {
                                 <CharacterName>{character.name}
                                   {player.isAI && (
                                     <span style={{ 
-                                    fontSize: '12px',
-                                    padding: '2px 8px',
-                                    background: 'rgba(24, 144, 255, 0.1)',
-                                    color: '#1890ff',
-                                    borderRadius: '4px'
-                                  }}>
+                                      fontSize: '12px',
+                                      padding: '2px 8px',
+                                      background: 'rgba(24, 144, 255, 0.1)',
+                                      color: '#1890ff',
+                                      borderRadius: '4px'
+                                    }}>
                                       AI
-                                  </span>
+                                    </span>
                                   )}
                                 </CharacterName>
 

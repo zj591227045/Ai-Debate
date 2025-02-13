@@ -8,6 +8,7 @@ import { StateLogger } from '../utils';
 import { LLMStore } from '../stores/LLMStore';
 import { GameConfigStore } from '../stores/GameConfigStore';
 import { GameRulesStore } from '../stores/GameRulesStore';
+import { SessionStore } from '../stores/SessionStore';
 
 const logger = StateLogger.getInstance();
 
@@ -76,9 +77,10 @@ export class StoreManager {
     const modelStore = new ModelStore(modelConfig);
     const gameConfigStore = new GameConfigStore(gameConfigConfig);
     const gameRulesStore = new GameRulesStore(gameRulesConfig);
+    const sessionStore = new SessionStore();
 
     // 注册store并设置状态变更监听
-    [llmStore, modelStore, gameConfigStore, gameRulesStore].forEach(store => {
+    [llmStore, modelStore, gameConfigStore, gameRulesStore, sessionStore].forEach(store => {
       const namespace = store.getMetadata().namespace;
       store.on('stateChanged', () => {
         logger.debug('StoreManager', `${namespace} 状态已更新，通知订阅者`);

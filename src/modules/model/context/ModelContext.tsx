@@ -1,141 +1,136 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ModelConfig } from '../types';
-import { StoreManager } from '@state/core';
+import { ModelStorageService } from '../services/ModelStorageService';
 
-interface ModelState {
+interface ModelContextType {
   models: ModelConfig[];
   isLoading: boolean;
   error: string | null;
+  addModel: (model: Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateModel: (id: string, model: Partial<ModelConfig>) => Promise<void>;
+  deleteModel: (id: string) => Promise<void>;
+  toggleModel: (id: string, isEnabled: boolean) => Promise<void>;
+  importConfigs: (configs: ModelConfig[]) => Promise<void>;
+  exportConfigs: () => Promise<ModelConfig[]>;
+  refreshModels: () => Promise<void>;
 }
 
-type ModelAction =
-  | { type: 'LOAD_MODELS_START' }
-  | { type: 'LOAD_MODELS_SUCCESS'; payload: ModelConfig[] }
-  | { type: 'LOAD_MODELS_ERROR'; payload: string }
-  | { type: 'ADD_MODEL'; payload: ModelConfig }
-  | { type: 'UPDATE_MODEL'; payload: ModelConfig }
-  | { type: 'DELETE_MODEL'; payload: string }
-  | { type: 'TOGGLE_MODEL'; payload: { id: string; isEnabled: boolean } };
-
-const initialState: ModelState = {
-  models: [],
-  isLoading: false,
-  error: null
-};
-
-function modelReducer(state: ModelState, action: ModelAction): ModelState {
-  switch (action.type) {
-    case 'LOAD_MODELS_START':
-      return {
-        ...state,
-        isLoading: true,
-        error: null
-      };
-    case 'LOAD_MODELS_SUCCESS':
-      return {
-        ...state,
-        models: action.payload,
-        isLoading: false,
-        error: null
-      };
-    case 'LOAD_MODELS_ERROR':
-      return {
-        ...state,
-        isLoading: false,
-        error: action.payload
-      };
-    case 'ADD_MODEL':
-      return {
-        ...state,
-        models: [...state.models, action.payload]
-      };
-    case 'UPDATE_MODEL':
-      return {
-        ...state,
-        models: state.models.map(model =>
-          model.id === action.payload.id ? action.payload : model
-        )
-      };
-    case 'DELETE_MODEL':
-      return {
-        ...state,
-        models: state.models.filter(model => model.id !== action.payload)
-      };
-    case 'TOGGLE_MODEL':
-      return {
-        ...state,
-        models: state.models.map(model =>
-          model.id === action.payload.id
-            ? { ...model, isEnabled: action.payload.isEnabled }
-            : model
-        )
-      };
-    default:
-      return state;
-  }
-}
-
-const ModelContext = createContext<{
-  state: ModelState;
-  dispatch: React.Dispatch<ModelAction>;
-}>({
-  state: initialState,
-  dispatch: () => null
-});
+const ModelContext = createContext<ModelContextType | null>(null);
 
 export function ModelProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(modelReducer, initialState);
-  const storeManager = StoreManager.getInstance();
+  const [models, setModels] = useState<ModelConfig[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const storageService = ModelStorageService.getInstance();
 
-  // 加载模型配置
-  const loadModels = useCallback(async () => {
-    dispatch({ type: 'LOAD_MODELS_START' });
+  const refreshModels = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    //console.log('开始刷新模型列表');
     try {
-      const modelStore = storeManager.getModelStore();
-      const rawModels = await modelStore.getAll();
-      const models = rawModels.map(model => ({
-        id: model.id,
-        name: model.name,
-        provider: model.provider,
-        model: model.model || '',
-        parameters: {
-          temperature: model.parameters?.temperature ?? 0.7,
-          maxTokens: model.parameters?.maxTokens ?? 2048,
-          topP: model.parameters?.topP ?? 1.0,
-          ...model.parameters
-        },
-        auth: model.auth || { baseUrl: '', apiKey: '' },
-        isEnabled: model.isEnabled || false,
-        createdAt: model.createdAt || Date.now(),
-        updatedAt: model.updatedAt || Date.now()
-      }));
-      dispatch({ type: 'LOAD_MODELS_SUCCESS', payload: models });
-    } catch (error) {
-      console.error('加载模型配置失败:', error);
-      dispatch({
-        type: 'LOAD_MODELS_ERROR',
-        payload: error instanceof Error ? error.message : '未知错误'
-      });
+      const configs = await storageService.getAll();
+      //console.log('获取到的模型配置:', configs);
+      
+      if (!Array.isArray(configs)) {
+        //console.error('获取到的配置不是数组格式');
+        setError('获取模型配置失败：数据格式错误');
+        setModels([]);
+        return;
+      }
+      
+      if (configs.length === 0) {
+        //console.log('没有找到任何模型配置');
+      }
+      
+      setModels(configs);
+      //console.log('模型列表已更新:', configs);
+    } catch (err) {
+      //console.error('加载模型配置失败:', err);
+      setError(err instanceof Error ? err.message : '未知错误');
+      setModels([]);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // 监听存储变化
+  const addModel = async (model: Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      await storageService.add(model);
+      await refreshModels();
+    } catch (err) {
+      //console.error('添加模型失败:', err);
+      throw err;
+    }
+  };
+
+  const updateModel = async (id: string, model: Partial<ModelConfig>) => {
+    try {
+      await storageService.update(id, model);
+      await refreshModels();
+    } catch (err) {
+      //console.error('更新模型失败:', err);
+      throw err;
+    }
+  };
+
+  const deleteModel = async (id: string) => {
+    try {
+      await storageService.delete(id);
+      await refreshModels();
+    } catch (err) {
+      //console.error('删除模型失败:', err);
+      throw err;
+    }
+  };
+
+  const toggleModel = async (id: string, isEnabled: boolean) => {
+    try {
+      await storageService.toggleEnabled(id, isEnabled);
+      await refreshModels();
+    } catch (err) {
+      //console.error('切换模型状态失败:', err);
+      throw err;
+    }
+  };
+
+  const importConfigs = async (configs: ModelConfig[]) => {
+    try {
+      await storageService.importConfigs(configs);
+      await refreshModels();
+    } catch (err) {
+      //console.error('导入配置失败:', err);
+      throw err;
+    }
+  };
+
+  const exportConfigs = async () => {
+    try {
+      return await storageService.exportConfigs();
+    } catch (err) {
+      //console.error('导出配置失败:', err);
+      throw err;
+    }
+  };
+
   useEffect(() => {
-    const modelStore = storeManager.getModelStore();
-    const unsubscribe = modelStore.subscribe(() => {
-      loadModels();
-    });
-
-    // 初始加载
-    loadModels();
-
-    return () => {
-      unsubscribe();
-    };
-  }, [loadModels]);
+    refreshModels();
+  }, [refreshModels]);
 
   return (
-    <ModelContext.Provider value={{ state, dispatch }}>
+    <ModelContext.Provider
+      value={{
+        models,
+        isLoading,
+        error,
+        addModel,
+        updateModel,
+        deleteModel,
+        toggleModel,
+        importConfigs,
+        exportConfigs,
+        refreshModels
+      }}
+    >
       {children}
     </ModelContext.Provider>
   );
@@ -146,60 +141,5 @@ export function useModel() {
   if (!context) {
     throw new Error('useModel must be used within a ModelProvider');
   }
-
-  const { state, dispatch } = context;
-  const storeManager = StoreManager.getInstance();
-
-  const addModel = async (model: ModelConfig) => {
-    try {
-      const modelStore = storeManager.getModelStore();
-      await modelStore.addModel(model);
-      dispatch({ type: 'ADD_MODEL', payload: model });
-    } catch (error) {
-      console.error('添加模型失败:', error);
-      throw error;
-    }
-  };
-
-  const updateModel = async (model: ModelConfig) => {
-    try {
-      const modelStore = storeManager.getModelStore();
-      await modelStore.updateModel(model.id, model);
-      dispatch({ type: 'UPDATE_MODEL', payload: model });
-    } catch (error) {
-      console.error('更新模型失败:', error);
-      throw error;
-    }
-  };
-
-  const deleteModel = async (id: string) => {
-    try {
-      const modelStore = storeManager.getModelStore();
-      await modelStore.deleteModel(id);
-      dispatch({ type: 'DELETE_MODEL', payload: id });
-    } catch (error) {
-      console.error('删除模型失败:', error);
-      throw error;
-    }
-  };
-
-  const toggleModel = async (id: string, isEnabled: boolean) => {
-    try {
-      const modelStore = storeManager.getModelStore();
-      await modelStore.toggleEnabled(id, isEnabled);
-      dispatch({ type: 'TOGGLE_MODEL', payload: { id, isEnabled } });
-    } catch (error) {
-      console.error('切换模型状态失败:', error);
-      throw error;
-    }
-  };
-
-  return {
-    state,
-    dispatch,
-    addModel,
-    updateModel,
-    deleteModel,
-    toggleModel
-  };
+  return context;
 } 

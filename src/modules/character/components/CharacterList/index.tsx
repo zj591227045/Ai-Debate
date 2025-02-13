@@ -9,6 +9,7 @@ import { CharacterConfig } from '../../types';
 import { CharacterTemplate } from '../../types/template';
 import './styles.css';
 import styled from '@emotion/styled';
+import type { ModelConfig } from '../../../model/types';
 
 const { TabPane } = Tabs;
 
@@ -271,7 +272,7 @@ export const PlayerCardComponent: React.FC<PlayerCardProps> = ({
 
 export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterListProps) {
   const { state, dispatch } = useCharacter();
-  const { state: modelState } = useModel();
+  const { models } = useModel();
   const [showForm, setShowForm] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<string | null>(null);
 
@@ -388,7 +389,7 @@ export default function CharacterList({ onSelect, onEdit, onDelete }: CharacterL
                     ? character.callConfig.direct?.modelId 
                     : undefined;
                   const characterModel = modelId
-                    ? modelState.models.find(m => m.id === modelId)
+                    ? models.find((model: ModelConfig) => model.id === modelId)
                     : undefined;
 
                   return (

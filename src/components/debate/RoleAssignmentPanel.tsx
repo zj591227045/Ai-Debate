@@ -11,6 +11,7 @@ import { useStore } from '../../modules/state';
 import { StateLogger } from '../../modules/state/utils';
 import type { GameConfigState } from '../../types/config';
 import { UnifiedPlayer, DEFAULT_PLAYER } from '../../types/adapters';
+import type { ModelConfig } from '../../modules/model/types';
 
 const logger = StateLogger.getInstance();
 
@@ -258,7 +259,7 @@ interface RoleAssignmentPanelProps {
   onSelectCharacter: (playerId: string, characterId: string) => void;
 }
 
-export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
+export default function RoleAssignmentPanel({
   players,
   config,
   debateFormat,
@@ -270,9 +271,9 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   onAddAIPlayer,
   onStartDebate,
   onSelectCharacter,
-}) => {
+}: RoleAssignmentPanelProps) {
   const { state: characterState } = useCharacter();
-  const { state: modelState } = useModel();
+  const { models } = useModel();
   const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
   const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
@@ -421,7 +422,7 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
             ? selectedCharacter.callConfig.direct?.modelId 
             : undefined;
           const characterModel = modelId
-            ? modelState.models.find(m => m.id === modelId)
+            ? models.find((model: ModelConfig) => model.id === modelId)
             : undefined;
 
           // 过滤掉已被其他玩家选择的角色
@@ -582,4 +583,4 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
       </Modal>
     </Container>
   );
-}; 
+} 

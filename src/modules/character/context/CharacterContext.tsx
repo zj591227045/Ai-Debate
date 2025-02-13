@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
 import { CharacterConfig, DifyConfig, DirectAPIConfig } from '../types';
 import { CharacterTemplate, defaultTemplates } from '../types/template';
 import { StorageManager } from '../../storage/StorageManager';
@@ -63,253 +63,55 @@ const CharacterContext = createContext<{
 
 // Reducer函数
 function characterReducer(state: CharacterState, action: CharacterAction): CharacterState {
-  console.log('========== Character Reducer Start ==========');
-  console.log('Action Type:', action.type);
-  console.log('Current State:', {
-    charactersCount: state.characters.length,
-    templatesCount: state.templates.length,
-    activeMode: state.activeMode,
-    hasCharacters: Array.isArray(state.characters),
-    firstCharacter: state.characters[0]
-  });
-  console.log('Action Payload:', {
-    type: action.type,
-    payloadType: typeof action.payload,
-    isArray: Array.isArray(action.payload),
-    payloadLength: Array.isArray(action.payload) ? action.payload.length : 'N/A',
-    payload: action.payload
-  });
+  console.log('Character Reducer Action:', action.type, action.payload);
   
-  let newState: CharacterState;
   switch (action.type) {
-    case 'SET_CHARACTERS': {
-      const characters = action.payload;
+    case 'SET_CHARACTERS':
       return {
         ...state,
-        characters,
+        characters: action.payload,
         loading: false
       };
-    }
     
-    case 'ADD_CHARACTER': {
-      const character = action.payload;
+    case 'ADD_CHARACTER':
+      console.log('Adding new character:', action.payload);
       return {
         ...state,
-        characters: [...state.characters, character]
+        characters: [...state.characters, action.payload]
       };
-    }
     
-    case 'UPDATE_CHARACTER': {
-      const updatedCharacter = action.payload;
+    case 'UPDATE_CHARACTER':
+      console.log('Updating character:', action.payload);
       return {
         ...state,
         characters: state.characters.map(char => 
-          char.id === updatedCharacter.id ? updatedCharacter : char
+          char.id === action.payload.id ? { ...action.payload, updatedAt: Date.now() } : char
         )
       };
-    }
     
-    case 'DELETE_CHARACTER': {
-      const characterId = action.payload;
-      console.log('正在删除角色:', characterId);
-      
-      // 检查角色是否存在
-      const characterToDelete = state.characters.find(char => char.id === characterId);
-      if (!characterToDelete) {
-        console.error('要删除的角色不存在:', characterId);
-        return {
-          ...state,
-          error: `角色 ${characterId} 不存在`
-        };
-      }
-
-      // 从角色列表中删除
-      const updatedCharacters = state.characters.filter(char => char.id !== characterId);
-      console.log('删除后的角色列表:', updatedCharacters);
-
-      // 立即更新 localStorage
-      try {
-        const newState = {
-          ...state,
-          characters: updatedCharacters,
-          error: undefined
-        };
-        localStorage.setItem('characterState', JSON.stringify(newState));
-        console.log('角色删除后的状态已保存到 localStorage');
-        return newState;
-      } catch (error) {
-        console.error('保存状态到 localStorage 失败:', error);
-        return {
-          ...state,
-          characters: updatedCharacters,
-          error: '删除成功但保存状态失败'
-        };
-      }
-    }
-    
-    case 'SET_LOADING': {
-      const loading = action.payload;
+    case 'DELETE_CHARACTER':
       return {
         ...state,
-        loading
+        characters: state.characters.filter(char => char.id !== action.payload)
       };
-    }
     
-    case 'SET_ERROR': {
-      const error = action.payload;
+    case 'SET_ERROR':
       return {
         ...state,
-        error,
+        error: action.payload,
         loading: false
       };
-    }
     
-    case 'ADD_TEMPLATE': {
-      console.log('ADD_TEMPLATE - Current templates:', state.templates);
-      console.log('ADD_TEMPLATE - Adding template:', action.payload);
-      // 检查是否已存在相同ID的模板
-      const existingTemplate = state.templates.find(t => t.id === action.payload.id);
-      if (existingTemplate) {
-        newState = {
-          ...state,
-          templates: state.templates.map(t =>
-            t.id === action.payload.id ? action.payload : t
-          ),
-        };
-      } else {
-        newState = {
-          ...state,
-          templates: [...state.templates, action.payload],
-        };
-      }
-      console.log('ADD_TEMPLATE - New state:', newState);
-      break;
-    }
-    case 'DELETE_TEMPLATE':
-      newState = {
-        ...state,
-        templates: state.templates.filter((template) => template.id !== action.payload),
-      };
-      break;
-    case 'SET_TEMPLATES':
-      console.log('SET_TEMPLATES - Payload:', action.payload);
-      newState = {
-        ...state,
-        templates: Array.isArray(action.payload) ? [...action.payload] : [],
-      };
-      console.log('SET_TEMPLATES - New state:', newState);
-      break;
-    case 'SET_STATE': {
-      console.group('SET_STATE - Character Processing');
-      console.log('Current state:', {
-        charactersCount: state.characters.length,
-        characters: state.characters.map(c => ({ id: c.id, name: c.name }))
-      });
-      console.log('Payload:', {
-        hasCharacters: Array.isArray(action.payload.characters),
-        charactersCount: action.payload.characters?.length || 0,
-        characters: action.payload.characters?.map((c: any) => ({ id: c.id, name: c.name }))
-      });
-      
-      // 处理角色数据
-      const characters = Array.isArray(action.payload.characters) 
-        ? action.payload.characters.map((char: any) => {
-            console.log('Processing character:', {
-              id: char.id,
-              name: char.name,
-              hasCallConfig: !!char.callConfig
-            });
-            
-            return {
-              ...char,
-              id: char.id || `char_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
-              name: char.name || '未命名角色',
-              persona: char.persona || {
-                personality: [],
-                speakingStyle: '',
-                background: '',
-                values: [],
-                argumentationStyle: []
-              },
-              callConfig: char.callConfig || {
-                type: 'direct'
-              },
-              createdAt: char.createdAt || Date.now(),
-              updatedAt: Date.now()
-            };
-          })
-        : state.characters;
-        
-      console.log('Processed characters:', {
-        count: characters.length,
-        characters: characters.map((c: any) => ({ id: c.id, name: c.name }))
-      });
-      
-      // 创建新状态
-      const newState = {
-        ...state,
-        characters,
-        templates: Array.isArray(action.payload.templates) 
-          ? action.payload.templates 
-          : state.templates,
-        activeMode: action.payload.activeMode || state.activeMode,
-        difyConfig: action.payload.difyConfig 
-          ? { ...state.difyConfig, ...action.payload.difyConfig }
-          : state.difyConfig,
-        directConfig: action.payload.directConfig
-          ? { ...state.directConfig, ...action.payload.directConfig }
-          : state.directConfig,
-        loading: false
-      };
-      
-      console.log('New state:', {
-        charactersCount: newState.characters.length,
-        characters: newState.characters.map((c: any) => ({ id: c.id, name: c.name }))
-      });
-      console.groupEnd();
-      
-      return newState;
-    }
-    case 'SET_ACTIVE_MODE':
-      newState = {
-        ...state,
-        activeMode: action.payload,
-      };
-      break;
-    case 'SET_DIFY_CONFIG':
-      newState = {
-        ...state,
-        difyConfig: action.payload,
-      };
-      break;
-    case 'SET_DIRECT_CONFIG':
-      newState = {
-        ...state,
-        directConfig: action.payload,
-      };
-      break;
-    case 'SAVE_CALL_CONFIG':
-      newState = {
-        ...state,
-        activeMode: action.payload.type,
-        ...(action.payload.type === 'dify'
-          ? { difyConfig: action.payload.config as DifyConfig }
-          : { directConfig: action.payload.config as DirectAPIConfig }),
-      };
-      break;
     default:
-      console.log('Unknown action type:', (action as CharacterAction).type);
       return state;
   }
-  
-  console.log('Final new state:', newState);
-  return newState;
 }
 
 // Provider组件
 export function CharacterProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(characterReducer, initialState);
   const characterService = new CharacterConfigService();
+  const [lastAction, setLastAction] = useState<CharacterAction | null>(null);
 
   // 初始化时加载数据
   useEffect(() => {
@@ -317,41 +119,7 @@ export function CharacterProvider({ children }: { children: React.ReactNode }) {
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         const characters = await characterService.getActiveCharacters();
-        const templates = await characterService.getTemplates();
-        
-        // 确保所有必需的字段都存在
-        const processedCharacters = characters.map(char => ({
-          ...char,
-          isTemplate: false,
-          createdAt: char.createdAt || Date.now(),
-          updatedAt: char.updatedAt || Date.now(),
-          description: char.description || '',
-          callConfig: {
-            ...char.callConfig,
-            type: char.callConfig.type || 'direct',
-            direct: char.callConfig.direct ? {
-              modelId: char.callConfig.direct.modelId || ''
-            } : undefined
-          }
-        }));
-
-        const processedTemplates = templates.map(temp => ({
-          ...temp,
-          isTemplate: true,
-          createdAt: temp.createdAt || Date.now(),
-          updatedAt: temp.updatedAt || Date.now(),
-          description: temp.description || ''
-        }));
-
-        dispatch({
-          type: 'SET_STATE',
-          payload: {
-            ...initialState,
-            characters: processedCharacters,
-            templates: [...defaultTemplates, ...processedTemplates],
-            loading: false
-          } as CharacterState
-        });
+        dispatch({ type: 'SET_CHARACTERS', payload: characters });
       } catch (error) {
         console.error('加载角色数据失败:', error);
         dispatch({ 
@@ -360,62 +128,31 @@ export function CharacterProvider({ children }: { children: React.ReactNode }) {
         });
       }
     }
-    
     loadData();
   }, []);
 
   // 监听状态变化，保存到localStorage
   useEffect(() => {
-    if (!state.loading) {
+    if (!state.loading && lastAction) {
       const saveData = async () => {
         try {
-          // 保存角色数据
-          const characters = state.characters.filter(char => !char.isTemplate);
-          await Promise.all(characters.map(async (char) => {
-            try {
-              const existing = await characterService.getById(char.id);
-              if (existing) {
-                await characterService.update(char.id, {
-                  ...char,
-                  isTemplate: false,
-                  updatedAt: Date.now()
-                });
-              } else {
-                await characterService.create({
-                  ...char,
-                  isTemplate: false,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now()
-                });
-              }
-            } catch (error) {
-              console.error(`保存角色 ${char.id} 失败:`, error);
+          switch (lastAction.type) {
+            case 'ADD_CHARACTER': {
+              console.log('Saving new character:', lastAction.payload);
+              await characterService.create(lastAction.payload);
+              break;
             }
-          }));
-
-          // 保存模板数据
-          const templates = state.templates.filter(temp => temp.isTemplate);
-          await Promise.all(templates.map(async (temp) => {
-            try {
-              const existing = await characterService.getById(temp.id);
-              if (existing) {
-                await characterService.update(temp.id, {
-                  ...temp,
-                  isTemplate: true,
-                  updatedAt: Date.now()
-                });
-              } else {
-                await characterService.create({
-                  ...temp,
-                  isTemplate: true,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now()
-                });
-              }
-            } catch (error) {
-              console.error(`保存模板 ${temp.id} 失败:`, error);
+            case 'UPDATE_CHARACTER': {
+              console.log('Saving updated character:', lastAction.payload);
+              await characterService.update(lastAction.payload.id, lastAction.payload);
+              break;
             }
-          }));
+            case 'DELETE_CHARACTER': {
+              console.log('Deleting character:', lastAction.payload);
+              await characterService.delete(lastAction.payload);
+              break;
+            }
+          }
         } catch (error) {
           console.error('保存数据失败:', error);
           dispatch({ 
@@ -427,10 +164,15 @@ export function CharacterProvider({ children }: { children: React.ReactNode }) {
 
       saveData();
     }
-  }, [state.characters, state.templates]);
+  }, [state.characters, lastAction]);
+
+  const dispatchWithTracking = useCallback((action: CharacterAction) => {
+    setLastAction(action);
+    dispatch(action);
+  }, []);
 
   return (
-    <CharacterContext.Provider value={{ state, dispatch }}>
+    <CharacterContext.Provider value={{ state, dispatch: dispatchWithTracking }}>
       {children}
     </CharacterContext.Provider>
   );

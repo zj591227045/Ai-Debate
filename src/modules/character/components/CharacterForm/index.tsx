@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Tabs, Steps, message } from 'antd';
 import { UserOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons';
-import { CharacterConfig } from '../../types';
+import type { CharacterConfig } from '../../types/character';
 import BasicInfo from './BasicInfo';
 import PersonaConfig from './PersonaConfig';
 import CallModeConfig from './CallModeConfig';
@@ -19,6 +19,62 @@ interface CharacterFormProps {
   onCancel?: () => void;
 }
 
+interface StepComponentProps {
+  data: CharacterConfig;
+  onChange: (data: Partial<CharacterConfig>) => void;
+}
+
+type StepComponent = React.ComponentType<StepComponentProps>;
+
+interface Step {
+  title: string;
+  icon: React.ReactNode;
+  component: StepComponent;
+}
+
+const steps: Step[] = [
+  {
+    title: '基本信息',
+    icon: <UserOutlined />,
+    component: BasicInfo,
+  },
+  {
+    title: '人设配置',
+    icon: <RobotOutlined />,
+    component: PersonaConfig,
+  },
+  {
+    title: '调用配置',
+    icon: <SettingOutlined />,
+    component: CallModeConfig,
+  }
+];
+
+const createDefaultCharacter = (now: number): CharacterConfig => ({
+  id: '',
+  name: '',
+  description: '',
+  isTemplate: false,
+  persona: {
+    personality: [],
+    speakingStyle: '',
+    background: '',
+    values: [],
+    argumentationStyle: [],
+    customDescription: '',
+  },
+  callConfig: {
+    type: 'direct',
+    direct: {
+      provider: PROVIDERS.OLLAMA,
+      modelId: '',
+      model: ''
+    }
+  },
+  createdAt: now,
+  updatedAt: now
+});
+
 export default function CharacterForm({ 
   character, 
   onSubmit, 
@@ -26,47 +82,38 @@ export default function CharacterForm({
 }: CharacterFormProps) {
   const { dispatch } = useCharacter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<Partial<CharacterConfig>>(
-    character || {
-      id: uuidv4(),
-      name: '',
-      description: '',
-      persona: {
-        personality: [],
-        speakingStyle: '',
-        background: '',
-        values: [],
-        argumentationStyle: [],
-        customDescription: '',
-      },
-      callConfig: {
-        type: 'direct' as const,
-        direct: {
-          provider: PROVIDERS.OLLAMA,
-          modelId: '',
-          model: ''
+  const [formData, setFormData] = useState<CharacterConfig>(() => {
+    const now = Date.now();
+    if (character) {
+      // 确保保留所有必需字段
+      const base = createDefaultCharacter(now);
+      return {
+        ...base,
+        ...character,
+        id: character.id || uuidv4(),
+        createdAt: character.createdAt || now,
+        updatedAt: now,
+        isTemplate: character.isTemplate || false,
+        persona: {
+          ...base.persona,
+          ...character.persona
+        },
+        callConfig: {
+          ...base.callConfig,
+          ...character.callConfig
         }
-      }
+      };
     }
-  );
+    return createDefaultCharacter(now);
+  });
 
-  const steps = [
-    {
-      title: '基本信息',
-      icon: <UserOutlined />,
-      component: BasicInfo,
-    },
-    {
-      title: '人设配置',
-      icon: <RobotOutlined />,
-      component: PersonaConfig,
-    },
-    {
-      title: '调用配置',
-      icon: <SettingOutlined />,
-      component: CallModeConfig,
-    }
-  ];
+  const handleFormDataChange = (data: Partial<CharacterConfig>) => {
+    setFormData(prev => ({
+      ...prev,
+      ...data,
+      updatedAt: Date.now()
+    }));
+  };
 
   const handleStepChange = (step: number) => {
     // 验证当前步骤
@@ -79,18 +126,6 @@ export default function CharacterForm({
       return;
     }
     setCurrentStep(step);
-  };
-
-  const handleFormDataChange = (data: Partial<CharacterConfig>) => {
-    console.log('表单数据变更:', data);
-    setFormData((prev) => {
-      const newData = {
-        ...prev,
-        ...data,
-      };
-      console.log('更新后的表单数据:', newData);
-      return newData;
-    });
   };
 
   const handleSubmit = () => {
@@ -131,41 +166,52 @@ export default function CharacterForm({
       return;
     }
 
-    // 生成一个唯一的英文ID
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    const characterId = character?.id || `char_${timestamp}_${randomStr}`;
-
-    const completeCharacter: CharacterConfig = {
-      id: characterId,
-      name: formData.name!,
-      avatar: formData.avatar,
+    const now = Date.now();
+    const completeData: CharacterConfig = {
+      ...formData,
+      id: formData.id || uuidv4(),
+      name: formData.name,
       description: formData.description || '',
       persona: {
-        personality: formData.persona!.personality,
-        speakingStyle: formData.persona!.speakingStyle,
-        background: formData.persona!.background,
-        values: formData.persona!.values,
-        argumentationStyle: formData.persona!.argumentationStyle,
-        customDescription: formData.persona!.customDescription || '',
+        personality: formData.persona.personality,
+        speakingStyle: formData.persona.speakingStyle,
+        background: formData.persona.background,
+        values: formData.persona.values,
+        argumentationStyle: formData.persona.argumentationStyle,
+        customDescription: formData.persona.customDescription || ''
       },
-      callConfig: formData.callConfig!,
-      createdAt: character?.createdAt || timestamp,
-      updatedAt: timestamp,
+      callConfig: {
+        type: formData.callConfig.type,
+        direct: formData.callConfig.type === 'direct' ? {
+          provider: formData.callConfig.direct?.provider || PROVIDERS.OLLAMA,
+          modelId: formData.callConfig.direct?.modelId || '',
+          model: formData.callConfig.direct?.model || ''
+        } : undefined,
+        dify: formData.callConfig.type === 'dify' ? {
+          serverUrl: formData.callConfig.dify?.serverUrl || '',
+          apiKey: formData.callConfig.dify?.apiKey || ''
+        } : undefined
+      },
+      isTemplate: formData.isTemplate || false,
+      createdAt: formData.createdAt || now,
+      updatedAt: now
     };
 
-    console.log('准备保存角色:', completeCharacter);
-    
+    console.log('准备保存角色配置:', completeData);
+
+    // 更新状态
     if (character) {
-      console.log('更新现有角色');
-      dispatch({ type: 'UPDATE_CHARACTER', payload: completeCharacter });
+      // 如果是编辑现有角色
+      dispatch({ type: 'UPDATE_CHARACTER', payload: completeData });
+      console.log('更新现有角色:', completeData.id);
     } else {
-      console.log('创建新角色');
-      dispatch({ type: 'ADD_CHARACTER', payload: completeCharacter });
+      // 如果是创建新角色
+      dispatch({ type: 'ADD_CHARACTER', payload: completeData });
+      console.log('创建新角色:', completeData.id);
     }
-    
+ 
     message.success('保存成功');
-    onSubmit?.(completeCharacter);
+    onSubmit?.(completeData);
   };
 
   const CurrentStepComponent = steps[currentStep].component;

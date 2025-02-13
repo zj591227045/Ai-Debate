@@ -23,7 +23,7 @@ import { DEFAULT_PROVIDERS } from '../../types';
 
 interface ModelFormProps {
   initialValues?: ModelConfig;
-  onSubmit: (values: ModelConfig) => void;
+  onSubmit: (values: Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel?: () => void;
 }
 
@@ -65,23 +65,20 @@ const createInitialState = (model?: ModelConfig): PartialModelConfig => ({
 });
 
 export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, onCancel }) => {
-  const { dispatch } = useModel();
+  const { addModel, updateModel } = useModel();
   const [form] = Form.useForm();
   const [provider, setProvider] = useState<string>(initialValues?.provider || '');
   const initialState = initialValues || {
     name: '',
     provider: 'ollama',
     model: '',
-    parameters: {
-      temperature: 0.7,
-      topP: 0.9,
-      maxTokens: 2000
-    },
+    parameters: defaultParameters,
     auth: {
       baseUrl: 'http://localhost:11434',
       apiKey: '',
       organizationId: ''
-    }
+    },
+    isEnabled: true
   };
 
   const [formData, setFormData] = useState<ModelConfig>({
@@ -114,47 +111,16 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
   const [error, setError] = useState<string | null>(null);
   const [currentTestConfig, setCurrentTestConfig] = useState<ModelConfig | null>(null);
 
-  const handleProviderChange = async (value: string) => {
-    console.log('Provider changing to:', value);
-    
-    // 验证供应商是否支持
-    if (!ProviderFactory.isProviderSupported(value)) {
-      message.error(`不支持的供应商: ${value}`);
-      return;
-    }
-
-    const defaultBaseUrl = DEFAULT_PROVIDERS.find(p => p.id === value)?.defaultBaseUrl || '';
-    
-    // 更新 formData
-    setFormData(prev => ({
-      ...prev,
-      provider: value,
-      model: '',
-      auth: {
-        ...prev.auth,
-        baseUrl: defaultBaseUrl
-      }
-    }));
-    
-    // 更新表单字段
-    form.setFieldsValue({
-      provider: value,
-      model: undefined,
-      auth: {
-        baseUrl: defaultBaseUrl,
-        apiKey: form.getFieldValue(['auth', 'apiKey']) // 保持原有的 API Key
-      }
-    });
-
-    // 等待表单更新完成后刷新模型列表
-    setTimeout(() => {
-      console.log('Refreshing models with form values:', {
-        provider: form.getFieldValue('provider'),
-        baseUrl: form.getFieldValue(['auth', 'baseUrl']),
-        apiKey: form.getFieldValue(['auth', 'apiKey'])
+  const handleProviderChange = (value: string) => {
+    setProvider(value);
+    const providerConfig = DEFAULT_PROVIDERS.find(p => p.id === value);
+    if (providerConfig) {
+      form.setFieldsValue({
+        auth: {
+          baseUrl: providerConfig.defaultBaseUrl || ''
+        }
       });
-      refreshModelList();
-    }, 0);
+    }
   };
 
   const refreshModelList = async () => {
@@ -342,34 +308,12 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     setShowTestDialog(true);
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async () => {
     try {
-      setLoading(true);
-      
-      // 合并表单值和 formData
-      const mergedConfig = {
-        ...formData,
-        ...values,
-        id: formData.id || uuidv4(),
-        createdAt: formData.createdAt || Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      // 适配配置
-      const config = adaptModelConfig(mergedConfig);
-
-      // 验证配置
-      const provider = await llmService.getInitializedProvider(config);
-      await provider.validateConfig();
-      
-      // 提交配置
-      onSubmit(config);
-      message.success('配置保存成功');
-    } catch (error) {
-      console.error('保存配置失败:', error);
-      message.error('保存配置失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      setLoading(false);
+      const values = await form.validateFields();
+      onSubmit(values);
+    } catch (err) {
+      console.error('表单验证失败:', err);
     }
   };
 
@@ -455,43 +399,139 @@ export const ModelForm: React.FC<ModelFormProps> = ({ initialValues, onSubmit, o
     }
   };
 
+  useEffect(() => {
+    form.setFieldsValue(initialState);
+  }, [form, initialState]);
+
   return (
-    <Form form={form} onFinish={handleSubmit} initialValues={initialState}>
+    <Form
+      form={form}
+      layout="vertical"
+      className="model-form"
+      initialValues={initialState}
+    >
       <Form.Item
-        label="名称"
         name="name"
-        rules={[{ required: true, message: '请输入名称' }]}
+        label="名称"
+        rules={[{ required: true, message: '请输入模型配置名称' }]}
       >
-        <Input />
+        <Input placeholder="请输入模型配置名称" />
       </Form.Item>
 
       <Form.Item
-        label="供应商"
         name="provider"
+        label="供应商"
         rules={[{ required: true, message: '请选择供应商' }]}
       >
-        <ProviderSelect onChange={handleProviderChange} />
+        <Select
+          placeholder="请选择供应商"
+          onChange={handleProviderChange}
+        >
+          {DEFAULT_PROVIDERS.map(provider => (
+            <Select.Option key={provider.id} value={provider.id}>
+              {provider.name}
+            </Select.Option>
+          ))}
+        </Select>
       </Form.Item>
 
       {/* 根据供应商渲染不同的配置表单 */}
       {renderProviderConfig()}
 
-      <Form.Item>
+      <Form.Item
+        name="model"
+        label="模型"
+        rules={[{ required: true, message: '请选择模型' }]}
+      >
+        <Select placeholder="请选择模型">
+          {DEFAULT_PROVIDERS.find(p => p.id === provider)?.models.map(model => (
+            <Select.Option key={model} value={model}>
+              {model}
+            </Select.Option>
+          ))}
+        </Select>
+      </Form.Item>
+
+      <Form.Item
+        label="参数配置"
+        required
+      >
+        <Form.Item
+          name={['parameters', 'temperature']}
+          label="Temperature"
+        >
+          <Slider
+            min={0}
+            max={2}
+            step={0.1}
+            defaultValue={defaultParameters.temperature}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name={['parameters', 'topP']}
+          label="Top P"
+        >
+          <Slider
+            min={0}
+            max={1}
+            step={0.1}
+            defaultValue={defaultParameters.topP}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name={['parameters', 'maxTokens']}
+          label="Max Tokens"
+        >
+          <Slider
+            min={100}
+            max={8192}
+            step={100}
+            defaultValue={defaultParameters.maxTokens}
+          />
+        </Form.Item>
+      </Form.Item>
+
+      <Form.Item label="认证配置">
+        <Form.Item
+          name={['auth', 'baseUrl']}
+          label="Base URL"
+        >
+          <Input placeholder="请输入Base URL" />
+        </Form.Item>
+
+        <Form.Item
+          name={['auth', 'apiKey']}
+          label="API Key"
+        >
+          <Input.Password placeholder="请输入API Key" />
+        </Form.Item>
+
+        <Form.Item
+          name={['auth', 'organizationId']}
+          label="Organization ID"
+        >
+          <Input placeholder="请输入Organization ID（可选）" />
+        </Form.Item>
+      </Form.Item>
+
+      <Form.Item
+        name="isEnabled"
+        valuePropName="checked"
+        initialValue={true}
+      >
         <Space>
-          <Button type="primary" htmlType="submit" loading={loading}>
-            保存
-          </Button>
-          <Button onClick={onCancel}>
-            取消
-          </Button>
-          <Button onClick={handleTestConnection} loading={isLoadingModels}>
-            测试连接
-          </Button>
-          <Button onClick={handleChatTest} loading={isLoadingModels}>
-            对话测试
-          </Button>
+          启用此配置
         </Space>
       </Form.Item>
+
+      <div className="form-actions">
+        <Button onClick={onCancel}>取消</Button>
+        <Button type="primary" onClick={handleSubmit}>
+          保存
+        </Button>
+      </div>
 
       {showTestDialog && currentTestConfig && (
         <ModelTestDialog

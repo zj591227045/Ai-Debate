@@ -19,7 +19,9 @@ export const callConfigSchema = z.object({
     apiKey: z.string(),
   }).optional(),
   direct: z.object({
+    provider: z.string(),
     modelId: z.string(),
+    model: z.string(),
   }).optional(),
 });
 

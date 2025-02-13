@@ -23,14 +23,16 @@ export const characterConfigSchema = z.object({
       apiKey: z.string(),
     }).optional(),
     direct: z.object({
+      provider: z.string(),
       modelId: z.string(),
+      model: z.string(),
     }).optional(),
   }),
   
   isTemplate: z.boolean().default(false),
   templateId: z.string().optional(),
-  createdAt: z.number().optional(),
-  updatedAt: z.number().optional(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
 }).transform((data) => ({
   ...data,
   isTemplate: data.isTemplate ?? false,

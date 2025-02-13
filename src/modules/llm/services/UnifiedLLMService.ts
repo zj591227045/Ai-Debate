@@ -6,7 +6,7 @@ import { LLMProvider } from './provider/base';
 import { ProviderManager } from './ProviderManager';
 import { LLMError, LLMErrorCode } from '../types/error';
 import type { ChatRequest, ChatResponse, ServiceStatus } from '../api/types';
-import { ModelConfig } from '../types/config';
+import type { ModelConfig } from '../../model/types';
 import { moduleEventBus } from './events';
 import { LLMEvents } from '../api/events';
 import { StoreManager } from '../../state/core/StoreManager';
@@ -120,5 +120,16 @@ export class UnifiedLLMService {
     const llmStore = this.getLLMStore();
     llmStore.setCurrentModel(config.model);
     console.log('Model config set:', config);
+  }
+
+  // 测试模型连接
+  public async testConnection(config: ModelConfig): Promise<void> {
+    try {
+      const provider = await this.getInitializedProvider(config);
+      await provider.validateConfig();
+    } catch (error) {
+      console.error('测试连接失败:', error);
+      throw error;
+    }
   }
 } 

@@ -1,69 +1,52 @@
 import React from 'react';
-import { CharacterConfig } from '../../types';
+import { Select } from 'antd';
 import { useModel } from '../../../model/context/ModelContext';
+import type { CharacterConfig } from '../../types/character';
+import type { ModelConfig } from '../../../model/types';
 import './styles.css';
+import { PROVIDERS } from '../../../llm/types/providers';
 
 interface ModelSelectProps {
-  data: Partial<CharacterConfig>;
-  onChange: (data: Partial<CharacterConfig>) => void;
+  data: CharacterConfig;
+  onChange: (config: Partial<CharacterConfig>) => void;
 }
 
 export default function ModelSelect({ data, onChange }: ModelSelectProps) {
-  const { state } = useModel();
-  const { models } = state;
+  const { models } = useModel();
 
   const handleModelChange = (modelId: string) => {
-    const model = models.find(m => m.id === modelId);
-    const newConfig: Partial<CharacterConfig> = {
+    const model = models.find((model: ModelConfig) => model.id === modelId);
+    onChange({
       ...data,
       callConfig: {
         type: 'direct',
         direct: {
-          provider: model?.provider || 'ollama',
+          provider: model?.provider || PROVIDERS.OLLAMA,
           modelId,
-          model: model?.name || modelId
+          model: model?.model || ''
         }
       }
-    };
-    onChange(newConfig);
+    });
   };
 
   const getProviderName = (modelId: string) => {
-    const model = models.find(m => m.id === modelId);
+    const model = models.find((model: ModelConfig) => model.id === modelId);
     return model?.provider || 'Unknown Provider';
   };
 
   return (
     <div className="model-select">
-      <div className="model-list">
-        {models.map((model: { id: string; name: string }) => {
-          const providerName = getProviderName(model.id);
-          const isSelected = data.callConfig?.type === 'direct' && 
-                           data.callConfig.direct?.modelId === model.id;
-
-          return (
-            <div
-              key={model.id}
-              className={`model-item ${isSelected ? 'selected' : ''}`}
-              onClick={() => handleModelChange(model.id)}
-            >
-              <div className="model-info">
-                <div className="model-name">{model.name}</div>
-                <div className="model-provider">{providerName}</div>
-              </div>
-              {isSelected && (
-                <div className="selected-indicator">✓</div>
-              )}
-            </div>
-          );
-        })}
-
-        {models.length === 0 && (
-          <div className="empty-state">
-            <p>暂无可用的模型配置，请先在模型管理中添加配置</p>
-          </div>
-        )}
-      </div>
+      <Select
+        value={data.callConfig?.direct?.modelId}
+        onChange={handleModelChange}
+        placeholder="选择模型"
+      >
+        {models.map((model: ModelConfig) => (
+          <Select.Option key={model.id} value={model.id}>
+            {model.name} ({getProviderName(model.id)})
+          </Select.Option>
+        ))}
+      </Select>
     </div>
   );
 } 

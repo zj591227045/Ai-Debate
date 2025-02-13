@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
+import RoleAssignmentPanel from '../components/debate/RoleAssignmentPanel';
 import { useRoleAssignment } from '../hooks/useRoleAssignment';
 import { Player, DebateRole } from '../types/player';
 import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
@@ -413,8 +413,18 @@ const GameConfigContent: React.FC = () => {
   };
 
   const handleSelectCharacter = (playerId: string, characterId: string) => {
-    updatePlayer(playerId, {
-      characterId,
+    // 更新玩家的角色配置
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...p, characterId } : p
+    );
+    
+    // 立即更新本地状态
+    updatePlayer(playerId, { characterId });
+    
+    // 更新全局游戏配置
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
     });
   };
 
@@ -463,11 +473,7 @@ const GameConfigContent: React.FC = () => {
       case 'characters':
         return <CharacterList />;
       case 'models':
-        return (
-          <ModelProvider>
-            <ModelList />
-          </ModelProvider>
-        );
+        return <ModelList />;
       default:
         return null;
     }
@@ -535,7 +541,9 @@ const GameConfigContent: React.FC = () => {
 export const GameConfig: React.FC = () => {
   return (
     <CharacterProvider>
-      <GameConfigContent />
+      <ModelProvider>
+        <GameConfigContent />
+      </ModelProvider>
     </CharacterProvider>
   );
 };

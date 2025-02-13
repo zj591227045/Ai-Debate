@@ -36,9 +36,9 @@ export interface CharacterConfig {
   };
   
   // 元数据
-  createdAt?: number;
-  updatedAt?: number;
-  isTemplate?: boolean;
+  createdAt: number;
+  updatedAt: number;
+  isTemplate: boolean;
   templateId?: string;  // 新增：用于记录角色是从哪个模板创建的
 }
 
@@ -79,6 +79,9 @@ export interface CharacterTemplate {
   description: string;
   persona: CharacterConfig['persona'];
   callConfig: CharacterConfig['callConfig'];
+  isTemplate: boolean;
+  createdAt: number;
+  updatedAt: number;
 }
 
 // 选项常量

@@ -73,9 +73,9 @@ export const useDebateFlow = ({
         .filter(p => p.role !== 'judge')
         .map(p => p.id);
     } else {
-      // 自由辩论随机顺序
+      // 自由辩论模式下所有参与者都是free角色
       return players
-        .filter(p => p.role !== 'judge')
+        .filter(p => p.role === 'free' || p.role === 'unassigned')
         .map(p => p.id)
         .sort(() => Math.random() - 0.5);
     }

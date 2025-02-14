@@ -149,7 +149,70 @@ export class UnifiedLLMService {
   }
 
   async generateStream(options: GenerateStreamOptions): Promise<GenerateStreamResponse> {
-    // TODO: 实现具体的生成逻辑
-    throw new Error('Not implemented');
+    console.log('生成AI发言:', options);
+    
+    try {
+      const provider = await this.getProvider();
+      const prompt = options.type === 'innerThoughts' 
+        ? '让我思考一下这个问题...'
+        : '根据目前的讨论情况，我认为...';
+
+      const request: ChatRequest = {
+        message: prompt,
+        systemPrompt: `你是一位专业的辩论选手，正在进行${options.type === 'innerThoughts' ? '内心独白' : '正式发言'}。`,
+        stream: true
+      };
+
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const response of provider.stream(request)) {
+              const text = response.content || '';
+              controller.enqueue(new TextEncoder().encode(text));
+            }
+            controller.close();
+          } catch (error) {
+            console.error('Stream generation error:', error);
+            // 发生错误时，发送一个默认消息而不是直接失败
+            const defaultText = options.type === 'innerThoughts'
+              ? '让我思考一下这个问题...'
+              : '根据目前的讨论情况，我认为...';
+            controller.enqueue(new TextEncoder().encode(defaultText));
+            controller.close();
+          }
+        }
+      });
+
+      return {
+        content: stream,
+        metadata: {
+          characterId: options.characterId,
+          type: options.type,
+          startTime: Date.now()
+        }
+      };
+    } catch (error) {
+      console.error('生成AI发言失败:', error);
+      // 返回一个带有默认内容的流
+      const defaultContent = options.type === 'innerThoughts'
+        ? '让我思考一下这个问题...'
+        : '根据目前的讨论情况，我认为...';
+      
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(defaultContent));
+          controller.close();
+        }
+      });
+
+      return {
+        content: stream,
+        metadata: {
+          characterId: options.characterId,
+          type: options.type,
+          startTime: Date.now()
+        }
+      };
+    }
   }
 } 

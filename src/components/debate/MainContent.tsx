@@ -72,7 +72,10 @@ const convertToBaseDebateSpeech = (speech: Speech): BaseDebateSpeech => ({
   ...speech,
   timestamp: speech.timestamp.toISOString(),
   round: 1,
-  references: speech.references || []
+  references: speech.references || [],
+  role: speech.type === 'innerThoughts' ? 'assistant' : 
+        speech.type === 'system' ? 'system' : 'assistant',
+  type: speech.type
 });
 
 export const MainContent: React.FC<MainContentProps> = ({
@@ -96,7 +99,7 @@ export const MainContent: React.FC<MainContentProps> = ({
     onSpeechEdited: onSpeechEdited as ((speech: Speech) => void) | undefined
   });
 
-  const handleSubmitSpeech = async (content: string, type: 'speech' | 'innerThought', references?: string[]) => {
+  const handleSubmitSpeech = async (content: string, type: 'speech' | 'innerThoughts' | 'system', references?: string[]) => {
     if (!currentSpeaker) return false;
     const currentPlayer = players.find(p => p.name === currentSpeaker);
     if (!currentPlayer) return false;

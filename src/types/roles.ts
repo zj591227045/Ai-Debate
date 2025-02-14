@@ -16,7 +16,7 @@ export type DebaterPosition = '1' | '2' | '3';
 /**
  * 辩手角色类型
  */
-export type DebateRole = 'affirmative1' | 'affirmative2' | 'negative1' | 'negative2' | 'judge' | 'timekeeper' | 'unassigned' | 'observer';
+export type DebateRole = 'affirmative1' | 'affirmative2' | 'negative1' | 'negative2' | 'judge' | 'timekeeper' | 'unassigned' | 'observer' | 'free';
 
 /**
  * 统一角色类型
@@ -127,6 +127,11 @@ export const ROLE_MAPPINGS: Record<UnifiedRole, RoleMapping> = {
     unified: 'unassigned',
     display: '未分配',
     legacy: 'unassigned'
+  },
+  free: {
+    unified: 'free',
+    display: '自由',
+    legacy: 'neutral'
   }
 } as const;
 
@@ -142,4 +147,16 @@ export function generateId(): string {
  */
 export function getDefaultRoleStatus(role: UnifiedRole): RoleStatus {
   return 'waiting';
-} 
+}
+
+export const roleMap: Record<DebateRole, 'for' | 'against' | 'neutral'> = {
+  'affirmative1': 'for',
+  'affirmative2': 'for',
+  'negative1': 'against',
+  'negative2': 'against',
+  'judge': 'neutral',
+  'timekeeper': 'neutral',
+  'unassigned': 'neutral',
+  'observer': 'neutral',
+  'free': 'neutral'
+}; 

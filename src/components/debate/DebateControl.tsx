@@ -19,9 +19,19 @@ const Container = styled.div`
   align-items: center;
   gap: 16px;
   padding: 12px;
-  background-color: var(--color-bg-white);
+  background-color: #ffffff;
   border-radius: 8px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  --color-bg-white: #ffffff;
+  --color-bg-light: #f5f5f5;
+  --color-text-primary: #1f1f1f;
+  --color-text-secondary: #666666;
+  --color-primary: #1890ff;
+  --color-primary-dark: #096dd9;
+  --color-error: #ff4d4f;
+  --color-error-dark: #f5222d;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
 
 const RoundDisplay = styled.div`
@@ -32,12 +42,14 @@ const RoundDisplay = styled.div`
   background-color: var(--color-bg-light);
   border-radius: 4px;
   font-weight: bold;
+  color: var(--color-text-primary);
 `;
 
 const SpeakerInfo = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 120px;
 `;
 
 const SpeakerLabel = styled.span`
@@ -53,10 +65,15 @@ const SpeakerName = styled.span`
 const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: 8px 16px;
   border-radius: 4px;
-  border: none;
-  font-weight: bold;
+  border: 1px solid transparent;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
+  min-width: 90px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   ${props => {
     switch (props.variant) {
@@ -64,24 +81,31 @@ const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'dang
         return `
           background-color: var(--color-primary);
           color: white;
+          border-color: var(--color-primary);
           &:hover {
             background-color: var(--color-primary-dark);
+            border-color: var(--color-primary-dark);
           }
         `;
       case 'danger':
         return `
           background-color: var(--color-error);
           color: white;
+          border-color: var(--color-error);
           &:hover {
             background-color: var(--color-error-dark);
+            border-color: var(--color-error-dark);
           }
         `;
       default:
         return `
           background-color: var(--color-bg-light);
           color: var(--color-text-primary);
+          border-color: #d9d9d9;
           &:hover {
-            background-color: var(--color-bg-hover);
+            color: var(--color-primary);
+            border-color: var(--color-primary);
+            background-color: white;
           }
         `;
     }
@@ -90,6 +114,9 @@ const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'dang
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    &:hover {
+      opacity: 0.5;
+    }
   }
 `;
 
@@ -116,8 +143,28 @@ export const DebateControl: React.FC<DebateControlProps> = ({
   onNextSpeaker,
   getPlayerName
 }) => {
+  // 检查是否是最后一轮
   const isLastRound = roundInfo.currentRound === roundInfo.totalRounds;
-  const isLastSpeaker = roundInfo.speakingOrder.indexOf(roundInfo.currentSpeaker || '') === roundInfo.speakingOrder.length - 1;
+  
+  // 检查是否是当前轮次的最后一个发言者
+  const currentSpeakerIndex = roundInfo.speakingOrder.indexOf(roundInfo.currentSpeaker || '');
+  const isLastSpeaker = currentSpeakerIndex === roundInfo.speakingOrder.length - 1;
+  
+  // 检查是否有下一个发言者
+  const hasNextSpeaker = roundInfo.nextSpeaker && roundInfo.nextSpeaker !== roundInfo.currentSpeaker;
+
+  // 调试信息
+  console.log('辩论控制状态:', {
+    status,
+    currentRound: roundInfo.currentRound,
+    totalRounds: roundInfo.totalRounds,
+    currentSpeaker: roundInfo.currentSpeaker,
+    nextSpeaker: roundInfo.nextSpeaker,
+    speakingOrder: roundInfo.speakingOrder,
+    isLastRound,
+    isLastSpeaker,
+    hasNextSpeaker
+  });
 
   return (
     <Container>
@@ -136,10 +183,10 @@ export const DebateControl: React.FC<DebateControlProps> = ({
         </SpeakerInfo>
       )}
 
-      {status !== 'preparing' && roundInfo.nextSpeaker && (
+      {status !== 'preparing' && hasNextSpeaker && (
         <SpeakerInfo>
           <SpeakerLabel>下一位</SpeakerLabel>
-          <SpeakerName>{getPlayerName(roundInfo.nextSpeaker)}</SpeakerName>
+          <SpeakerName>{getPlayerName(roundInfo.nextSpeaker || '')}</SpeakerName>
         </SpeakerInfo>
       )}
 
@@ -166,15 +213,16 @@ export const DebateControl: React.FC<DebateControlProps> = ({
             暂停
           </Button>
 
-          <Button
-            variant="primary"
-            onClick={onNextSpeaker}
-            disabled={!roundInfo.currentSpeaker}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            下一位发言
-          </Button>
+          {hasNextSpeaker && (
+            <Button
+              variant="primary"
+              onClick={onNextSpeaker}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              下一位发言
+            </Button>
+          )}
 
           {isLastSpeaker && !isLastRound && (
             <Button

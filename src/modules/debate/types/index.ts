@@ -42,7 +42,7 @@ export interface Speech {
   round: number;
   references?: string[];
   role: 'assistant' | 'user' | 'system';
-  type: 'speech' | 'innerThoughts';
+  type: 'speech' | 'innerThoughts' | 'system';
 }
 
 export interface BaseDebateSpeech {

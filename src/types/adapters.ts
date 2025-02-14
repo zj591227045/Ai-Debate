@@ -88,7 +88,8 @@ export const roleMap: Record<DebateRole, 'for' | 'against' | 'neutral'> = {
   'judge': 'neutral',
   'timekeeper': 'neutral',
   'unassigned': 'neutral',
-  'observer': 'neutral'
+  'observer': 'neutral',
+  'free': 'neutral'
 };
 
 // 统一角色映射
@@ -295,16 +296,27 @@ export const getSpecificRole = (
 };
 
 // 基础类型定义
+export type SpeechType = 'speech' | 'innerThoughts' | 'system';
+
 export interface BaseDebateSpeech {
   id: string;
   playerId: string;
   content: string;
   timestamp: string;
   round: number;
-  role?: 'user' | 'assistant';  // 设为可选
-  type?: 'speech' | 'innerThought';
   references: string[];
-  scores?: BaseDebateScore[];
+  role: 'assistant' | 'user' | 'system';
+  type: SpeechType;
+  scores?: Array<{
+    id: string;
+    totalScore: number;
+    dimensions: Record<string, number>;
+    comment?: string;
+  }>;
+  editHistory?: Array<{
+    content: string;
+    timestamp: Date;
+  }>;
 }
 
 export interface BaseDebateScore {

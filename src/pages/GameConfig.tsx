@@ -8,7 +8,6 @@ import { CharacterList, CharacterProvider, useCharacter } from '../modules/chara
 import { ModelProvider } from '../modules/model/context/ModelContext';
 import ModelList from '../modules/model/components/ModelList';
 import TopicRuleConfig from '../components/debate/TopicRuleConfig';
-import TemplateActions from '../components/debate/TemplateActions';
 import { defaultRuleConfig } from '../components/debate/RuleConfig';
 import type { RuleConfig } from '../types/rules';
 import { TemplateManager } from '../components/template/TemplateManager';
@@ -20,7 +19,6 @@ import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
 import { StateLogger } from '../modules/state/utils';
 import { StateDebugger } from '../components/debug/StateDebugger';
-import { GameConfigStore } from '../modules/state/stores/GameConfigStore';
 
 const logger = StateLogger.getInstance();
 
@@ -83,10 +81,10 @@ const Tab = styled.button<{ active: boolean }>`
 
 // 默认的初始AI玩家
 const defaultInitialPlayers: Player[] = [
-  { id: '1', name: '选手1', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '2', name: '选手2', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '3', name: '选手3', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '4', name: '选手4', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '1', name: '选手1', role: 'free' as DebateRole, isAI: true },
+  { id: '2', name: '选手2', role: 'free' as DebateRole, isAI: true },
+  { id: '3', name: '选手3', role: 'free' as DebateRole, isAI: true },
+  { id: '4', name: '选手4', role: 'free' as DebateRole, isAI: true },
 ];
 
 const defaultConfig = {
@@ -97,6 +95,8 @@ const defaultConfig = {
   minPlayers: 4,
   maxPlayers: 6,
   autoAssign: false,
+  format: 'free' as 'structured' | 'free',  // 默认使用自由辩论模式
+  defaultRole: 'free' as DebateRole
 };
 
 const GameConfigContent: React.FC = () => {
@@ -184,7 +184,7 @@ const GameConfigContent: React.FC = () => {
         rounds: 3
       },
       rules: {
-        debateFormat: 'structured',
+        debateFormat: 'free',  // 默认使用自由辩论模式
         description: '',
         advancedRules: {
           speechLengthLimit: {
@@ -204,9 +204,16 @@ const GameConfigContent: React.FC = () => {
       }
     };
     
-    // 更新全局状态，只修改 debate.rules 字段，保持其他字段不变
+    // 根据辩论格式更新玩家角色
+    const updatedPlayers = players.map(player => ({
+      ...player,
+      role: newRuleConfig.format === 'structured' ? 'unassigned' : 'free'
+    }));
+    
+    // 更新全局状态
     const updatedConfig: Partial<GameConfigState> = {
       ...gameConfig,
+      players: updatedPlayers,
       debate: {
         ...currentDebate,
         rules: {
@@ -246,6 +253,11 @@ const GameConfigContent: React.FC = () => {
     const fullConfig: GameConfigState = {
       debate: {
         ...debateConfig,
+        topic: {
+          title: debateConfig.topic.title,
+          description: debateConfig.topic.description,
+          rounds: debateConfig.topic.rounds || 3
+        },
         rules: {
           debateFormat: ruleConfig.format || 'structured',
           description: ruleConfig.description,
@@ -256,6 +268,11 @@ const GameConfigContent: React.FC = () => {
               max: ruleConfig.advancedRules.speechLengthLimit.max
             }
           }
+        },
+        judging: {
+          description: debateConfig.judging?.description || '',
+          dimensions: debateConfig.judging?.dimensions || [],
+          totalScore: debateConfig.judging?.totalScore || 100
         }
       },
       players: players.map(player => ({

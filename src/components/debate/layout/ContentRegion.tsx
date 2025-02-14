@@ -6,6 +6,13 @@ import { formatTimestamp } from '../../../utils/timestamp';
 type ContentComponents = DebateRoomLayout['regions']['content']['components'];
 type ContentStyle = DebateRoomLayout['regions']['content']['style'];
 
+interface SpeechScore {
+  id: string;
+  dimensions: Record<string, number>;
+  comment?: string;
+  totalScore: number;
+}
+
 // 内容区域容器
 const ContentContainer = styled.div<{ style: ContentStyle }>`
   display: flex;
@@ -89,7 +96,7 @@ export const ContentRegion: React.FC<ContentRegionProps> = ({
                   borderRadius: 4
                 }}
               >
-                <div>评分: {score.totalScore}</div>
+                <div>评分: {(score as SpeechScore).totalScore}</div>
                 <div>评语: {score.comment}</div>
                 <div>
                   维度得分:

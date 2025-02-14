@@ -56,9 +56,11 @@ export const AITestPanel: React.FC<AITestPanelProps> = ({
         id: Date.now().toString(),
         playerId: player.id,
         content,
-        round: context.currentRound,
+        round: 1,
         timestamp: new Date().toISOString(),
-        references: []
+        references: [],
+        role: 'assistant',
+        type: 'speech'
       };
 
       onSpeechGenerated(speech);

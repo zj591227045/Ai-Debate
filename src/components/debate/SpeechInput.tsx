@@ -213,7 +213,7 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
         <ButtonGroup>
           <Button
             variant="secondary"
-            onClick={() => setType(type === 'speech' ? 'innerThought' : 'speech')}
+            onClick={() => setType(type === 'speech' ? 'innerThoughts' : 'speech')}
             disabled={disabled || isSubmitting}
           >
             {type === 'speech' ? '切换到内心OS' : '切换到发言'}
@@ -222,7 +222,7 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
             onClick={handleSubmit}
             disabled={!canSubmit}
           >
-            发送{type === 'innerThought' ? '内心OS' : '发言'}
+            发送{type === 'innerThoughts' ? '内心OS' : '发言'}
           </Button>
         </ButtonGroup>
       </Controls>

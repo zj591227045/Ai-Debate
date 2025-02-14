@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { Tooltip, Divider, message, Spin, Result, Button } from 'antd';
@@ -14,18 +14,19 @@ import {
 import { Resizable } from 're-resizable';
 import { useCharacter } from '../modules/character/context/CharacterContext';
 import { useModel } from '../modules/model/context/ModelContext';
+import { useDebateFlow } from '../modules/debate/hooks/useDebateFlow';
 import type { CharacterConfig } from '../modules/character/types';
 import { CharacterConfigService } from '../modules/storage/services/CharacterConfigService';
 import { defaultTemplates, templateToCharacter } from '../modules/character/types/template';
-import { StateDebugger } from '../components/debug/StateDebugger';
 import { useStore } from '../modules/state';
-import type { UnifiedPlayer, Speech, BaseDebateSpeech } from '../types/adapters';
+import type { UnifiedPlayer, BaseDebateSpeech } from '../types/adapters';
+import type { DebateRole } from '../types/roles';
 import { createTimestamp } from '../utils/timestamp';
-import { DebugPanel } from '../components/debug/DebugPanel';
-import { AIPlayerList } from '../components/debug/AIPlayerList';
 import { SpeechList } from '../components/debate/SpeechList';
 import { DebateStatus, DebateProgress, DebateHistory, SessionAction, DebateState, SessionState } from '../modules/state/types/session';
-import { AITestPanel } from '../components/debug/AITestPanel';
+import type { DebateStatus as DebateFlowStatus } from '../modules/debate-flow/types/interfaces';
+import { DebateControl } from '../components/debate/DebateControl';
+import type { SpeechType } from '../types/adapters';
 
 // 主容器
 const Container = styled.div`
@@ -39,11 +40,28 @@ const Container = styled.div`
 // 顶部工具栏
 const TopBar = styled.div`
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 8px 16px;
-  background: white;
-  border-bottom: 1px solid #e8e8e8;
-  gap: 8px;
+  padding: 16px 24px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #f0f0f0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  .debate-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    margin: 0 24px;
+  }
+
+  .room-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 `;
 
 const ToolButton = styled.button`
@@ -331,7 +349,8 @@ const PlayerCard = styled.div<{ active?: boolean }>`
 
 const PlayerHeader = styled.div`
   display: flex;
-  align-items: center;
+  flex-direction: row;
+  align-items: flex-start;
   gap: 20px;
   padding: 20px;
 `;
@@ -347,9 +366,9 @@ const PlayerAvatar = styled.img`
 `;
 
 const PlayerInfo = styled.div`
-  flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
 `;
 
@@ -515,21 +534,193 @@ const PlayerListHeader = styled.div`
   background-color: ${props => props.theme.colors.background.secondary};
 `;
 
+const RoomTitle = styled.h1`
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--color-text-primary, #1f1f1f);
+`;
+
+// 添加UI状态类型定义
+interface UIState {
+  isLoading: boolean;
+  isDarkMode: boolean;
+  playerListWidth: number;
+  showDebugger: boolean;
+  currentSpeaker: UnifiedPlayer | null;
+  currentRound: number;
+  status: DebateStatus;
+  history: {
+    speeches: BaseDebateSpeech[];
+    scores: any[];
+  };
+  streamingSpeech: {
+    playerId: string;
+    content: string;
+  } | null;
+  players: UnifiedPlayer[];
+}
+
 export const DebateRoom: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { state: gameConfig } = useStore('gameConfig');
-  const { state: session, setState: setSession } = useStore('session');
   const { state: modelState } = useStore('model');
   const { state: characterState } = useCharacter();
   
-  const { 
-    uiState: { isLoading, isDarkMode, playerListWidth },
-    debateState
-  } = session;
+  // 初始化useDebateFlow
+  const { state: debateFlowState, error: debateFlowError, actions: debateFlowActions } = useDebateFlow(
+    useMemo(() => {
+      if (!gameConfig?.debate) {
+        console.log('游戏配置不存在，返回undefined');
+        return undefined;
+      }
+      
+      const debate = gameConfig.debate;
+      console.log('当前辩论配置:', debate);
+      
+      return {
+        topic: {
+          title: debate.topic.title || '',
+          description: debate.topic.description || '',
+          rounds: debate.topic.rounds || 3
+        },
+        players: (gameConfig.players || []).map(player => ({
+          id: player.id,
+          name: player.name,
+          isAI: player.isAI,
+          role: player.role,
+          characterConfig: player.characterId ? {
+            id: player.characterId,
+            personality: player.personality || '',
+            speakingStyle: player.speakingStyle || '',
+            background: player.background || '',
+            values: player.values ? [player.values] : [],
+            argumentationStyle: player.argumentationStyle || ''
+          } : undefined
+        })),
+        rules: {
+          debateFormat: debate.rules.debateFormat as 'structured' | 'free',
+          canSkipSpeaker: Boolean(debate.rules.advancedRules?.allowQuoting),
+          requireInnerThoughts: Boolean(debate.rules.advancedRules?.requireResponse)
+        }
+      };
+    }, [gameConfig?.debate, gameConfig?.players])
+  );
+  
+  // 本地UI状态
+  const [uiState, setUiState] = useState<UIState>({
+    isLoading: true,
+    isDarkMode: false,
+    playerListWidth: 300,
+    showDebugger: false,
+    currentSpeaker: null,
+    currentRound: 1,
+    status: DebateStatus.NOT_STARTED,
+    history: {
+      speeches: [],
+      scores: []
+    },
+    streamingSpeech: null,
+    players: gameConfig?.players || []
+  });
 
-  // 添加调试相关状态
-  const [showDebugger, setShowDebugger] = useState(false);
+  // 添加初始化逻辑
+  useEffect(() => {
+    let isInitialized = false;
+
+    const initializeDebateRoom = async () => {
+      if (isInitialized) {
+        console.log('辩论室已经初始化，跳过');
+        return;
+      }
+      
+      try {
+        if (!gameConfig?.debate) {
+          console.error('游戏配置不存在');
+          throw new Error('游戏配置不存在');
+        }
+
+        console.log('开始初始化辩论室...');
+        
+        // 使用gameConfig中的玩家列表初始化
+        const initialPlayers = gameConfig.players || [];
+        console.log('初始玩家列表:', initialPlayers);
+        
+        setUiState(prev => ({
+          ...prev,
+          isLoading: false,
+          players: initialPlayers,
+          status: DebateStatus.NOT_STARTED,  // 确保初始状态为未开始
+          currentRound: 1,
+          currentSpeaker: null,
+          history: {
+            speeches: [],
+            scores: []
+          },
+          streamingSpeech: null,
+          showDebugger: true  // 开启调试器以便观察状态
+        }));
+        
+        isInitialized = true;
+        console.log('辩论室初始化完成');
+        
+      } catch (error) {
+        console.error('初始化辩论室失败:', error);
+        message.error('初始化辩论室失败');
+        setUiState(prev => ({
+          ...prev,
+          isLoading: false
+        }));
+      }
+    };
+
+    initializeDebateRoom();
+
+    return () => {
+      isInitialized = true;
+    };
+  }, [gameConfig?.debate?.topic.title]); // 只在辩题改变时重新初始化
+
+  // 同步debateFlowState到uiState
+  useEffect(() => {
+    if (!debateFlowState) return;
+
+    const currentSpeaker = debateFlowState.currentSpeaker;
+    setUiState(prev => ({
+      ...prev,
+      currentSpeaker: currentSpeaker ? {
+        id: currentSpeaker.id,
+        name: currentSpeaker.name,
+        role: currentSpeaker.role as DebateRole,
+        isAI: currentSpeaker.isAI
+      } as UnifiedPlayer : null,
+      currentRound: debateFlowState.currentRound,
+      status: mapDebateFlowStatus(debateFlowState.status),
+      history: {
+        speeches: debateFlowState.speeches.map(speech => ({
+          id: speech.id,
+          playerId: speech.playerId,
+          content: speech.content,
+          timestamp: typeof speech.timestamp === 'number' ? 
+                    new Date(speech.timestamp).toISOString() : 
+                    speech.timestamp,
+          round: speech.round,
+          references: [],
+          role: speech.role === 'system' ? 'assistant' : speech.role || 'assistant',
+          type: speech.type === 'innerThoughts' ? 'innerThought' : 'speech'
+        } as BaseDebateSpeech)),
+        scores: []
+      }
+    }));
+  }, [debateFlowState]);
+
+  // 处理错误
+  useEffect(() => {
+    if (debateFlowError) {
+      message.error(`辩论流程错误: ${debateFlowError.message}`);
+    }
+  }, [debateFlowError]);
 
   // 获取当前玩家列表
   const currentPlayers = useMemo(() => gameConfig?.players || [], [gameConfig]);
@@ -539,16 +730,14 @@ export const DebateRoom: React.FC = () => {
   const characterService = useMemo(() => new CharacterConfigService(), []);
 
   // 修改获取裁判信息的函数
-  const getJudgeInfo = () => {
+  const getJudgeInfo = useCallback(() => {
     if (!gameConfig?.debate) {
-      console.log('没有辩论配置');
       return null;
     }
 
     // 从 localStorage 中获取裁判信息
     const judgeConfig = localStorage.getItem('state_gameConfig');
     if (!judgeConfig) {
-      console.log('没有找到裁判配置');
       return null;
     }
 
@@ -556,15 +745,11 @@ export const DebateRoom: React.FC = () => {
       const config = JSON.parse(judgeConfig);
       const selectedJudge = config.debate.judging.selectedJudge;
       if (!selectedJudge) {
-        console.log('没有裁判配置');
         return null;
       }
 
-      console.log('找到的裁判信息:', selectedJudge);
-
       // 从角色配置中获取更多信息
       const judgeCharacter = characterConfigs[selectedJudge.id];
-      console.log('裁判角色配置:', judgeCharacter);
       
       return {
         id: selectedJudge.id,
@@ -582,11 +767,10 @@ export const DebateRoom: React.FC = () => {
       console.error('解析裁判配置失败:', error);
       return null;
     }
-  };
+  }, [gameConfig?.debate, characterConfigs]);
 
-  // 添加对 judgeInfo 的调试日志
-  const judgeInfo = getJudgeInfo();
-  console.log('最终的裁判信息:', judgeInfo);
+  // 使用 useMemo 缓存 judgeInfo
+  const judgeInfo = useMemo(() => getJudgeInfo(), [getJudgeInfo]);
 
   // 修改加载角色配置的 effect
   useEffect(() => {
@@ -614,24 +798,34 @@ export const DebateRoom: React.FC = () => {
 
   // 修改状态更新函数
   const handleResizeStop = (e: any, direction: any, ref: any, d: { width: number }) => {
-    setSession({
-      ...session,
-      uiState: {
-        ...session.uiState,
-        playerListWidth: playerListWidth + d.width
-      }
-    });
+    setUiState(prev => ({
+      isLoading: prev.isLoading,
+      isDarkMode: prev.isDarkMode,
+      playerListWidth: prev.playerListWidth + d.width,
+      showDebugger: prev.showDebugger,
+      currentSpeaker: prev.currentSpeaker,
+      currentRound: prev.currentRound,
+      status: prev.status,
+      history: prev.history,
+      streamingSpeech: prev.streamingSpeech,
+      players: prev.players
+    }));
   };
 
   // 修改玩家选择处理函数
   const handlePlayerSelect = (player: UnifiedPlayer) => {
-    setSession({
-      ...session,
-      debateState: {
-        ...session.debateState,
-        currentSpeaker: player
-      }
-    });
+    setUiState(prev => ({
+      isLoading: prev.isLoading,
+      isDarkMode: prev.isDarkMode,
+      playerListWidth: prev.playerListWidth,
+      showDebugger: prev.showDebugger,
+      currentSpeaker: player,
+      currentRound: prev.currentRound,
+      status: prev.status,
+      history: prev.history,
+      streamingSpeech: prev.streamingSpeech,
+      players: prev.players
+    }));
   };
 
   // 修改AI测试面板的上下文
@@ -640,88 +834,73 @@ export const DebateRoom: React.FC = () => {
       title: gameConfig?.debate?.topic?.title || '',
       description: gameConfig?.debate?.topic?.description || ''
     },
-    currentRound: session.debateState.progress.currentRound,
+    currentRound: uiState.currentRound,
     totalRounds: gameConfig?.debate?.topic?.rounds || 0,
-    previousSpeeches: session.debateState.history.speeches
+    previousSpeeches: uiState.history.speeches
   });
 
-  // 添加初始化逻辑
-  useEffect(() => {
-    const initializeDebateRoom = async () => {
-      try {
-        if (!session.uiState) {
-          setSession({
-            ...session,
-            uiState: {
-              isLoading: true,
-              isDarkMode: false,
-              playerListWidth: 300
-            }
-          });
-        } else {
-          setSession({
-            ...session,
-            uiState: {
-              ...session.uiState,
-              isLoading: true
-            }
-          });
-        }
-        
-        if (!gameConfig) {
-          throw new Error('游戏配置不存在');
-        }
-
-        const initialState = {
-          status: DebateStatus.NOT_STARTED,
-          progress: {
-            currentRound: 1,
-            currentSpeaker: '',
-            remainingTime: 0,
-            completionPercentage: 0
-          },
-          history: {
-            speeches: [],
-            scores: []
-          },
-          players: [],
-          currentSpeaker: null,
-          streamingSpeech: null
-        };
-
-        setSession({
-          ...session,
-          debateState: initialState,
-          uiState: {
-            ...session.uiState,
-            isLoading: false
-          }
-        });
-      } catch (error) {
-        console.error('初始化辩论室失败:', error);
-        message.error('初始化辩论室失败');
-        setSession({
-          ...session,
-          uiState: {
-            ...session.uiState,
-            isLoading: false
-          }
-        });
-      }
-    };
-
-    initializeDebateRoom();
-  }, [gameConfig, setSession]);
+  // 添加状态映射函数
+  const mapDebateFlowStatus = (status?: DebateFlowStatus): DebateStatus => {
+    switch (status) {
+      case 'ongoing':
+        return DebateStatus.IN_PROGRESS;
+      case 'paused':
+        return DebateStatus.PAUSED;
+      case 'completed':
+        return DebateStatus.COMPLETED;
+      case 'preparing':
+      default:
+        return DebateStatus.NOT_STARTED;
+    }
+  };
 
   // 处理辩论状态变更
-  const handleDebateStateChange = (newStatus: DebateStatus) => {
-    setSession({
-      ...session,
-      debateState: {
-        ...session.debateState,
-        status: newStatus
+  const handleDebateStateChange = async (newStatus: DebateStatus) => {
+    try {
+      if (!debateFlowActions) {
+        console.error('辩论流程未初始化');
+        throw new Error('辩论流程未初始化');
       }
-    });
+
+      console.log('状态变更:', {
+        当前状态: uiState.status,
+        目标状态: newStatus,
+        debateFlowState
+      });
+
+      switch (newStatus) {
+        case DebateStatus.IN_PROGRESS:
+          if (uiState.status === DebateStatus.NOT_STARTED) {
+            console.log('开始辩论流程...');
+            await debateFlowActions.startDebate();
+            message.success('辩论开始');
+          } else if (uiState.status === DebateStatus.PAUSED) {
+            console.log('恢复辩论流程...');
+            await debateFlowActions.resumeDebate();
+            message.success('辩论继续');
+          }
+          break;
+        case DebateStatus.PAUSED:
+          console.log('暂停辩论流程...');
+          await debateFlowActions.pauseDebate();
+          message.success('辩论已暂停');
+          break;
+        case DebateStatus.COMPLETED:
+          console.log('结束辩论流程...');
+          await debateFlowActions.endDebate();
+          message.success('辩论已结束');
+          break;
+      }
+
+      setUiState(prev => ({
+        ...prev,
+        status: newStatus
+      }));
+
+    } catch (error) {
+      console.error('状态变更失败:', error);
+      message.error(`状态变更失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      }
   };
 
   // 修改获取模型信息的辅助函数
@@ -746,66 +925,95 @@ export const DebateRoom: React.FC = () => {
     players: { byId: {} }
   };
 
-  // 修改调试信息
+  // 修改调试信息，使用 useRef 来减少不必要的重渲染
+  const debugInfoRef = useRef({
+    currentSpeaker: null as UnifiedPlayer | null,
+    isAI: false,
+    gameConfig: null as any,
+    players: [] as UnifiedPlayer[]
+  });
+
   useEffect(() => {
     if (process.env.NODE_ENV !== 'development') return;
     
-    console.log('Debug Info:', {
-      currentSpeaker: session.debateState.currentSpeaker,
-      isAI: session.debateState.currentSpeaker?.isAI,
+    const newDebugInfo = {
+      currentSpeaker: uiState.currentSpeaker,
+      isAI: Boolean(uiState.currentSpeaker?.isAI),
       gameConfig: gameConfig?.debate?.currentState,
-      players: session.debateState.players
-    });
-  }, [session.debateState.currentSpeaker, gameConfig, session.debateState.players]);
+      players: uiState.players
+    };
+    
+    // 只有当内容真正变化时才打印日志
+    if (JSON.stringify(debugInfoRef.current) !== JSON.stringify(newDebugInfo)) {
+      debugInfoRef.current = newDebugInfo;
+      console.log('Debug Info:', newDebugInfo);
+    }
+  }, [uiState.currentSpeaker, gameConfig, uiState.players]);
 
-  const handleSpeechGenerated = (speech: Speech) => {
-    setSession({
-      ...session,
-      debateState: {
-        ...session.debateState,
+  // 处理发言生成
+  const handleSpeechGenerated = (speech: BaseDebateSpeech) => {
+    setUiState(prev => ({
+      isLoading: prev.isLoading,
+      isDarkMode: prev.isDarkMode,
+      playerListWidth: prev.playerListWidth,
+      showDebugger: prev.showDebugger,
+      currentSpeaker: prev.currentSpeaker,
+      currentRound: prev.currentRound,
+      status: prev.status,
+      history: prev.history,
         streamingSpeech: {
           playerId: speech.playerId,
           content: speech.content
-        }
-      }
-    });
+      },
+      players: prev.players
+    }));
   };
 
-  const handleSpeechComplete = (speech: Speech) => {
-    const newSpeech: BaseDebateSpeech = {
-      id: speech.id,
-      playerId: speech.playerId,
-      content: speech.content,
-      timestamp: new Date().toISOString(),
-      round: speech.round,
-      references: speech.references || [],
-      role: speech.role || 'assistant',
-      type: speech.type || 'speech'
-    };
+  // 处理发言完成
+  const handleSpeechComplete = (speech: BaseDebateSpeech) => {
+    setUiState(prev => ({
+      isLoading: prev.isLoading,
+      isDarkMode: prev.isDarkMode,
+      playerListWidth: prev.playerListWidth,
+      showDebugger: prev.showDebugger,
+      currentSpeaker: prev.currentSpeaker,
+      currentRound: prev.currentRound,
+      status: prev.status,
+      history: {
+        speeches: prev.history.speeches.concat(speech),
+        scores: prev.history.scores
+      },
+      streamingSpeech: null,
+      players: prev.players
+    }));
+  };
 
-    setSession({
-      ...session,
-      debateState: {
-        ...session.debateState,
-        streamingSpeech: null,
-        history: {
-          ...session.debateState.history,
-          speeches: [...session.debateState.history.speeches, newSpeech]
-        }
-      }
-    });
+  // 修改深色模式切换
+  const handleThemeChange = () => {
+    setUiState(prev => ({
+      isLoading: prev.isLoading,
+      isDarkMode: !prev.isDarkMode,
+      playerListWidth: prev.playerListWidth,
+      showDebugger: prev.showDebugger,
+      currentSpeaker: prev.currentSpeaker,
+      currentRound: prev.currentRound,
+      status: prev.status,
+      history: prev.history,
+      streamingSpeech: prev.streamingSpeech,
+      players: prev.players
+    }));
   };
 
   // 修改状态判断
-  const isDebating = session.debateState.status === DebateStatus.IN_PROGRESS;
+  const isDebating = uiState.status === DebateStatus.IN_PROGRESS;
 
   // 修改错误处理
   const handleError = (error: Error) => {
     message.error('生成发言时出错：' + error.message);
   };
 
-  // 如果 session 或 uiState 未定义，显示加载状态
-  if (!session || !session.uiState) {
+  // 如果 uiState 未定义，显示加载状态
+  if (!uiState) {
     return (
       <Container>
         <Spin tip="加载中...">
@@ -836,31 +1044,63 @@ export const DebateRoom: React.FC = () => {
   return (
     <Container>
       <TopBar>
-        <ToolButton onClick={() => navigate('/game-config')}>
-          <ArrowLeftOutlined />
-          返回配置
-        </ToolButton>
-        <Divider type="vertical" />
-        <ToolButton onClick={() => handleDebateStateChange(isDebating ? DebateStatus.PAUSED : DebateStatus.IN_PROGRESS)}>
-          {session.debateState.status === DebateStatus.IN_PROGRESS ? (
-            <>
-              <PauseCircleOutlined />
-              暂停辩论
-            </>
-          ) : (
-            <>
-              <PlayCircleOutlined />
-              {session.debateState.status === DebateStatus.PAUSED ? '继续辩论' : '开始辩论'}
-            </>
-          )}
-        </ToolButton>
-        <ToolButton onClick={() => handleDebateStateChange(DebateStatus.COMPLETED)}>
-          <StopOutlined />
-          结束辩论
-        </ToolButton>
-        <ToolButton onClick={() => setSession({ ...session, uiState: { ...session.uiState, isDarkMode: !isDarkMode } })}>
-          {isDarkMode ? <BulbFilled /> : <BulbOutlined />}
-          {isDarkMode ? '浅色模式' : '深色模式'}
+        <div className="room-info">
+          <RoomTitle>{gameConfig?.debate?.topic?.title || '辩论室'}</RoomTitle>
+          {/* 其他房间信息 */}
+        </div>
+        <div className="debate-controls">
+          <DebateControl
+            status={mapDebateStatus(uiState.status)}
+            roundInfo={{
+              currentRound: uiState.currentRound,
+              totalRounds: gameConfig?.debate?.topic?.rounds || 3,
+              currentSpeaker: uiState.currentSpeaker?.id,
+              nextSpeaker: debateFlowState?.nextSpeaker?.id,
+              speakingOrder: debateFlowState?.speakingOrder?.speakers?.map(s => s.player.id) || []
+            }}
+            onStart={() => handleDebateStateChange(DebateStatus.IN_PROGRESS)}
+            onPause={() => handleDebateStateChange(DebateStatus.PAUSED)}
+            onResume={() => handleDebateStateChange(DebateStatus.IN_PROGRESS)}
+            onEnd={() => handleDebateStateChange(DebateStatus.COMPLETED)}
+            onNextRound={() => {
+              message.info('正在进入下一轮...');
+              if (debateFlowActions?.submitSpeech) {
+                debateFlowActions.submitSpeech({
+                  playerId: 'system',
+                  content: '进入下一轮',
+                  type: 'speech',
+                  references: [],
+                  role: 'system',
+                  timestamp: new Date().toISOString(),
+                  round: uiState.currentRound,
+                  id: `system-${Date.now()}`
+                });
+              }
+            }}
+            onNextSpeaker={() => {
+              message.info('正在切换下一位发言者...');
+              if (debateFlowActions?.submitSpeech) {
+                debateFlowActions.submitSpeech({
+                  playerId: 'system',
+                  content: '切换下一位发言者',
+                  type: 'system',
+                  references: [],
+                  role: 'system',
+                  timestamp: new Date().toISOString(),
+                  round: uiState.currentRound,
+                  id: `system-${Date.now()}`
+                });
+              }
+            }}
+            getPlayerName={(playerId) => {
+              const player = currentPlayers.find(p => p.id === playerId);
+              return player?.name || '未知选手';
+            }}
+          />
+        </div>
+        <ToolButton onClick={handleThemeChange}>
+          {uiState.isDarkMode ? <BulbFilled /> : <BulbOutlined />}
+          {uiState.isDarkMode ? '浅色模式' : '深色模式'}
         </ToolButton>
       </TopBar>
 
@@ -976,7 +1216,7 @@ export const DebateRoom: React.FC = () => {
       {/* 主内容区域 */}
       <MainContent>
         <Resizable
-          size={{ width: playerListWidth, height: '100%' }}
+          size={{ width: uiState.playerListWidth, height: '100%' }}
           onResizeStop={handleResizeStop}
           enable={{ right: true }}
           minWidth={250}
@@ -996,9 +1236,10 @@ export const DebateRoom: React.FC = () => {
                 return (
                   <PlayerCard 
                     key={player.id}
-                    active={player.id === session.debateState.currentSpeaker?.id}
+                    active={player.id === uiState.currentSpeaker?.id}
                   >
                     <PlayerHeader>
+                      <div>
                       <PlayerAvatar 
                         src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
                         alt={player.name}
@@ -1020,9 +1261,20 @@ export const DebateRoom: React.FC = () => {
                               {player.role.includes('4') && ' - 四辩'}
                             </>
                           ) : (
-                            character ? (
+                              <>
+                                {player.role === 'free' ? '自由辩手' : 
+                                 player.role === 'judge' ? '裁判' : 
+                                 player.role === 'timekeeper' ? '计时员' : 
+                                 player.role === 'unassigned' ? '未分配' : '观众'}
+                              </>
+                            )}
+                          </PlayerRole>
+                        </PlayerInfo>
+                      </div>
+                      {character && (
                               <CharacterInfo>
-                                <CharacterName>{character.name}
+                          <CharacterName>
+                            {character.name}
                                   {player.isAI && (
                                     <span style={{ 
                                       fontSize: '12px',
@@ -1035,7 +1287,6 @@ export const DebateRoom: React.FC = () => {
                                     </span>
                                   )}
                                 </CharacterName>
-
                                 {character.description && (
                                   <CharacterDescription>
                                     {character.description}
@@ -1050,20 +1301,7 @@ export const DebateRoom: React.FC = () => {
                                   {getModelInfo(character.id)}
                                 </CharacterModel>
                               </CharacterInfo>
-                            ) : (
-                              <div style={{ 
-                                color: '#ff4d4f',
-                                fontSize: '13px',
-                                padding: '8px 12px',
-                                background: 'rgba(255, 77, 79, 0.1)',
-                                borderRadius: '6px'
-                              }}>
-                                未分配角色 (ID: {player.characterId || 'none'})
-                              </div>
-                            )
-                          )}
-                        </PlayerRole>
-                      </PlayerInfo>
+                      )}
                     </PlayerHeader>
                   </PlayerCard>
                 );
@@ -1075,9 +1313,9 @@ export const DebateRoom: React.FC = () => {
         <ContentArea>
           <SpeechList
             players={currentPlayers}
-            currentSpeakerId={session.debateState.currentSpeaker?.id}
-            speeches={session.debateState.history.speeches}
-            streamingSpeech={session.debateState.streamingSpeech || undefined}
+            currentSpeakerId={uiState.currentSpeaker?.id}
+            speeches={uiState.history.speeches}
+            streamingSpeech={uiState.streamingSpeech || undefined}
             onReference={(speechId: string) => {
               // 处理引用逻辑
             }}
@@ -1087,37 +1325,21 @@ export const DebateRoom: React.FC = () => {
           />
         </ContentArea>
       </MainContent>
-
-      {/* 添加状态调试器 */}
-      <StateDebugger />
-
-      {/* 调试面板 */}
-      {process.env.NODE_ENV === 'development' && showDebugger && (
-        <DebugPanel title="辩论室调试面板">
-          <div>玩家数量: {currentPlayers.length}</div>
-          <div>当前状态: {session.debateState.status}</div>
-          <div>当前发言者：{session.debateState.currentSpeaker?.name}</div>
-          <div>是否AI：{session.debateState.currentSpeaker?.isAI ? '是' : '否'}</div>
-          
-          {/* AI玩家列表 */}
-          <AIPlayerList
-            players={currentPlayers.filter((p: UnifiedPlayer) => p.isAI)}
-            currentSpeakerId={session.debateState.currentSpeaker?.id}
-            onSelectPlayer={handlePlayerSelect}
-            disabled={session.debateState.status !== DebateStatus.IN_PROGRESS}
-          />
-
-          {/* AI测试面板 */}
-          {session.debateState.currentSpeaker?.isAI && (
-            <AITestPanel
-              player={session.debateState.currentSpeaker}
-              context={getAITestContext()}
-              onSpeechGenerated={handleSpeechGenerated}
-              onError={handleError}
-            />
-          )}
-        </DebugPanel>
-      )}
     </Container>
   );
+};
+
+// 添加状态映射函数
+const mapDebateStatus = (status: DebateStatus): 'preparing' | 'ongoing' | 'paused' | 'finished' => {
+  switch (status) {
+    case DebateStatus.IN_PROGRESS:
+      return 'ongoing';
+    case DebateStatus.PAUSED:
+      return 'paused';
+    case DebateStatus.COMPLETED:
+      return 'finished';
+    case DebateStatus.NOT_STARTED:
+    default:
+      return 'preparing';
+  }
 };

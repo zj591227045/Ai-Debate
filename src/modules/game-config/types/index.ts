@@ -15,16 +15,13 @@ export interface Player {
 }
 
 export interface DebateConfig {
-  format: 'free' | 'structured';
   topic: {
     title: string;
     description: string;
-    background?: string;
     rounds: number;
   };
   players: Player[];
   rules: {
-    timeLimit?: number;
     canSkipSpeaker: boolean;
     requireInnerThoughts: boolean;
     debateFormat: 'structured' | 'free';

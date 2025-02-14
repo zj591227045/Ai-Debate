@@ -8,6 +8,9 @@ export interface IDebateFlow {
   resumeDebate(): Promise<void>;
   endDebate(): Promise<void>;
   submitSpeech(speech: SpeechInput): Promise<void>;
+  skipCurrentSpeaker(): Promise<void>;
+  handlePlayerExit(playerId: string): Promise<void>;
+  handlePlayerRejoin(player: PlayerConfig): Promise<void>;
   getCurrentState(): DebateFlowState;
   subscribeToStateChange(handler: StateChangeHandler): () => void;
 }
@@ -18,6 +21,7 @@ export interface DebateFlowConfig {
     title: string;
     description?: string;
     background?: string;
+    rounds: number;
   };
   players: PlayerConfig[];
   rules: DebateRules;
@@ -34,6 +38,7 @@ export interface PlayerConfig {
 }
 
 export interface CharacterConfig {
+  id: string;
   personality?: string;
   speakingStyle?: string;
   background?: string;
@@ -50,6 +55,7 @@ export interface JudgeConfig {
 export interface DebateRules {
   format: 'free' | 'structured';
   rounds: number;
+  timeLimit?: number;
   canSkipSpeaker: boolean;
   requireInnerThoughts: boolean;
 }
@@ -98,7 +104,18 @@ export type SpeakerStatus = 'pending' | 'speaking' | 'completed' | 'skipped';
 
 // 输入输出相关接口
 export type SpeechRole = 'assistant' | 'user' | 'system';
-export type SpeechType = 'speech' | 'innerThoughts';
+export type SpeechType = 'speech' | 'innerThoughts' | 'system';
+
+export interface SpeechInput {
+  playerId: string;
+  content: string;
+  type: 'speech' | 'innerThoughts' | 'system';
+  references?: string[];
+  role?: 'assistant' | 'user' | 'system';
+  timestamp?: number | string;
+  round?: number;
+  id?: string;
+}
 
 export interface Speech {
   id: string;
@@ -110,15 +127,8 @@ export interface Speech {
   role: SpeechRole;
 }
 
-export interface SpeechInput {
-  playerId: string;
-  content: string;
-  type: SpeechType;
-  role: SpeechRole;
-}
-
 export interface SpeechInfo {
-  type: 'speech' | 'innerThoughts';
+  type: SpeechType;
   content: string;
   status: 'streaming' | 'completed' | 'failed';
 }

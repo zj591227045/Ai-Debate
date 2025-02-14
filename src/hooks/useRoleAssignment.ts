@@ -10,6 +10,7 @@ export interface RoleAssignmentConfig {
   minPlayers: number;
   maxPlayers: number;
   autoAssign?: boolean;
+  format?: 'structured' | 'free';
 }
 
 interface RoleAssignmentState {
@@ -89,7 +90,17 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
   }, []);
 
   const autoAssignRoles = useCallback(() => {
-    const { affirmativeCount, negativeCount } = state.config;
+    const { affirmativeCount, negativeCount, judgeCount, timekeeperCount, format } = state.config;
+    
+    // 如果是自由辩论模式，所有参与者都设置为free角色
+    if (format === 'free') {
+      setState(prev => ({
+        ...prev,
+        players: prev.players.map(player => ({ ...player, role: 'free' })),
+      }));
+      return;
+    }
+
     const unassignedPlayers = shuffleArray(state.players.filter(p => p.role === 'unassigned'));
     let currentIndex = 0;
 
@@ -107,6 +118,20 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
       const player = unassignedPlayers[currentIndex++];
       const playerIndex = newPlayers.findIndex(p => p.id === player.id);
       newPlayers[playerIndex] = { ...player, role: `negative${i + 1}` as DebateRole };
+    }
+
+    // 分配裁判角色
+    for (let i = 0; i < judgeCount && currentIndex < unassignedPlayers.length; i++) {
+      const player = unassignedPlayers[currentIndex++];
+      const playerIndex = newPlayers.findIndex(p => p.id === player.id);
+      newPlayers[playerIndex] = { ...player, role: 'judge' };
+    }
+
+    // 分配计时员角色
+    for (let i = 0; i < timekeeperCount && currentIndex < unassignedPlayers.length; i++) {
+      const player = unassignedPlayers[currentIndex++];
+      const playerIndex = newPlayers.findIndex(p => p.id === player.id);
+      newPlayers[playerIndex] = { ...player, role: 'timekeeper' };
     }
 
     setState(prev => ({

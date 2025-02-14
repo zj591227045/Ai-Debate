@@ -38,7 +38,7 @@ export class DebateFlowController implements IDebateFlowController {
   async initialize(config: DebateConfig): Promise<void> {
     const speakingOrder = this.speakingOrderManager.initializeOrder(
       config.players,
-      config.format
+      config.rules.debateFormat
     );
 
     this.state = {

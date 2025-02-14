@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { DebateConfig } from '@game-config/types';
 import type { Speech } from '@debate/types';
-import { DebateRoomAdapter } from '@debate-flow/adapters/DebateRoomAdapter';
+import { DebateRoomAdapter } from '../../../modules/debate-flow/adapters/DebateRoomAdapter';
 import type { DebateFlowState } from '@debate-flow/types/interfaces';
+
+// 扩展 Speech 类型
+export type SpeechType = 'speech' | 'innerThoughts' | 'system';
+export interface SpeechInput {
+  playerId: string;
+  content: string;
+  type: SpeechType;
+  references?: string[];
+}
 
 export function useDebateFlow(config?: DebateConfig) {
   const [adapter] = useState(() => new DebateRoomAdapter());

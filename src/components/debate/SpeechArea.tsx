@@ -106,7 +106,7 @@ export const SpeechArea: React.FC<SpeechAreaProps> = ({
 
               <div style={{ marginBottom: 8 }}>{speech.content}</div>
 
-              {speech.type === 'innerThought' && (
+              {speech.type === 'innerThoughts' && (
                 <InnerThoughts isAI={player?.isAI || false}>
                   内心OS: {speech.content}
                 </InnerThoughts>

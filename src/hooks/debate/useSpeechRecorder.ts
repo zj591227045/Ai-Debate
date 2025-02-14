@@ -6,7 +6,7 @@ export interface Speech {
   content: string;
   timestamp: Date;
   references?: string[];  // 引用其他发言的ID
-  type: 'speech' | 'innerThought';
+  type: 'speech' | 'innerThoughts' | 'system';
   editHistory?: {
     content: string;
     timestamp: Date;

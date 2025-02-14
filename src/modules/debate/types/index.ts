@@ -35,12 +35,26 @@ export interface Debater {
  */
 export interface Speech {
   id: string;
-  debaterId: string;
+  playerId: string;
   content: string;
   reasoningContent?: string;
+  timestamp: string | number;
   round: number;
-  timestamp: number;
   references?: string[];
+  role: 'assistant' | 'user' | 'system';
+  type: 'speech' | 'innerThoughts';
+}
+
+export interface BaseDebateSpeech {
+  id: string;
+  playerId: string;
+  content: string;
+  reasoningContent?: string;
+  timestamp: string | number;
+  round: number;
+  references: string[];
+  role: 'assistant' | 'user' | 'system';
+  type: 'speech' | 'innerThoughts';
 }
 
 /**

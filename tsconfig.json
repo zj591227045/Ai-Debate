@@ -24,7 +24,11 @@
       "@state": ["modules/state"],
       "@state/*": ["modules/state/*"],
       "@types": ["types"],
-      "@types/*": ["types/*"]
+      "@types/*": ["types/*"],
+      "@modules/*": ["modules/*"],
+      "@game-config/*": ["modules/game-config/*"],
+      "@debate/*": ["modules/debate/*"],
+      "@debate-flow/*": ["modules/debate-flow/*"]
     }
   },
   "include": ["src", "docs/archive"]

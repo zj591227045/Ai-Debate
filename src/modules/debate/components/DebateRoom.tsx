@@ -1,93 +1,106 @@
 import React, { useEffect } from 'react';
-import { useAIDebate } from '../hooks/useAIDebate';
-import type { DebateRoomProps } from '../types/debate';
-import type { Character } from '../types/character';
+import { useDebateFlow } from '../hooks/useDebateFlow';
+import type { DebateConfig } from '@game-config/types';
+import { DebatePlayer } from './DebatePlayer';
+import { SpeechDisplay } from './SpeechDisplay';
+import { DebateControls } from './DebateControls';
+import { ErrorBoundary } from '../../../components/common/ErrorBoundary';
+import type { Speech, SpeechRole, SpeechType } from '@debate-flow/types/interfaces';
 
-export const DebateRoom: React.FC<DebateRoomProps> = ({ state, onStateChange }) => {
-  const { isGenerating, generateInnerThoughts, generateSpeech, generateScore, error } = useAIDebate();
-  
-  const handleAITurn = async (character: Character) => {
-    if (!character.isAI) return;
-    
-    try {
-      // 生成内心OS
-      const innerThoughts = await generateInnerThoughts(character, state);
+interface DebateRoomProps {
+  config: DebateConfig;
+}
+
+export const DebateRoom: React.FC<DebateRoomProps> = ({ config }) => {
+  const { state, error, actions } = useDebateFlow(config);
+
+  useEffect(() => {
+    if (error) {
+      console.error('辩论流程错误:', error);
+      // 可以添加错误提示UI
+    }
+  }, [error]);
+
+  const handleStartDebate = async () => {
+    await actions.startDebate();
+  };
+
+  const handlePauseDebate = async () => {
+    await actions.pauseDebate();
+  };
+
+  const handleResumeDebate = async () => {
+    await actions.resumeDebate();
+  };
+
+  const handleEndDebate = async () => {
+    await actions.endDebate();
+  };
+
+  const handleSubmitSpeech = async (content: string) => {
+    if (state?.currentSpeaker) {
+      const role: SpeechRole = state.currentSpeaker.isAI ? 'assistant' : 'user';
+      const type: SpeechType = 'speech';
       
-      // 更新状态
-      onStateChange({
-        ...state,
-        innerThoughts: {
-          ...state.innerThoughts,
-          [character.id]: innerThoughts
-        }
-      });
-      
-      // 生成正式发言
-      const speech = await generateSpeech(character, state, innerThoughts);
-      
-      // 更新状态
-      onStateChange({
-        ...state,
-        speeches: [
-          ...state.speeches,
-          {
-            playerId: character.id,
-            content: speech,
-            round: state.currentRound,
-            timestamp: new Date().toISOString()
-          }
-        ]
-      });
-      
-      // 如果当前角色是裁判，生成评分
-      if (character.role === 'judge') {
-        const score = await generateScore(character, state);
-        onStateChange({
-          ...state,
-          scores: [
-            ...state.scores,
-            {
-              judgeId: character.id,
-              content: score,
-              round: state.currentRound,
-              timestamp: new Date().toISOString()
-            }
-          ]
-        });
-      }
-    } catch (err) {
-      console.error('AI回合处理失败:', err);
-      // 这里可以添加错误提示UI
+      const speech: Speech = {
+        id: crypto.randomUUID(),
+        playerId: state.currentSpeaker.id,
+        content,
+        type,
+        timestamp: Date.now(),
+        round: state.currentRound,
+        role
+      };
+      await actions.submitSpeech(speech);
     }
   };
 
-  // 监听当前发言者变化
-  useEffect(() => {
-    const currentSpeaker = state.players.find((p: Character) => p.id === state.currentSpeakerId);
-    if (currentSpeaker?.isAI) {
-      handleAITurn(currentSpeaker);
-    }
-  }, [state.currentSpeakerId]);
+  if (!state) {
+    return <div>加载中...</div>;
+  }
 
   return (
-    <div className="debate-room">
-      {/* ... existing code ... */}
-      
-      {/* 添加加载状态显示 */}
-      {isGenerating && (
-        <div className="ai-generating-indicator">
-          AI正在思考中...
-        </div>
-      )}
-      
-      {/* 添加错误提示 */}
-      {error && (
-        <div className="ai-error-message">
-          {error.message}
-        </div>
-      )}
-      
-      {/* ... existing code ... */}
-    </div>
+    <ErrorBoundary>
+      <div className="debate-room">
+        <header className="debate-room-header">
+          <h1>{config.topic.title}</h1>
+          <div className="debate-status">
+            第 {state.currentRound} 轮 | {state.status}
+          </div>
+        </header>
+
+        <main className="debate-room-main">
+          <section className="debate-players">
+            {config.players.map(player => (
+              <DebatePlayer
+                key={player.id}
+                config={player}
+                isCurrentSpeaker={state.currentSpeaker?.id === player.id}
+                onSubmitSpeech={handleSubmitSpeech}
+              />
+            ))}
+          </section>
+
+          <section className="debate-content">
+            {state.currentSpeech && (
+              <SpeechDisplay
+                speech={state.currentSpeech}
+                speaker={state.currentSpeaker!}
+              />
+            )}
+          </section>
+        </main>
+
+        <footer className="debate-room-footer">
+          <DebateControls
+            status={state.status}
+            onStart={handleStartDebate}
+            onPause={handlePauseDebate}
+            onResume={handleResumeDebate}
+            onEnd={handleEndDebate}
+          />
+        </footer>
+      </div>
+    </ErrorBoundary>
   );
 }; 

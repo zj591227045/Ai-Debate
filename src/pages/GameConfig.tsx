@@ -83,10 +83,10 @@ const Tab = styled.button<{ active: boolean }>`
 
 // 默认的初始AI玩家
 const defaultInitialPlayers: Player[] = [
-  { id: '1', name: 'AI选手1', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '2', name: 'AI选手2', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '3', name: 'AI选手3', role: 'unassigned' as DebateRole, isAI: true },
-  { id: '4', name: 'AI选手4', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '1', name: '选手1', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '2', name: '选手2', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '3', name: '选手3', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '4', name: '选手4', role: 'unassigned' as DebateRole, isAI: true },
 ];
 
 const defaultConfig = {
@@ -367,7 +367,7 @@ const GameConfigContent: React.FC = () => {
     const playerNumber = players.length + 1;
     const newPlayer = {
       id: String(playerNumber),
-      name: `AI选手${playerNumber}`,
+      name: `选手${playerNumber}`,
       role: 'unassigned' as DebateRole,
       isAI: true
     };

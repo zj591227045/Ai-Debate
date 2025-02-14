@@ -14,6 +14,21 @@ import { LLMStore } from '../../state/stores/LLMStore';
 import type { LLMState } from '../../state/types/llm';
 import { ProviderFactory } from './provider/factory';
 
+export interface GenerateStreamOptions {
+  characterId: string;
+  type: 'innerThoughts' | 'speech';
+  signal?: AbortSignal;
+}
+
+export interface GenerateStreamResponse {
+  content: ReadableStream;
+  metadata: {
+    characterId: string;
+    type: 'innerThoughts' | 'speech';
+    startTime: number;
+  };
+}
+
 export class UnifiedLLMService {
   private static instance: UnifiedLLMService;
   private currentConfig: ModelConfig | null = null;
@@ -131,5 +146,10 @@ export class UnifiedLLMService {
       console.error('测试连接失败:', error);
       throw error;
     }
+  }
+
+  async generateStream(options: GenerateStreamOptions): Promise<GenerateStreamResponse> {
+    // TODO: 实现具体的生成逻辑
+    throw new Error('Not implemented');
   }
 } 

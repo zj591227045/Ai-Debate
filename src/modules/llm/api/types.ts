@@ -1,4 +1,15 @@
 // LLM Service API 类型定义
+import type {
+  GenerateStreamOptions,
+  GenerateStreamResponse,
+  ChatOptions,
+} from '../types/api';
+
+export type {
+  GenerateStreamOptions,
+  GenerateStreamResponse,
+  ChatOptions,
+};
 
 export interface ChatRequest {
   message: string;

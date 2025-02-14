@@ -18,7 +18,16 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
   onError,
   className
 }) => {
-  const [currentSpeech, setCurrentSpeech] = useState<Partial<Speech>>({});
+  const [currentSpeech, setCurrentSpeech] = useState<Speech>({
+    id: '',
+    playerId: '',
+    content: '',
+    reasoningContent: '',
+    timestamp: '',
+    round: 0,
+    role: 'assistant',
+    type: 'speech'
+  });
   const [isThinking, setIsThinking] = useState(false);
 
   // 使用辩论服务
@@ -34,7 +43,7 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
         if (isReasoning) {
           return {
             ...prev,
-            reasoningContent: (prev.reasoningContent || '') + chunk
+            reasoningContent: ((prev.reasoningContent || '') + chunk)
           };
         } else {
           return {
@@ -50,12 +59,17 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
   // 生成发言
   const handleGenerateSpeech = useCallback(async () => {
     setIsThinking(true);
+    const newSpeechId = crypto.randomUUID();
+    
     setCurrentSpeech({
-      id: crypto.randomUUID(),
-      debaterId: debater.id,
+      id: newSpeechId,
+      playerId: debater.id,
       content: '',
+      reasoningContent: '',
+      timestamp: new Date().toISOString(),
       round: context.currentRound,
-      timestamp: Date.now()
+      role: 'assistant',
+      type: 'speech'
     });
 
     try {
@@ -64,12 +78,9 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
       // 发言完成后，通知父组件
       if (currentSpeech.content) {
         onSpeechGenerated?.({
-          id: currentSpeech.id || crypto.randomUUID(),
-          debaterId: debater.id,
-          content: currentSpeech.content,
-          reasoningContent: currentSpeech.reasoningContent,
-          round: context.currentRound,
-          timestamp: currentSpeech.timestamp || Date.now()
+          ...currentSpeech,
+          id: currentSpeech.id || newSpeechId,
+          timestamp: new Date().toISOString()
         });
       }
     } finally {
@@ -106,7 +117,10 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
             {currentSpeech.content}
           </div>
           <div className="speech-timestamp">
-            {new Date(currentSpeech.timestamp || Date.now()).toLocaleTimeString()}
+            {typeof currentSpeech.timestamp === 'string' 
+              ? new Date(currentSpeech.timestamp).toLocaleTimeString()
+              : new Date(currentSpeech.timestamp).toLocaleTimeString()
+            }
           </div>
         </div>
       )}

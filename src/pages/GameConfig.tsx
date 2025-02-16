@@ -550,7 +550,33 @@ const GameConfigContent: React.FC = () => {
         {renderContent()}
       </div>
 
-      <StateDebugger />
+      <StateDebugger
+        state={{
+          debate: {
+            topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 },
+            rules: gameConfig.debate?.rules || {
+              debateFormat: 'free',
+              description: '',
+              advancedRules: {
+                speechLengthLimit: { min: 100, max: 1000 },
+                allowQuoting: true,
+                requireResponse: true,
+                allowStanceChange: false,
+                requireEvidence: true
+              }
+            },
+            judging: gameConfig.debate?.judging || {},
+            status: undefined,
+            currentRound: 0,
+            currentSpeaker: null,
+            speeches: [],
+            scores: [],
+            format: gameConfig.debate?.rules?.debateFormat as 'structured' | 'free'
+          },
+          players: Object.values(gameConfig.players || {})
+        }}
+        onToggleDebugger={() => {}}
+      />
     </Container>
   );
 };

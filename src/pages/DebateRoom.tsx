@@ -3,30 +3,35 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { Tooltip, Divider, message, Spin, Result, Button } from 'antd';
 import { 
-  ArrowLeftOutlined,
-  SaveOutlined,
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  StopOutlined,
   BulbOutlined,
   BulbFilled
 } from '@ant-design/icons';
 import { Resizable } from 're-resizable';
 import { useCharacter } from '../modules/character/context/CharacterContext';
-import { useModel } from '../modules/model/context/ModelContext';
-import { useDebateFlow } from '../modules/debate/hooks/useDebateFlow';
+import { useDebateFlow } from '../hooks/debate/useDebateFlow';
 import type { CharacterConfig } from '../modules/character/types';
 import { CharacterConfigService } from '../modules/storage/services/CharacterConfigService';
-import { defaultTemplates, templateToCharacter } from '../modules/character/types/template';
 import { useStore } from '../modules/state';
-import type { UnifiedPlayer, BaseDebateSpeech } from '../types/adapters';
 import type { DebateRole } from '../types/roles';
-import { createTimestamp } from '../utils/timestamp';
 import { SpeechList } from '../components/debate/SpeechList';
-import { DebateStatus, DebateProgress, DebateHistory, SessionAction, DebateState, SessionState } from '../modules/state/types/session';
-import type { DebateStatus as DebateFlowStatus } from '../modules/debate-flow/types/interfaces';
+import type { DebateProgress, DebateHistory, SessionAction, DebateState, SessionState } from '../modules/state/types/session';
 import { DebateControl } from '../components/debate/DebateControl';
 import type { SpeechType } from '../types/adapters';
+import { StateDebugger } from '../components/debug/StateDebugger';
+import { ScoreDisplay } from '../components/debate/ScoreDisplay';
+import { ScoreStatisticsDisplay } from '../components/debate/ScoreStatistics';
+import { useAIInteraction } from '../hooks/debate/useAIInteraction';
+import type { UnifiedPlayer, BaseDebateSpeech, Score } from '../types/adapters';
+import { DebateStatus } from '../modules/state/types/adapters';
+import { ScoringSystem } from '../modules/scoring/services/ScoringSystem';
+import type { BaseDebateScore, Judge, DebateConfig } from '../types/interfaces';
+import { DebateErrorBoundary } from '../components/error/DebateErrorBoundary';
+import type { 
+  DebateFlowConfig, 
+  DebateRules,
+  SpeechInput,
+  DebateStatus as DebateFlowStatus
+} from '../modules/debate-flow/types/interfaces';
 
 // 主容器
 const Container = styled.div`
@@ -541,7 +546,63 @@ const RoomTitle = styled.h1`
   color: var(--color-text-primary, #1f1f1f);
 `;
 
-// 添加UI状态类型定义
+// 状态映射函数
+const mapToDebateStatus = (status: string): DebateStatus => {
+  switch (status.toLowerCase()) {
+    case 'preparing':
+      return DebateStatus.PREPARING;
+    case 'ongoing':
+    case 'in_progress':
+      return DebateStatus.ONGOING;
+    case 'paused':
+      return DebateStatus.PAUSED;
+    case 'round_complete':
+    case 'roundcomplete':
+      return DebateStatus.ROUND_COMPLETE;
+    case 'scoring':
+      return DebateStatus.SCORING;
+    case 'completed':
+    case 'finished':
+      return DebateStatus.COMPLETED;
+    default:
+      console.log('未知状态:', status, '使用默认状态 PREPARING');
+      return DebateStatus.PREPARING;
+  }
+};
+
+// 添加默认评分维度
+const defaultDimensions = [
+  {
+    id: 'logic',
+    name: '逻辑性',
+    weight: 0.3,
+    description: '论证的逻辑性和严谨性',
+    criteria: ['论证清晰', '结构完整', '推理严谨']
+  },
+  {
+    id: 'evidence',
+    name: '论据支持',
+    weight: 0.3,
+    description: '论据的充分性和相关性',
+    criteria: ['证据充分', '例证恰当', '数据准确']
+  },
+  {
+    id: 'delivery',
+    name: '表达能力',
+    weight: 0.2,
+    description: '表达的清晰性和感染力',
+    criteria: ['语言流畅', '表达清晰', '感染力强']
+  },
+  {
+    id: 'rebuttal',
+    name: '反驳质量',
+    weight: 0.2,
+    description: '反驳的针对性和有效性',
+    criteria: ['针对性强', '反驳有力', '立场一致']
+  }
+];
+
+// 修改 UI 状态类型定义
 interface UIState {
   isLoading: boolean;
   isDarkMode: boolean;
@@ -552,13 +613,46 @@ interface UIState {
   status: DebateStatus;
   history: {
     speeches: BaseDebateSpeech[];
-    scores: any[];
+    scores: Score[];
   };
   streamingSpeech: {
     playerId: string;
     content: string;
   } | null;
   players: UnifiedPlayer[];
+}
+
+// 初始 UI 状态
+const initialUIState: UIState = {
+  isLoading: false,
+  isDarkMode: false,
+  playerListWidth: 200,
+  showDebugger: true,
+  currentSpeaker: null,
+  currentRound: 1,
+  status: DebateStatus.PREPARING,
+  history: {
+    speeches: [],
+    scores: []
+  },
+  streamingSpeech: null,
+  players: []
+};
+
+// 在文件顶部添加类型定义
+interface JudgeConfig {
+  description?: string;
+  dimensions?: any[];
+  totalScore?: number;
+  selectedJudge?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  scores?: Score[];
+  currentRoundScores?: Score[];
+  statistics?: any;
+  rankings?: any[];
 }
 
 export const DebateRoom: React.FC = () => {
@@ -568,8 +662,13 @@ export const DebateRoom: React.FC = () => {
   const { state: modelState } = useStore('model');
   const { state: characterState } = useCharacter();
   
-  // 初始化useDebateFlow
-  const { state: debateFlowState, error: debateFlowError, actions: debateFlowActions } = useDebateFlow(
+  // 使用新的 useDebateFlow hook
+  const { 
+    state: debateState, 
+    scores,
+    error: debateError, 
+    actions: debateActions 
+  } = useDebateFlow(
     useMemo(() => {
       if (!gameConfig?.debate) {
         console.log('游戏配置不存在，返回undefined');
@@ -578,6 +677,13 @@ export const DebateRoom: React.FC = () => {
       
       const debate = gameConfig.debate;
       console.log('当前辩论配置:', debate);
+      
+      const rules: DebateRules = {
+        format: debate.rules.debateFormat as 'structured' | 'free',
+        rounds: debate.topic.rounds || 3,
+        canSkipSpeaker: Boolean(debate.rules.advancedRules?.allowQuoting),
+        requireInnerThoughts: Boolean(debate.rules.advancedRules?.requireResponse)
+      };
       
       return {
         topic: {
@@ -599,31 +705,16 @@ export const DebateRoom: React.FC = () => {
             argumentationStyle: player.argumentationStyle || ''
           } : undefined
         })),
-        rules: {
-          debateFormat: debate.rules.debateFormat as 'structured' | 'free',
-          canSkipSpeaker: Boolean(debate.rules.advancedRules?.allowQuoting),
-          requireInnerThoughts: Boolean(debate.rules.advancedRules?.requireResponse)
-        }
-      };
+        rules
+      } as DebateFlowConfig;
     }, [gameConfig?.debate, gameConfig?.players])
   );
   
   // 本地UI状态
-  const [uiState, setUiState] = useState<UIState>({
-    isLoading: true,
-    isDarkMode: false,
-    playerListWidth: 300,
-    showDebugger: false,
-    currentSpeaker: null,
-    currentRound: 1,
-    status: DebateStatus.NOT_STARTED,
-    history: {
-      speeches: [],
-      scores: []
-    },
-    streamingSpeech: null,
-    players: gameConfig?.players || []
-  });
+  const [uiState, setUiState] = useState<UIState>(initialUIState);
+
+  // 初始化评分系统
+  const scoringSystem = useMemo(() => new ScoringSystem(), []);
 
   // 添加初始化逻辑
   useEffect(() => {
@@ -643,7 +734,6 @@ export const DebateRoom: React.FC = () => {
 
         console.log('开始初始化辩论室...');
         
-        // 使用gameConfig中的玩家列表初始化
         const initialPlayers = gameConfig.players || [];
         console.log('初始玩家列表:', initialPlayers);
         
@@ -651,7 +741,7 @@ export const DebateRoom: React.FC = () => {
           ...prev,
           isLoading: false,
           players: initialPlayers,
-          status: DebateStatus.NOT_STARTED,  // 确保初始状态为未开始
+          status: DebateStatus.PREPARING,
           currentRound: 1,
           currentSpeaker: null,
           history: {
@@ -659,7 +749,7 @@ export const DebateRoom: React.FC = () => {
             scores: []
           },
           streamingSpeech: null,
-          showDebugger: true  // 开启调试器以便观察状态
+          showDebugger: true
         }));
         
         isInitialized = true;
@@ -680,50 +770,82 @@ export const DebateRoom: React.FC = () => {
     return () => {
       isInitialized = true;
     };
-  }, [gameConfig?.debate?.topic.title]); // 只在辩题改变时重新初始化
+  }, [gameConfig?.debate?.topic.title]);
 
-  // 同步debateFlowState到uiState
+  // 修改状态同步
   useEffect(() => {
-    if (!debateFlowState) return;
-
-    const currentSpeaker = debateFlowState.currentSpeaker;
-    setUiState(prev => ({
-      ...prev,
-      currentSpeaker: currentSpeaker ? {
-        id: currentSpeaker.id,
-        name: currentSpeaker.name,
-        role: currentSpeaker.role as DebateRole,
-        isAI: currentSpeaker.isAI
-      } as UnifiedPlayer : null,
-      currentRound: debateFlowState.currentRound,
-      status: mapDebateFlowStatus(debateFlowState.status),
-      history: {
-        speeches: debateFlowState.speeches.map(speech => ({
-          id: speech.id,
-          playerId: speech.playerId,
-          content: speech.content,
-          timestamp: typeof speech.timestamp === 'number' ? 
-                    new Date(speech.timestamp).toISOString() : 
-                    speech.timestamp,
-          round: speech.round,
-          references: [],
-          role: speech.role === 'system' ? 'assistant' : speech.role || 'assistant',
-          type: speech.type === 'innerThoughts' ? 'innerThought' : 'speech'
-        } as BaseDebateSpeech)),
-        scores: []
-      }
-    }));
-  }, [debateFlowState]);
-
-  // 处理错误
-  useEffect(() => {
-    if (debateFlowError) {
-      message.error(`辩论流程错误: ${debateFlowError.message}`);
+    if (!debateState) {
+      console.log('debateState 为空，跳过状态同步');
+      return;
     }
-  }, [debateFlowError]);
+
+    console.log('状态同步 - 当前状态:', {
+      debateStatus: debateState.status,
+      currentRound: debateState.currentRound,
+      currentSpeaker: debateState.currentSpeaker,
+      nextSpeaker: debateState.nextSpeaker
+    });
+
+    setUiState((prev: UIState) => {
+      const mappedStatus = mapToDebateStatus(debateState.status);
+      console.log('状态映射结果:', {
+        originalStatus: debateState.status,
+        mappedStatus: mappedStatus
+      });
+
+      const newState: UIState = {
+        ...prev,
+        isLoading: false,
+        isDarkMode: prev.isDarkMode,
+        playerListWidth: prev.playerListWidth,
+        showDebugger: prev.showDebugger,
+        currentSpeaker: debateState.currentSpeaker ? {
+          id: debateState.currentSpeaker.id,
+          name: debateState.currentSpeaker.name,
+          role: debateState.currentSpeaker.role as DebateRole,
+          isAI: debateState.currentSpeaker.isAI
+        } : null,
+        currentRound: debateState.currentRound,
+        status: mappedStatus,
+        history: {
+          speeches: debateState.speeches.map(speech => ({
+            id: speech.id,
+            playerId: speech.playerId,
+            content: speech.content,
+            timestamp: typeof speech.timestamp === 'number' ? 
+                      new Date(speech.timestamp).toISOString() : 
+                      speech.timestamp,
+            round: speech.round,
+            references: [],
+            role: speech.role,
+            type: speech.type
+          })),
+          scores: prev.history.scores
+        },
+        streamingSpeech: null,
+        players: prev.players
+      };
+
+      console.log('状态同步 - 更新后的UI状态:', {
+        prevStatus: prev.status,
+        newStatus: newState.status,
+        currentRound: newState.currentRound,
+        currentSpeaker: newState.currentSpeaker
+      });
+
+      return newState;
+    });
+  }, [debateState]);
+
+  // 错误处理
+  useEffect(() => {
+    if (debateError) {
+      message.error(`辩论流程错误: ${debateError.message}`);
+    }
+  }, [debateError]);
 
   // 获取当前玩家列表
-  const currentPlayers = useMemo(() => gameConfig?.players || [], [gameConfig]);
+  // const currentPlayers = useMemo(() => gameConfig?.players || [], [gameConfig]);
 
   // 添加角色配置服务和状态
   const [characterConfigs, setCharacterConfigs] = useState<Record<string, CharacterConfig>>({});
@@ -731,43 +853,28 @@ export const DebateRoom: React.FC = () => {
 
   // 修改获取裁判信息的函数
   const getJudgeInfo = useCallback(() => {
-    if (!gameConfig?.debate) {
+    if (!gameConfig?.debate?.judging) {
       return null;
     }
 
-    // 从 localStorage 中获取裁判信息
-    const judgeConfig = localStorage.getItem('state_gameConfig');
-    if (!judgeConfig) {
-      return null;
-    }
-
-    try {
-      const config = JSON.parse(judgeConfig);
-      const selectedJudge = config.debate.judging.selectedJudge;
-      if (!selectedJudge) {
-        return null;
-      }
-
-      // 从角色配置中获取更多信息
-      const judgeCharacter = characterConfigs[selectedJudge.id];
-      
+    // 使用类型断言确保类型正确
+    const judging = gameConfig.debate.judging as JudgeConfig;
+    
+    if (!judging.selectedJudge) {
       return {
-        id: selectedJudge.id,
-        name: selectedJudge.name,
-        avatar: selectedJudge.avatar,
-        description: judgeCharacter?.description || '资深辩论裁判',
-        persona: judgeCharacter?.persona || {
-          background: '资深辩论裁判',
-          speakingStyle: '专业严谨',
-          personality: ['公正', '严谨', '专业']
-        },
-        callConfig: judgeCharacter?.callConfig
+        id: 'system_judge',
+        name: '系统评委',
+        description: '由AI驱动的智能评分系统'
       };
-    } catch (error) {
-      console.error('解析裁判配置失败:', error);
-      return null;
     }
-  }, [gameConfig?.debate, characterConfigs]);
+
+    return {
+      id: judging.selectedJudge.id,
+      name: judging.selectedJudge.name,
+      avatar: judging.selectedJudge.avatar,
+      description: judging.description
+    };
+  }, [gameConfig?.debate?.judging]);
 
   // 使用 useMemo 缓存 judgeInfo
   const judgeInfo = useMemo(() => getJudgeInfo(), [getJudgeInfo]);
@@ -839,68 +946,39 @@ export const DebateRoom: React.FC = () => {
     previousSpeeches: uiState.history.speeches
   });
 
-  // 添加状态映射函数
-  const mapDebateFlowStatus = (status?: DebateFlowStatus): DebateStatus => {
-    switch (status) {
-      case 'ongoing':
-        return DebateStatus.IN_PROGRESS;
-      case 'paused':
-        return DebateStatus.PAUSED;
-      case 'completed':
-        return DebateStatus.COMPLETED;
-      case 'preparing':
-      default:
-        return DebateStatus.NOT_STARTED;
+  // 处理辩论状态变更
+  const handleDebateStateChange = async (newStatus: DebateStatus) => {
+    console.log('辩论状态变更:', newStatus);
+    
+    if (newStatus === DebateStatus.ONGOING) {
+      await debateActions.startDebate();
+    }
+    
+    // 移除直接的 uiState 更新，让 useEffect 处理状态同步
+  };
+
+  // 添加处理下一位发言者的函数
+  const handleNextSpeaker = async () => {
+    try {
+      if (debateActions) {
+        await debateActions.skipCurrentSpeaker();
+      }
+    } catch (error) {
+      console.error('切换发言者失败:', error);
+      message.error('切换发言者失败');
     }
   };
 
-  // 处理辩论状态变更
-  const handleDebateStateChange = async (newStatus: DebateStatus) => {
+  // 添加处理下一轮的函数
+  const handleNextRound = async () => {
     try {
-      if (!debateFlowActions) {
-        console.error('辩论流程未初始化');
-        throw new Error('辩论流程未初始化');
+      if (debateActions) {
+        await debateActions.startNextRound();
       }
-
-      console.log('状态变更:', {
-        当前状态: uiState.status,
-        目标状态: newStatus,
-        debateFlowState
-      });
-
-      switch (newStatus) {
-        case DebateStatus.IN_PROGRESS:
-          if (uiState.status === DebateStatus.NOT_STARTED) {
-            console.log('开始辩论流程...');
-            await debateFlowActions.startDebate();
-            message.success('辩论开始');
-          } else if (uiState.status === DebateStatus.PAUSED) {
-            console.log('恢复辩论流程...');
-            await debateFlowActions.resumeDebate();
-            message.success('辩论继续');
-          }
-          break;
-        case DebateStatus.PAUSED:
-          console.log('暂停辩论流程...');
-          await debateFlowActions.pauseDebate();
-          message.success('辩论已暂停');
-          break;
-        case DebateStatus.COMPLETED:
-          console.log('结束辩论流程...');
-          await debateFlowActions.endDebate();
-          message.success('辩论已结束');
-          break;
-      }
-
-      setUiState(prev => ({
-        ...prev,
-        status: newStatus
-      }));
-
     } catch (error) {
-      console.error('状态变更失败:', error);
-      message.error(`状态变更失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      }
+      console.error('进入下一轮失败:', error);
+      message.error('进入下一轮失败');
+    }
   };
 
   // 修改获取模型信息的辅助函数
@@ -919,10 +997,8 @@ export const DebateRoom: React.FC = () => {
   }, [characterConfigs]);
 
   // 获取当前辩论状态
-  const { currentState, topic, players } = gameConfig?.debate || {
-    currentState: { round: 1, status: 'preparing' },
-    topic: { title: '', description: '' },
-    players: { byId: {} }
+  const { topic } = gameConfig?.debate || {
+    topic: { title: '', description: '' }
   };
 
   // 修改调试信息，使用 useRef 来减少不必要的重渲染
@@ -939,7 +1015,10 @@ export const DebateRoom: React.FC = () => {
     const newDebugInfo = {
       currentSpeaker: uiState.currentSpeaker,
       isAI: Boolean(uiState.currentSpeaker?.isAI),
-      gameConfig: gameConfig?.debate?.currentState,
+      gameConfig: {
+        status: uiState.status,
+        currentRound: uiState.currentRound
+      },
       players: uiState.players
     };
     
@@ -948,7 +1027,7 @@ export const DebateRoom: React.FC = () => {
       debugInfoRef.current = newDebugInfo;
       console.log('Debug Info:', newDebugInfo);
     }
-  }, [uiState.currentSpeaker, gameConfig, uiState.players]);
+  }, [uiState.currentSpeaker, uiState.status, uiState.currentRound, uiState.players]);
 
   // 处理发言生成
   const handleSpeechGenerated = (speech: BaseDebateSpeech) => {
@@ -969,23 +1048,109 @@ export const DebateRoom: React.FC = () => {
     }));
   };
 
+  // 错误处理函数
+  const handleError = useCallback((error: Error) => {
+    message.error('操作出错：' + error.message);
+  }, []);
+
+  // 添加AI交互hook
+  const {
+    generateScore,
+    isGenerating: isGeneratingScore
+  } = useAIInteraction({
+    onError: handleError
+  });
+
   // 处理发言完成
-  const handleSpeechComplete = (speech: BaseDebateSpeech) => {
-    setUiState(prev => ({
-      isLoading: prev.isLoading,
-      isDarkMode: prev.isDarkMode,
-      playerListWidth: prev.playerListWidth,
-      showDebugger: prev.showDebugger,
-      currentSpeaker: prev.currentSpeaker,
-      currentRound: prev.currentRound,
-      status: prev.status,
-      history: {
-        speeches: prev.history.speeches.concat(speech),
-        scores: prev.history.scores
-      },
-      streamingSpeech: null,
-      players: prev.players
-    }));
+  const handleSpeechComplete = async (speech: BaseDebateSpeech) => {
+    try {
+      // 更新当前演讲到历史记录
+      setUiState(prev => ({
+        ...prev,
+        history: {
+          ...prev.history,
+          speeches: [...prev.history.speeches, speech]
+        }
+      }));
+
+      const isLastSpeaker = uiState.players.length === uiState.currentRound;
+      
+      if (isLastSpeaker) {
+        const roundSpeeches = uiState.history.speeches.filter(s => s.round === uiState.currentRound);
+        const roundScores: Score[] = [];
+        
+        if (judgeInfo) {
+          for (const roundSpeech of roundSpeeches) {
+            try {
+              const score = await generateScore({
+                judge: {
+                  ...judgeInfo,
+                  role: 'judge',
+                  isAI: true
+                },
+                speech: roundSpeech,
+                scoringRules: defaultDimensions.map(dim => ({
+                  dimension: {
+                    id: dim.id,
+                    name: dim.name,
+                    weight: dim.weight,
+                    description: dim.description,
+                    criteria: dim.criteria
+                  },
+                  minScore: 0,
+                  maxScore: 100,
+                  guidelines: ['保持客观公正', '注重论证质量']
+                }))
+              });
+              
+              if (score) {
+                roundScores.push(score);
+              }
+            } catch (error) {
+              console.error(`生成评分失败: ${error}`);
+              message.warning(`${roundSpeech.playerId} 的评分生成失败，将使用模拟评分`);
+              
+              // 使用 ScoringSystem 生成模拟评分
+              const mockScore = scoringSystem.generateMockScore(roundSpeech);
+              roundScores.push(mockScore);
+            }
+          }
+          
+          // 更新评分到 uiState
+          setUiState(prev => ({
+            ...prev,
+            history: {
+              ...prev.history,
+              scores: [...prev.history.scores, ...roundScores]
+            }
+          }));
+
+          // 通知评分完成
+          message.success(`第 ${uiState.currentRound} 轮评分已完成`);
+        }
+      }
+
+      // 更新当前发言人和轮次
+      if (isLastSpeaker) {
+        setUiState(prev => ({
+          ...prev,
+          currentRound: prev.currentRound + 1
+        }));
+        setUiState(prev => ({
+          ...prev,
+          currentSpeaker: uiState.players[0]
+        }));
+      } else {
+        const nextSpeakerIndex = uiState.players.findIndex(p => p.id === uiState.currentSpeaker?.id) + 1;
+        setUiState(prev => ({
+          ...prev,
+          currentSpeaker: uiState.players[nextSpeakerIndex]
+        }));
+      }
+    } catch (error) {
+      console.error('处理演讲完成时出错:', error);
+      message.error('处理演讲完成时出错');
+    }
   };
 
   // 修改深色模式切换
@@ -1005,11 +1170,98 @@ export const DebateRoom: React.FC = () => {
   };
 
   // 修改状态判断
-  const isDebating = uiState.status === DebateStatus.IN_PROGRESS;
+  const isDebating = uiState.status === DebateStatus.ONGOING;
 
-  // 修改错误处理
-  const handleError = (error: Error) => {
-    message.error('生成发言时出错：' + error.message);
+  // 渲染评分展示
+  const renderScores = () => {
+    if (!uiState.history.scores.length) return null;
+
+    return (
+      <div style={{ margin: '20px 0' }}>
+        <ScoreStatisticsDisplay
+          statistics={scoringSystem.calculateStatistics(uiState.history.scores)}
+          rankings={scoringSystem.calculateRankings(uiState.history.scores, uiState.players)}
+          getPlayerName={(playerId) => 
+            uiState.players.find(p => p.id === playerId)?.name || playerId
+          }
+        />
+      </div>
+    );
+  };
+
+  // 渲染评分统计
+  const renderScoreStatistics = () => {
+    if (uiState.status !== DebateStatus.COMPLETED || !uiState.history.scores.length) return null;
+
+    return (
+      <ScoreStatisticsDisplay
+        statistics={{
+          dimensions: {
+            logic: {
+              average: 85,
+              highest: 95,
+              lowest: 75,
+              distribution: { '80-89': 3, '90-100': 1 }
+            }
+          },
+          overall: {
+            average: 85,
+            highest: 95,
+            lowest: 75,
+            distribution: { '80-89': 3, '90-100': 1 }
+          }
+        }}
+        rankings={uiState.players
+          .filter(p => p.role !== 'judge')
+          .map((player, index) => ({
+            playerId: player.id,
+            totalScore: 85,
+            averageScore: 85,
+            dimensionScores: { logic: 85 },
+            speechCount: 2,
+            rank: index + 1
+          }))}
+        getPlayerName={id => uiState.players.find(p => p.id === id)?.name || id}
+      />
+    );
+  };
+
+  // 处理发言提交
+  const handleSpeechSubmit = async (speech: SpeechInput) => {
+    try {
+      await debateActions.submitSpeech(speech);
+    } catch (error) {
+      console.error('发言提交失败:', error);
+      message.error(`发言提交失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  // 处理跳过发言者
+  const handleSkipSpeaker = async () => {
+    try {
+      await debateActions.skipCurrentSpeaker();
+    } catch (error) {
+      console.error('跳过发言者失败:', error);
+      message.error(`跳过发言者失败: ${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  // 在组件内部添加 speechListProps 的定义
+  const speechListProps = {
+    players: uiState.players,
+    currentSpeakerId: uiState.currentSpeaker?.id,
+    speeches: uiState.history.speeches,
+    streamingSpeech: uiState.streamingSpeech,
+    onReference: (speechId: string) => {
+      // 处理引用逻辑
+      console.log('引用发言:', speechId);
+    },
+    getReferencedSpeeches: (speechId: string) => {
+      // 获取被引用的发言
+      return uiState.history.speeches.filter(s => 
+        s.references?.includes(speechId)
+      );
+    }
   };
 
   // 如果 uiState 未定义，显示加载状态
@@ -1041,305 +1293,341 @@ export const DebateRoom: React.FC = () => {
     );
   }
 
+  // 移除对 persona 和 callConfig 的引用
+  const renderAIInfo = () => {
+    const judge = getJudgeInfo();
+    if (!judge) return null;
+
+    return (
+      <div className="ai-info">
+        <h4>AI评分系统</h4>
+        <p>使用先进的AI技术进行公正评分</p>
+      </div>
+    );
+  };
+
   return (
-    <Container>
-      <TopBar>
-        <div className="room-info">
-          <RoomTitle>{gameConfig?.debate?.topic?.title || '辩论室'}</RoomTitle>
-          {/* 其他房间信息 */}
-        </div>
-        <div className="debate-controls">
-          <DebateControl
-            status={mapDebateStatus(uiState.status)}
-            roundInfo={{
-              currentRound: uiState.currentRound,
-              totalRounds: gameConfig?.debate?.topic?.rounds || 3,
-              currentSpeaker: uiState.currentSpeaker?.id,
-              nextSpeaker: debateFlowState?.nextSpeaker?.id,
-              speakingOrder: debateFlowState?.speakingOrder?.speakers?.map(s => s.player.id) || []
-            }}
-            onStart={() => handleDebateStateChange(DebateStatus.IN_PROGRESS)}
-            onPause={() => handleDebateStateChange(DebateStatus.PAUSED)}
-            onResume={() => handleDebateStateChange(DebateStatus.IN_PROGRESS)}
-            onEnd={() => handleDebateStateChange(DebateStatus.COMPLETED)}
-            onNextRound={() => {
-              message.info('正在进入下一轮...');
-              if (debateFlowActions?.submitSpeech) {
-                debateFlowActions.submitSpeech({
-                  playerId: 'system',
-                  content: '进入下一轮',
-                  type: 'speech',
-                  references: [],
-                  role: 'system',
-                  timestamp: new Date().toISOString(),
-                  round: uiState.currentRound,
-                  id: `system-${Date.now()}`
-                });
-              }
-            }}
-            onNextSpeaker={() => {
-              message.info('正在切换下一位发言者...');
-              if (debateFlowActions?.submitSpeech) {
-                debateFlowActions.submitSpeech({
-                  playerId: 'system',
-                  content: '切换下一位发言者',
-                  type: 'system',
-                  references: [],
-                  role: 'system',
-                  timestamp: new Date().toISOString(),
-                  round: uiState.currentRound,
-                  id: `system-${Date.now()}`
-                });
-              }
-            }}
-            getPlayerName={(playerId) => {
-              const player = currentPlayers.find(p => p.id === playerId);
-              return player?.name || '未知选手';
-            }}
-          />
-        </div>
-        <ToolButton onClick={handleThemeChange}>
-          {uiState.isDarkMode ? <BulbFilled /> : <BulbOutlined />}
-          {uiState.isDarkMode ? '浅色模式' : '深色模式'}
-        </ToolButton>
-      </TopBar>
+    <DebateErrorBoundary>
+      <Container>
+        <TopBar>
+          <div className="room-info">
+            <RoomTitle>{gameConfig?.debate?.topic?.title || '辩论室'}</RoomTitle>
+            {/* 其他房间信息 */}
+          </div>
+          <div className="debate-controls">
+            <DebateControl
+              status={uiState.status}
+              currentRound={uiState.currentRound}
+              totalRounds={gameConfig.debate.topic.rounds}
+              currentSpeaker={uiState.currentSpeaker}
+              nextSpeaker={debateState?.nextSpeaker ? {
+                id: debateState.nextSpeaker.id,
+                name: debateState.nextSpeaker.name,
+                role: debateState.nextSpeaker.role as DebateRole,
+                isAI: debateState.nextSpeaker.isAI
+              } : null}
+              players={uiState.players}
+              onStartScoring={handleDebateStateChange}
+              onScoringComplete={handleSpeechComplete}
+              onNextRound={handleNextRound}
+              onNextSpeaker={handleNextSpeaker}
+              scoringRules={defaultDimensions}
+              judge={judgeInfo}
+            />
+          </div>
+          <ToolButton onClick={handleThemeChange}>
+            {uiState.isDarkMode ? <BulbFilled /> : <BulbOutlined />}
+            {uiState.isDarkMode ? '浅色模式' : '深色模式'}
+          </ToolButton>
+        </TopBar>
 
-      {/* 主题信息区域 */}
-      <TopicBar>
-        <TopicSection>
-          <TopicTitle>{gameConfig?.debate?.topic?.title || '未设置辩题'}</TopicTitle>
-          <TopicInfo>
-            <div>{gameConfig?.debate?.topic?.description || '暂无描述'}</div>
-          </TopicInfo>
-        </TopicSection>
+        {/* 主题信息区域 */}
+        <TopicBar>
+          <TopicSection>
+            <TopicTitle>{gameConfig?.debate?.topic?.title || '未设置辩题'}</TopicTitle>
+            <TopicInfo>
+              <div>{gameConfig?.debate?.topic?.description || '暂无描述'}</div>
+            </TopicInfo>
+          </TopicSection>
 
-        {judgeInfo && (
-          <JudgeSection>
-            <JudgeAvatar>
-              <img 
-                src={judgeInfo.avatar} 
-                alt={judgeInfo.name}
-              />
-              <JudgeTooltip className="judge-tooltip">
-                <div className="judge-header">
-                  <img src={judgeInfo.avatar} alt={judgeInfo.name} />
-                  <div className="judge-basic-info">
-                    <div className="judge-name">{judgeInfo.name}</div>
-                    <div className="judge-description">{judgeInfo.description}</div>
+          {judgeInfo && (
+            <JudgeSection>
+              <JudgeAvatar>
+                <img 
+                  src={judgeInfo.avatar} 
+                  alt={judgeInfo.name}
+                />
+                <JudgeTooltip className="judge-tooltip">
+                  <div className="judge-header">
+                    <img src={judgeInfo.avatar} alt={judgeInfo.name} />
+                    <div className="judge-basic-info">
+                      <div className="judge-name">{judgeInfo.name}</div>
+                      <div className="judge-description">{judgeInfo.description}</div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="judge-persona">
-                  <div className="persona-item">
-                    <span className="label">背景</span>
-                    <span>{judgeInfo.persona.background}</span>
-                  </div>
-                  <div className="persona-item">
-                    <span className="label">风格</span>
-                    <span>{judgeInfo.persona.speakingStyle}</span>
-                  </div>
-                  <div className="persona-item">
-                    <span className="label">性格</span>
-                    <span>{judgeInfo.persona.personality.join('、')}</span>
-                  </div>
-                </div>
-
-                {/* AI模型信息 */}
-                <div style={{ 
-                  marginTop: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid #f0f0f0'
-                }}>
-                  <div className="section-title">AI模型</div>
-                  <div className="section-content">
-                    {judgeInfo.callConfig?.direct && (
-                      <>
-                        <ModelBadge provider={judgeInfo.callConfig.direct.provider}>
-                          {judgeInfo.callConfig.direct.provider}
-                        </ModelBadge>
-                        <ModelName>
-                          {judgeInfo.callConfig.direct.model}
-                        </ModelName>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* 评分规则 */}
-                <div style={{ 
-                  marginTop: '12px',
-                  paddingTop: '12px',
-                  borderTop: '1px solid #f0f0f0'
-                }}>
-                  <div className="section-title">评分规则</div>
-                  <div className="section-content">
-                    {gameConfig?.debate?.judging?.description || '暂无评分规则说明'}
-                  </div>
-                </div>
-
-                {/* 评分标准 */}
-                {gameConfig?.debate?.judging?.dimensions && (
+                  {/* AI模型信息 */}
                   <div style={{ 
                     marginTop: '12px',
                     paddingTop: '12px',
                     borderTop: '1px solid #f0f0f0'
                   }}>
-                    <div className="section-title">评分标准</div>
+                    <div className="section-title">AI模型</div>
                     <div className="section-content">
-                      {gameConfig.debate.judging.dimensions.map((dimension: {
-                        name: string;
-                        weight: number;
-                        description: string;
-                        criteria: string[];
-                      }, index: number) => (
-                        <div key={index} className="dimension-item">
-                          <span className="dimension-name">{dimension.name}</span>
-                          <div className="dimension-content">
-                            <span style={{ color: '#1890ff', marginRight: '8px' }}>{dimension.weight}分</span>
-                            <span style={{ color: '#8c8c8c' }}>{dimension.description}</span>
-                          </div>
-                        </div>
-                      ))}
+                      {renderAIInfo()}
                     </div>
                   </div>
-                )}
-              </JudgeTooltip>
-            </JudgeAvatar>
-            <JudgeInfo>
-              <JudgeName>{judgeInfo.name}</JudgeName>
-              <div style={{ fontSize: '12px', color: '#666' }}>裁判</div>
-            </JudgeInfo>
-          </JudgeSection>
-        )}
-      </TopicBar>
 
-      {/* 主内容区域 */}
-      <MainContent>
-        <Resizable
-          size={{ width: uiState.playerListWidth, height: '100%' }}
-          onResizeStop={handleResizeStop}
-          enable={{ right: true }}
-          minWidth={250}
-          maxWidth={450}
-        >
-          <PlayerListSection>
-            <PlayerListHeader>
-              <div>参赛选手</div>
-              <div>
-                {currentPlayers.length}/4
-              </div>
-            </PlayerListHeader>
-            <PlayerListContainer>
-              {currentPlayers.map((player: UnifiedPlayer) => {
-                const character = player.characterId ? characterConfigs[player.characterId] : undefined;
-                
-                return (
-                  <PlayerCard 
-                    key={player.id}
-                    active={player.id === uiState.currentSpeaker?.id}
-                  >
-                    <PlayerHeader>
-                      <div>
-                      <PlayerAvatar 
-                        src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
-                        alt={player.name}
-                      />
-                      <PlayerInfo>
-                        <PlayerName>
-                          {player.name}
-                        </PlayerName>
-                        <PlayerRole>
-                          {gameConfig?.debate?.rules?.debateFormat === 'structured' ? (
-                            <>
-                              {player.role.includes('affirmative') ? '正方' : 
-                               player.role.includes('negative') ? '反方' : 
-                               player.role === 'judge' ? '裁判' : 
-                               player.role === 'timekeeper' ? '计时员' : '观众'}
-                              {player.role.includes('1') && ' - 一辩'}
-                              {player.role.includes('2') && ' - 二辩'}
-                              {player.role.includes('3') && ' - 三辩'}
-                              {player.role.includes('4') && ' - 四辩'}
-                            </>
-                          ) : (
-                              <>
-                                {player.role === 'free' ? '自由辩手' : 
-                                 player.role === 'judge' ? '裁判' : 
-                                 player.role === 'timekeeper' ? '计时员' : 
-                                 player.role === 'unassigned' ? '未分配' : '观众'}
-                              </>
-                            )}
-                          </PlayerRole>
-                        </PlayerInfo>
+                  {/* 评分规则 */}
+                  <div style={{ 
+                    marginTop: '12px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid #f0f0f0'
+                  }}>
+                    <div className="section-title">评分规则</div>
+                    <div className="section-content">
+                      {gameConfig?.debate?.judging?.description || '暂无评分规则说明'}
+                    </div>
+                  </div>
+
+                  {/* 评分标准 */}
+                  {gameConfig?.debate?.judging?.dimensions && (
+                    <div style={{ 
+                      marginTop: '12px',
+                      paddingTop: '12px',
+                      borderTop: '1px solid #f0f0f0'
+                    }}>
+                      <div className="section-title">评分标准</div>
+                      <div className="section-content">
+                        {gameConfig.debate.judging.dimensions.map((dimension: {
+                          name: string;
+                          weight: number;
+                          description: string;
+                          criteria: string[];
+                        }, index: number) => (
+                          <div key={index} className="dimension-item">
+                            <span className="dimension-name">{dimension.name}</span>
+                            <div className="dimension-content">
+                              <span style={{ color: '#1890ff', marginRight: '8px' }}>{dimension.weight}分</span>
+                              <span style={{ color: '#8c8c8c' }}>{dimension.description}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      {character && (
-                              <CharacterInfo>
-                          <CharacterName>
-                            {character.name}
-                                  {player.isAI && (
-                                    <span style={{ 
-                                      fontSize: '12px',
-                                      padding: '2px 8px',
-                                      background: 'rgba(24, 144, 255, 0.1)',
-                                      color: '#1890ff',
-                                      borderRadius: '4px'
-                                    }}>
-                                      AI
-                                    </span>
-                                  )}
-                                </CharacterName>
-                                {character.description && (
-                                  <CharacterDescription>
-                                    {character.description}
-                                  </CharacterDescription>
-                                )}
-                                {character?.persona && (
-                                  <CharacterPersona>
-                                    {character.persona.background} · {character.persona.speakingStyle}
-                                  </CharacterPersona>
-                                )}
-                                <CharacterModel>
-                                  {getModelInfo(character.id)}
-                                </CharacterModel>
-                              </CharacterInfo>
-                      )}
-                    </PlayerHeader>
-                  </PlayerCard>
+                    </div>
+                  )}
+                </JudgeTooltip>
+              </JudgeAvatar>
+              <JudgeInfo>
+                <JudgeName>{judgeInfo.name}</JudgeName>
+                <div style={{ fontSize: '12px', color: '#666' }}>裁判</div>
+              </JudgeInfo>
+            </JudgeSection>
+          )}
+        </TopicBar>
+
+        {/* 主内容区域 */}
+        <MainContent>
+          <Resizable
+            size={{ width: uiState.playerListWidth, height: '100%' }}
+            onResizeStop={handleResizeStop}
+            enable={{ right: true }}
+            minWidth={250}
+            maxWidth={450}
+          >
+            <PlayerListSection>
+              <PlayerListHeader>
+                <div>参赛选手</div>
+                <div>
+                  {uiState.players.length}/4
+                </div>
+              </PlayerListHeader>
+              <PlayerListContainer>
+                {uiState.players.map((player: UnifiedPlayer) => {
+                  const character = player.characterId ? characterConfigs[player.characterId] : undefined;
+                  
+                  return (
+                    <PlayerCard 
+                      key={player.id}
+                      active={player.id === uiState.currentSpeaker?.id}
+                    >
+                      <PlayerHeader>
+                        <div>
+                          <PlayerAvatar 
+                            src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
+                            alt={player.name}
+                          />
+                          <PlayerInfo>
+                            <PlayerName>
+                              {player.name}
+                            </PlayerName>
+                            <PlayerRole>
+                              {gameConfig?.debate?.rules?.debateFormat === 'structured' ? (
+                                <>
+                                  {player.role.includes('affirmative') ? '正方' : 
+                                   player.role.includes('negative') ? '反方' : 
+                                   player.role === 'judge' ? '裁判' : 
+                                   player.role === 'timekeeper' ? '计时员' : '观众'}
+                                  {player.role.includes('1') && ' - 一辩'}
+                                  {player.role.includes('2') && ' - 二辩'}
+                                  {player.role.includes('3') && ' - 三辩'}
+                                  {player.role.includes('4') && ' - 四辩'}
+                                </>
+                              ) : (
+                                <>
+                                  {player.role === 'free' ? '自由辩手' : 
+                                   player.role === 'judge' ? '裁判' : 
+                                   player.role === 'timekeeper' ? '计时员' : 
+                                   player.role === 'unassigned' ? '未分配' : '观众'}
+                                </>
+                              )}
+                            </PlayerRole>
+                          </PlayerInfo>
+                        </div>
+                        {character && (
+                          <CharacterInfo>
+                            <CharacterName>
+                              {character.name}
+                              {player.isAI && (
+                                <span style={{ 
+                                  fontSize: '12px',
+                                  padding: '2px 8px',
+                                  background: 'rgba(24, 144, 255, 0.1)',
+                                  color: '#1890ff',
+                                  borderRadius: '4px'
+                                }}>
+                                  AI
+                                </span>
+                              )}
+                            </CharacterName>
+                            {character.description && (
+                              <CharacterDescription>
+                                {character.description}
+                              </CharacterDescription>
+                            )}
+                            {character?.persona && (
+                              <CharacterPersona>
+                                {character.persona.background} · {character.persona.speakingStyle}
+                              </CharacterPersona>
+                            )}
+                            <CharacterModel>
+                              {getModelInfo(character.id)}
+                            </CharacterModel>
+                          </CharacterInfo>
+                        )}
+                      </PlayerHeader>
+                    </PlayerCard>
+                  );
+                })}
+              </PlayerListContainer>
+            </PlayerListSection>
+          </Resizable>
+
+          <ContentArea>
+            <SpeechList
+              players={uiState.players}
+              currentSpeakerId={uiState.currentSpeaker?.id}
+              speeches={uiState.history.speeches}
+              streamingSpeech={uiState.streamingSpeech || undefined}
+              onReference={(speechId: string) => {
+                console.log('引用发言:', speechId);
+              }}
+              getReferencedSpeeches={(speechId: string) => {
+                return uiState.history.speeches.filter(s => 
+                  s.references?.includes(speechId)
                 );
-              })}
-            </PlayerListContainer>
-          </PlayerListSection>
-        </Resizable>
+              }}
+            />
+            
+            {/* 实时评分展示(每轮结束) */}
+            {uiState.history.scores.length > 0 && (
+              <div style={{ margin: '20px 0', padding: '20px', background: '#fff', borderRadius: '8px' }}>
+                <h3 style={{ marginBottom: '16px' }}>本轮评分</h3>
+                {uiState.history.scores
+                  .filter(score => score.round === uiState.currentRound)
+                  .map(score => (
+                    <ScoreDisplay
+                      key={score.id}
+                      score={score}
+                      judgeName={uiState.players.find(p => p.id === score.judgeId)?.name || '评委'}
+                    />
+                  ))}
+              </div>
+            )}
+            
+            {/* 总体评分统计(辩论结束) */}
+            {uiState.status === DebateStatus.COMPLETED && (
+              <div style={{ margin: '20px 0', padding: '20px', background: '#fff', borderRadius: '8px' }}>
+                <h3 style={{ marginBottom: '16px' }}>辩论总评</h3>
+                <ScoreStatisticsDisplay
+                  statistics={scoringSystem.calculateStatistics(uiState.history.scores)}
+                  rankings={scoringSystem.calculateRankings(uiState.history.scores, uiState.players)}
+                  getPlayerName={(playerId) => 
+                    uiState.players.find(p => p.id === playerId)?.name || playerId
+                  }
+                />
+              </div>
+            )}
+          </ContentArea>
+        </MainContent>
 
-        <ContentArea>
-          <SpeechList
-            players={currentPlayers}
-            currentSpeakerId={uiState.currentSpeaker?.id}
-            speeches={uiState.history.speeches}
-            streamingSpeech={uiState.streamingSpeech || undefined}
-            onReference={(speechId: string) => {
-              // 处理引用逻辑
+        {/* 状态调试器 */}
+        {uiState.showDebugger && (
+          <StateDebugger
+            state={{
+              configState: {
+                activeConfig: {
+                  debate: {
+                    topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 }
+                  }
+                }
+              },
+              debateState: {
+                status: uiState.status,
+                progress: {
+                  currentRound: uiState.currentRound
+                },
+                currentSpeaker: uiState.currentSpeaker,
+                history: uiState.history
+              },
+              debate: {
+                topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 },
+                rules: gameConfig.debate?.rules || {
+                  debateFormat: 'free',
+                  description: '',
+                  advancedRules: {
+                    speechLengthLimit: { min: 100, max: 1000 },
+                    allowQuoting: true,
+                    requireResponse: true,
+                    allowStanceChange: false,
+                    requireEvidence: true
+                  }
+                },
+                judging: {
+                  ...gameConfig.debate?.judging,
+                  scores: uiState.history.scores,
+                  currentRoundScores: uiState.history.scores.filter(
+                    score => score.round === uiState.currentRound
+                  ),
+                  statistics: scoringSystem.calculateStatistics(uiState.history.scores),
+                  rankings: scoringSystem.calculateRankings(uiState.history.scores, uiState.players)
+                },
+                status: uiState.status,
+                currentRound: uiState.currentRound,
+                currentSpeaker: uiState.currentSpeaker,
+                speeches: uiState.history.speeches,
+                scores: uiState.history.scores,
+                format: gameConfig.debate?.rules?.debateFormat as 'structured' | 'free'
+              },
+              players: uiState.players
             }}
-            getReferencedSpeeches={(speechId: string) => {
-              return [];
-            }}
+            onToggleDebugger={() => setUiState(prev => ({
+              ...prev,
+              showDebugger: !prev.showDebugger
+            }))}
           />
-        </ContentArea>
-      </MainContent>
-    </Container>
+        )}
+      </Container>
+    </DebateErrorBoundary>
   );
-};
-
-// 添加状态映射函数
-const mapDebateStatus = (status: DebateStatus): 'preparing' | 'ongoing' | 'paused' | 'finished' => {
-  switch (status) {
-    case DebateStatus.IN_PROGRESS:
-      return 'ongoing';
-    case DebateStatus.PAUSED:
-      return 'paused';
-    case DebateStatus.COMPLETED:
-      return 'finished';
-    case DebateStatus.NOT_STARTED:
-    default:
-      return 'preparing';
-  }
 };

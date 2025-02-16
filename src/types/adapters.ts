@@ -329,6 +329,11 @@ export interface BaseDebateScore {
   dimensions: Record<string, number>;
   totalScore: number;
   comment: string;
+  feedback: {
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+  };
   value?: number;  // 设为可选
   criteria?: string;  // 设为可选
 }
@@ -396,7 +401,12 @@ export interface DebateRoomLayout {
 }
 
 // 基础类型定义
-export type DebateStatus = 'preparing' | 'ongoing' | 'paused' | 'finished';
+export enum DebateStatus {
+  NOT_STARTED = 'not_started',
+  IN_PROGRESS = 'in_progress',
+  PAUSED = 'paused',
+  COMPLETED = 'completed'
+}
 
 // 统一事件类型
 export interface DebateEvent {
@@ -457,4 +467,28 @@ export const DEFAULT_PLAYER: UnifiedPlayer = {
   role: 'unassigned',
   isAI: false,
   status: 'waiting'
-}; 
+};
+
+export interface ScoreStatistics {
+  dimensions: Record<string, {
+    average: number;
+    highest: number;
+    lowest: number;
+    distribution: Record<string, number>;
+  }>;
+  overall: {
+    average: number;
+    highest: number;
+    lowest: number;
+    distribution: Record<string, number>;
+  };
+}
+
+export interface PlayerRanking {
+  playerId: string;
+  totalScore: number;
+  averageScore: number;
+  dimensionScores: Record<string, number>;
+  speechCount: number;
+  rank: number;
+} 

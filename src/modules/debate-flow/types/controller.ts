@@ -19,8 +19,6 @@ export interface DebateFlowController {
   // 结束辩论
   endDebate(): Promise<void>;
   
-  // 跳过当前发言者
-  skipCurrentSpeaker(): Promise<void>;
   
   // 强制结束当前发言
   forceEndCurrentSpeech(): Promise<void>;

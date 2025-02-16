@@ -1,4 +1,16 @@
 import type { EventEmitter } from 'events';
+import type { Player } from '../../game-config/types';
+
+export const DebateStatus = {
+  PREPARING: 'preparing',
+  ONGOING: 'ongoing',
+  PAUSED: 'paused',
+  ROUND_COMPLETE: 'roundComplete',
+  SCORING: 'scoring',
+  COMPLETED: 'completed'
+} as const;
+
+export type DebateStatus = typeof DebateStatus[keyof typeof DebateStatus];
 
 // 核心接口定义
 export interface IDebateFlow {
@@ -8,11 +20,13 @@ export interface IDebateFlow {
   resumeDebate(): Promise<void>;
   endDebate(): Promise<void>;
   submitSpeech(speech: SpeechInput): Promise<void>;
+  getCurrentState(): DebateFlowState;
+  subscribeToStateChange(handler: StateChangeHandler): () => void;
   skipCurrentSpeaker(): Promise<void>;
   handlePlayerExit(playerId: string): Promise<void>;
   handlePlayerRejoin(player: PlayerConfig): Promise<void>;
-  getCurrentState(): DebateFlowState;
-  subscribeToStateChange(handler: StateChangeHandler): () => void;
+  startScoring(): Promise<void>;
+  startNextRound(): Promise<void>;
 }
 
 // 配置相关接口
@@ -67,23 +81,27 @@ export interface DebateFlowState {
   totalRounds: number;
   currentSpeaker: SpeakerInfo | null;
   nextSpeaker: SpeakerInfo | null;
-  speakingOrder: SpeakingOrderInfo;
-  currentSpeech: SpeechInfo | null;
+  speakingOrder: SpeakingOrder;
+  currentSpeech: {
+    type: 'innerThoughts' | 'speech';
+    content: string;
+    status: 'streaming' | 'completed' | 'failed';
+  } | null;
   speeches: Speech[];
   scores: Score[];
 }
 
-export type DebateStatus = 'preparing' | 'ongoing' | 'paused' | 'completed';
-
-export interface SpeakerInfo {
+export interface SpeakerInfo extends Player {
   id: string;
   name: string;
-  isAI: boolean;
   role: string;
+  isAI: boolean;
   team?: 'affirmative' | 'negative';
 }
 
-export interface SpeakingOrderInfo {
+export type SpeakerStatus = 'waiting' | 'speaking' | 'finished';
+
+export type SpeakingOrderInfo = {
   format: 'free' | 'structured';
   currentRound: number;
   totalRounds: number;
@@ -96,11 +114,9 @@ export interface SpeakingOrderInfo {
     round: number;
     speakerId: string;
   }>;
-}
+};
 
 export type SpeakingOrder = SpeakingOrderInfo;
-
-export type SpeakerStatus = 'pending' | 'speaking' | 'completed' | 'skipped';
 
 // 输入输出相关接口
 export type SpeechRole = 'assistant' | 'user' | 'system';
@@ -128,24 +144,58 @@ export interface Speech {
 }
 
 export interface SpeechInfo {
-  type: SpeechType;
+  type: 'innerThoughts' | 'speech';
   content: string;
   status: 'streaming' | 'completed' | 'failed';
 }
 
 export type StateChangeHandler = (state: DebateFlowState) => void;
 
-// 服务接口
-export interface ILLMService {
-  generateStream(options: LLMStreamOptions): AsyncIterable<string>;
+export interface GenerateStreamOptions {
+  characterId: string;
+  type: 'innerThoughts' | 'speech';
+  signal?: AbortSignal;
+  systemPrompt?: string;
+  humanPrompt?: string;
 }
 
-export interface LLMStreamOptions {
-  systemPrompt: string;
-  humanPrompt?: string;
-  characterId?: string;
-  type?: 'innerThoughts' | 'speech';
-  signal?: AbortSignal;
+export interface DebateContext {
+  topic: {
+    title: string;
+    background?: string;
+  };
+  currentRound: number;
+  totalRounds: number;
+  previousSpeeches: Speech[];
+}
+
+// 服务接口
+export interface ILLMService {
+  generateStream(options: {
+    systemPrompt: string;
+    humanPrompt?: string;
+    characterId?: string;
+    type?: 'innerThoughts' | 'speech';
+    signal?: AbortSignal;
+  }): AsyncGenerator<string>;
+  
+  generateInnerThoughts(
+    player: Player,
+    context: DebateContext,
+    options?: Partial<GenerateStreamOptions>
+  ): AsyncGenerator<string>;
+  
+  generateSpeech(
+    player: Player,
+    context: DebateContext,
+    innerThoughts: string,
+    options?: Partial<GenerateStreamOptions>
+  ): AsyncGenerator<string>;
+  
+  generateScore(
+    speech: ProcessedSpeech,
+    context: ScoringContext
+  ): AsyncGenerator<string>;
 }
 
 export interface ISpeechProcessor {

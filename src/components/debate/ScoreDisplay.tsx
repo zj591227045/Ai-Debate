@@ -1,26 +1,11 @@
 import React from 'react';
 import styled from '@emotion/styled';
-import { motion } from 'framer-motion';
-import { formatTimestamp, convertNumberToTimestamp } from '../../utils/timestamp';
+import type { Score } from '../../types/adapters';
 
-// 定义Score类型
-interface Score {
-  id: string;
-  judgeId: string;
-  playerId: string;
-  speechId: string;
-  round: number;
-  timestamp: string | number;
-  dimensions: Record<string, number>;
-  totalScore: number;
-  comment: string;
-}
-
-// 样式定义
-const Container = styled(motion.div)`
-  background-color: var(--color-bg-light);
-  border-radius: 8px;
+const Container = styled.div`
   padding: 16px;
+  background: var(--color-bg-light);
+  border-radius: 8px;
   margin-top: 12px;
 `;
 
@@ -31,103 +16,132 @@ const Header = styled.div`
   margin-bottom: 12px;
 `;
 
-const Title = styled.div`
-  font-weight: bold;
+const Title = styled.h4`
+  margin: 0;
   color: var(--color-text-primary);
 `;
 
 const TotalScore = styled.div`
-  font-size: 1.2em;
+  font-size: 24px;
   font-weight: bold;
   color: var(--color-primary);
 `;
 
-const DimensionList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+const DimensionScores = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
 `;
 
-const DimensionItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+const DimensionScore = styled.div`
   padding: 8px;
-  background-color: var(--color-bg-white);
+  background: var(--color-bg-white);
   border-radius: 4px;
+  border: 1px solid var(--color-border);
 `;
 
-const DimensionName = styled.span`
+const DimensionName = styled.div`
+  font-size: 12px;
   color: var(--color-text-secondary);
+  margin-bottom: 4px;
 `;
 
-const DimensionScore = styled.span`
-  font-weight: bold;
+const ScoreValue = styled.div`
+  font-size: 16px;
+  font-weight: 500;
   color: var(--color-text-primary);
 `;
 
-const Comment = styled.div`
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-border);
+const Feedback = styled.div`
+  margin-top: 16px;
+`;
+
+const FeedbackSection = styled.div`
+  margin-bottom: 12px;
+`;
+
+const FeedbackTitle = styled.div`
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 8px;
+`;
+
+const FeedbackList = styled.ul`
+  margin: 0;
+  padding-left: 20px;
   color: var(--color-text-secondary);
-  font-size: 0.9em;
-  line-height: 1.5;
+`;
+
+const Comment = styled.div`
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--color-bg-white);
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-style: italic;
 `;
 
 interface ScoreDisplayProps {
   score: Score;
-  judgeName?: string;
+  judgeName: string;
 }
 
-const dimensionNameMap: Record<string, string> = {
-  logic: '逻辑性',
-  personification: '拟人程度',
-  compliance: '规则遵守',
-};
-
-export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({
-  score,
-  judgeName
-}) => {
-  const formattedTimestamp = typeof score.timestamp === 'number' 
-    ? formatTimestamp(convertNumberToTimestamp(score.timestamp))
-    : formatTimestamp(score.timestamp);
-
+export const ScoreDisplay: React.FC<ScoreDisplayProps> = ({ score, judgeName }) => {
   return (
-    <Container
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <Container>
       <Header>
-        <Title>
-          评分详情
-          {judgeName && <span style={{ color: 'var(--color-text-secondary)', marginLeft: 8 }}>
-            - {judgeName}
-          </span>}
-          <div style={{ fontSize: '0.8em', color: 'var(--color-text-tertiary)', marginTop: 4 }}>
-            {formattedTimestamp}
-          </div>
-        </Title>
-        <TotalScore>{score.totalScore}分</TotalScore>
+        <Title>{judgeName}的评分</Title>
+        <TotalScore>{score.totalScore.toFixed(1)}分</TotalScore>
       </Header>
 
-      <DimensionList>
+      <DimensionScores>
         {Object.entries(score.dimensions).map(([dimension, value]) => (
-          <DimensionItem key={dimension}>
+          <DimensionScore key={dimension}>
             <DimensionName>
-              {dimensionNameMap[dimension] || dimension}
+              {dimension === 'logic' && '逻辑性'}
+              {dimension === 'evidence' && '论据支持'}
+              {dimension === 'delivery' && '表达能力'}
+              {dimension === 'rebuttal' && '反驳能力'}
             </DimensionName>
-            <DimensionScore>{value}分</DimensionScore>
-          </DimensionItem>
+            <ScoreValue>{value}分</ScoreValue>
+          </DimensionScore>
         ))}
-      </DimensionList>
+      </DimensionScores>
+
+      <Feedback>
+        <FeedbackSection>
+          <FeedbackTitle>优点</FeedbackTitle>
+          <FeedbackList>
+            {score.feedback.strengths.map((strength: string, index: number) => (
+              <li key={index}>{strength}</li>
+            ))}
+          </FeedbackList>
+        </FeedbackSection>
+
+        <FeedbackSection>
+          <FeedbackTitle>不足</FeedbackTitle>
+          <FeedbackList>
+            {score.feedback.weaknesses.map((weakness: string, index: number) => (
+              <li key={index}>{weakness}</li>
+            ))}
+          </FeedbackList>
+        </FeedbackSection>
+
+        <FeedbackSection>
+          <FeedbackTitle>建议</FeedbackTitle>
+          <FeedbackList>
+            {score.feedback.suggestions.map((suggestion: string, index: number) => (
+              <li key={index}>{suggestion}</li>
+            ))}
+          </FeedbackList>
+        </FeedbackSection>
+      </Feedback>
 
       {score.comment && (
-        <Comment>
-          {score.comment}
-        </Comment>
+        <Comment>{score.comment}</Comment>
       )}
     </Container>
   );

@@ -237,7 +237,12 @@ export const useAIInteraction = ({
         timestamp: createTimestamp(),
         dimensions: scoreData.dimensions,
         totalScore: scoreData.totalScore,
-        comment: scoreData.comment
+        comment: scoreData.comment,
+        feedback: {
+          strengths: scoreData.feedback?.strengths || ['论点清晰'],
+          weaknesses: scoreData.feedback?.weaknesses || ['可以进一步加强论证'],
+          suggestions: scoreData.feedback?.suggestions || ['建议增加更多具体例证']
+        }
       };
     } finally {
       setIsGenerating(false);

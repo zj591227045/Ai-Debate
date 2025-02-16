@@ -28,7 +28,10 @@ export const DebatePlayer: React.FC<DebatePlayerProps> = ({
   };
 
   return (
-    <div className={`debate-player ${isCurrentSpeaker ? 'current' : ''}`}>
+    <div 
+      className={`debate-player ${isCurrentSpeaker ? 'current' : ''}`}
+      data-is-current-speaker={isCurrentSpeaker}
+    >
       <div className="player-info">
         <h3>{config.name}</h3>
         <div className="player-role">

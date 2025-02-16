@@ -3,23 +3,25 @@ import { DebateFlowState } from './state';
 
 export enum DebateFlowEvent {
   // 辩论状态事件
-  DEBATE_STARTED = 'DEBATE_STARTED',
-  DEBATE_PAUSED = 'DEBATE_PAUSED',
-  DEBATE_RESUMED = 'DEBATE_RESUMED',
-  DEBATE_ENDED = 'DEBATE_ENDED',
+  DEBATE_STARTED = 'debate:started',
+  DEBATE_PAUSED = 'debate:paused',
+  DEBATE_RESUMED = 'debate:resumed',
+  DEBATE_ENDED = 'debate:ended',
   
   // 轮次事件
-  ROUND_STARTED = 'ROUND_STARTED',
-  ROUND_ENDED = 'ROUND_ENDED',
+  ROUND_STARTED = 'round:started',
+  ROUND_ENDED = 'round:ended',
+  ROUND_SCORED = 'round:scored',
   
   // 发言事件
-  SPEECH_STARTED = 'SPEECH_STARTED',
-  SPEECH_ENDED = 'SPEECH_ENDED',
+  SPEECH_STARTED = 'speech:started',
+  SPEECH_ENDED = 'speech:ended',
+  SPEECH_STREAMING = 'speech:streaming',
   INNER_THOUGHTS_STARTED = 'INNER_THOUGHTS_STARTED',
   INNER_THOUGHTS_ENDED = 'INNER_THOUGHTS_ENDED',
   
   // 错误事件
-  ERROR_OCCURRED = 'ERROR_OCCURRED',
+  ERROR_OCCURRED = 'error',
   ERROR_RECOVERED = 'ERROR_RECOVERED'
 }
 
@@ -52,6 +54,10 @@ export interface EventData {
     round: number;
     state: DebateFlowState;
   };
+  [DebateFlowEvent.ROUND_SCORED]: {
+    round: number;
+    state: DebateFlowState;
+  };
   [DebateFlowEvent.SPEECH_STARTED]: {
     player: Player;
     type: 'speech';
@@ -61,6 +67,11 @@ export interface EventData {
     player: Player;
     type: 'speech';
     content: string;
+    state: DebateFlowState;
+  };
+  [DebateFlowEvent.SPEECH_STREAMING]: {
+    player: Player;
+    type: 'speech';
     state: DebateFlowState;
   };
   [DebateFlowEvent.INNER_THOUGHTS_STARTED]: {

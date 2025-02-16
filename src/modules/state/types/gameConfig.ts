@@ -1,11 +1,10 @@
-import type { UnifiedPlayer, Speech } from '../../../types/adapters';
+import { UnifiedPlayer, BaseDebateSpeech } from '../../../types/adapters';
 
 /**
  * 游戏配置状态接口
  */
 export interface GameConfigState {
-
-  debate?: {
+  debate: {
     topic: {
       title: string;
       description: string;
@@ -27,23 +26,25 @@ export interface GameConfigState {
     };
     judging: {
       description: string;
-      dimensions: Array<{
-        name: string;
-        weight: number;
-        description: string;
-        criteria: string[];
-      }>;
+      dimensions: any[];
       totalScore: number;
     };
-    currentState?: {
-      status: 'preparing' | 'ongoing' | 'paused' | 'finished';
-      currentRound: number;
-      currentSpeaker?: string;
-    };
-    players?: Record<string, UnifiedPlayer>;
-    speeches?: Speech[];
+    status?: string;
+    currentRound?: number;
+    currentSpeaker?: UnifiedPlayer | null;
+    speeches?: BaseDebateSpeech[];
+    scores?: any[];
+    // 游戏配置相关属性
+    format?: 'structured' | 'free';
+    autoAssign?: boolean;
+    minPlayers?: number;
+    maxPlayers?: number;
+    affirmativeCount?: number;
+    negativeCount?: number;
+    judgeCount?: number;
+    timekeeperCount?: number;
   };
-  players?: UnifiedPlayer[];
+  players: UnifiedPlayer[];
   /** 是否正在配置 */
   isConfiguring: boolean;
 }

@@ -1,18 +1,17 @@
 import type { Player } from '@game-config/types';
-import type { Speech } from '@debate/types';
-
-export type SpeakerStatus = 'pending' | 'speaking' | 'completed' | 'skipped';
+import type { Speech, SpeakerStatus, SpeakerInfo } from './interfaces';
+import { DebateStatus } from '../../state/types/adapters';
 
 export interface DebateFlowState {
   // 基础状态
-  status: 'preparing' | 'ongoing' | 'paused' | 'completed';
+  status: DebateStatus;
   currentRound: number;
   totalRounds: number;
   
   // 发言相关
   speakingOrder: SpeakingOrder;
-  currentSpeaker: Player | null;
-  nextSpeaker: Player | null;
+  currentSpeaker: SpeakerInfo | null;
+  nextSpeaker: SpeakerInfo | null;
   
   // 当前发言状态
   currentSpeech: {
@@ -27,7 +26,7 @@ export interface SpeakingOrder {
   currentRound: number;
   totalRounds: number;
   speakers: Array<{
-    player: Player;
+    player: SpeakerInfo;
     status: SpeakerStatus;
     sequence: number;
   }>;

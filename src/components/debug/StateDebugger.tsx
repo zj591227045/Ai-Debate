@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import styled from '@emotion/styled';
 import { useUnifiedState } from '../../modules/state';
 import { StoreManager } from '../../modules/state/core/StoreManager';
@@ -6,6 +6,11 @@ import { useStore } from '../../modules/state';
 import { GameConfigStore } from '../../modules/state/stores/GameConfigStore';
 import { useDebateFlow } from '../../modules/debate/hooks/useDebateFlow';
 import { DebateRole } from '../../types/roles';
+import { DebateStatus } from '../../types/adapters';
+import type { UnifiedPlayer } from '../../types/adapters';
+import type { BaseDebateSpeech } from '../../types/adapters';
+import type { DebateState } from '../../modules/state/types/session';
+import type { Score } from '../../types/adapters';
 
 const Container = styled.div`
   position: fixed;
@@ -171,14 +176,248 @@ const DebugListItem = styled.div`
   color: #ccc;
 `;
 
+// 添加评分调试相关的样式组件
+const ScoreDebugSection = styled(DebugSection)`
+  border-left: 2px solid #1890ff;
+`;
+
+const ScoreList = styled.div`
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+`;
+
+const ScoreItem = styled.div`
+  padding: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 4px;
+  font-size: 12px;
+`;
+
+const ScoreDimension = styled.div`
+  display: flex;
+  justify-content: space-between;
+  color: #888;
+  margin-top: 4px;
+`;
+
 const gameConfigStore = GameConfigStore.getInstance();
 
-export const StateDebugger: React.FC = () => {
+interface StateDebuggerProps {
+  state: {
+    configState?: {
+      activeConfig: {
+        debate: {
+          topic: {
+            title: string;
+            description: string;
+            rounds: number;
+          };
+        };
+      };
+    };
+    debateState?: {
+      status: string;
+      progress: {
+        currentRound: number;
+      };
+      currentSpeaker: UnifiedPlayer | null;
+      history: {
+        speeches: BaseDebateSpeech[];
+        scores: Score[];
+      };
+    };
+    debate?: {
+      topic: {
+        title: string;
+        description: string;
+        rounds: number;
+      };
+      rules: {
+        debateFormat: string;
+        description: string;
+        advancedRules: {
+          speechLengthLimit: {
+            min: number;
+            max: number;
+          };
+          allowQuoting: boolean;
+          requireResponse: boolean;
+          allowStanceChange: boolean;
+          requireEvidence: boolean;
+        };
+      };
+      judging: any;
+      status: string | undefined;
+      currentRound: number;
+      currentSpeaker: UnifiedPlayer | null;
+      speeches: BaseDebateSpeech[];
+      scores: Score[];
+      format: 'structured' | 'free';
+      autoAssign?: boolean;
+      minPlayers?: number;
+      maxPlayers?: number;
+      affirmativeCount?: number;
+      negativeCount?: number;
+      judgeCount?: number;
+      timekeeperCount?: number;
+    };
+    players?: UnifiedPlayer[];
+    isConfiguring?: boolean;
+  };
+  onToggleDebugger: () => void;
+}
+
+interface DebugState {
+  debate: {
+    status: string;
+    currentRound: number;
+    totalRounds: number;
+    currentSpeaker: UnifiedPlayer | null;
+    nextSpeaker: UnifiedPlayer | null;
+    history: {
+      speeches: BaseDebateSpeech[];
+      scores: Score[];
+    };
+  };
+}
+
+export const StateDebugger: React.FC<StateDebuggerProps> = ({ state, onToggleDebugger }) => {
   const { state: gameConfig } = useStore('gameConfig');
   const [isVisible, setIsVisible] = useState(true);
   const [viewMode, setViewMode] = useState<'simple' | 'detailed'>('simple');
   const storeManager = StoreManager.getInstance();
   const [storeState, setStoreState] = useState(gameConfigStore.getState());
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const [debugState, setDebugState] = useState<DebugState | null>(null);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Record<string, number>>({});
+
+  // 使用 useEffect 监听传入的 state 属性变化
+  useEffect(() => {
+    if ((state?.debateState || state?.debate) && (state?.configState || state?.debate)) {
+      const scores = state.debateState?.history?.scores || state.debate?.scores || [];
+      
+      setDebugState(prev => ({
+        ...prev,
+        debate: {
+          status: state.debateState?.status || state.debate?.status || '',
+          currentRound: state.debateState?.progress?.currentRound || state.debate?.currentRound || 1,
+          totalRounds: state.configState?.activeConfig.debate.topic.rounds || state.debate?.topic.rounds || 1,
+          currentSpeaker: state.debateState?.currentSpeaker || state.debate?.currentSpeaker || null,
+          nextSpeaker: null,
+          history: {
+            speeches: state.debateState?.history.speeches || state.debate?.speeches || [],
+            scores: scores
+          }
+        }
+      }));
+      setLastUpdate(Date.now());
+    }
+  }, [
+    state?.debateState?.status,
+    state?.debateState?.progress?.currentRound,
+    state?.debateState?.currentSpeaker?.id,
+    state?.debateState?.history?.speeches?.length,
+    state?.debateState?.history?.scores?.length,
+    state?.configState?.activeConfig?.debate?.topic?.rounds,
+    state?.debate?.status,
+    state?.debate?.currentRound,
+    state?.debate?.currentSpeaker?.id,
+    state?.debate?.speeches?.length,
+    state?.debate?.scores?.length,
+    state?.debate?.topic?.rounds,
+    JSON.stringify(state?.debateState?.history?.scores),
+    JSON.stringify(state?.debate?.scores)
+  ]);
+
+  // 使用 useEffect 监听 gameConfig 变化
+  useEffect(() => {
+    const unsubscribeConfig = gameConfigStore.subscribe((newState) => {
+      setStoreState(newState);
+      setLastUpdate(Date.now());
+    });
+
+    // 设置定期刷新以确保UI更新
+    const refreshInterval = setInterval(() => {
+      if (debugState) {
+        setLastUpdate(Date.now());
+      }
+    }, 500); // 每500ms检查一次
+
+    return () => {
+      unsubscribeConfig();
+      clearInterval(refreshInterval);
+    };
+  }, [debugState]);
+
+  const getDebateFlowInfo = useCallback(() => {
+    if (!debugState?.debate) return null;
+    
+    return {
+      isInitialized: Boolean(debugState.debate),
+      currentStatus: debugState.debate.status,
+      progress: `${debugState.debate.currentRound}/${debugState.debate.totalRounds}`,
+      activeSpeaker: debugState.debate.currentSpeaker?.name || '无',
+      nextSpeaker: debugState.debate.nextSpeaker?.name || '无',
+      speechCount: debugState.debate.history.speeches.length || 0,
+      scoreCount: debugState.debate.history.scores.length || 0,
+      lastUpdateTime: new Date().toLocaleTimeString()
+    };
+  }, [debugState]);
+
+  const renderSpeechHistory = useCallback(() => {
+    const speeches = debugState?.debate?.history?.speeches || [];
+    if (speeches.length === 0) {
+      return <div>暂无发言记录</div>;
+    }
+    return (
+      <DebugList>
+        {speeches.slice(-5).map((speech: BaseDebateSpeech) => (
+          <DebugListItem key={speech.id}>
+            <span>
+              [{speech.round}] {speech.playerId} - {speech.type}
+            </span>
+            <span>{new Date(speech.timestamp).toLocaleTimeString()}</span>
+          </DebugListItem>
+        ))}
+      </DebugList>
+    );
+  }, [debugState?.debate?.history?.speeches]);
+
+  const renderScores = useCallback(() => {
+    const scores = debugState?.debate?.history?.scores || [];
+    if (!scores || scores.length === 0) {
+      return <div>暂无评分记录</div>;
+    }
+
+    return (
+      <ScoreList>
+        {scores.map((score, index) => (
+          <ScoreItem key={score.id || index}>
+            <div>
+              <strong>轮次:</strong> {score.round}
+            </div>
+            <div>
+              <strong>发言ID:</strong> {score.speechId}
+            </div>
+            <div>
+              <strong>选手ID:</strong> {score.playerId}
+            </div>
+            <div>
+              <strong>总分:</strong> {score.totalScore}
+            </div>
+            {Object.entries(score.dimensions || {}).map(([dimension, value]) => (
+              <ScoreDimension key={dimension}>
+                <span>{dimension}:</span>
+                <span>{String(value)}</span>
+              </ScoreDimension>
+            ))}
+          </ScoreItem>
+        ))}
+      </ScoreList>
+    );
+  }, [debugState?.debate?.history?.scores]);
 
   // 使用 useMemo 缓存配置对象，并添加深度比较
   const debateConfig = useMemo(() => {
@@ -308,26 +547,15 @@ export const StateDebugger: React.FC = () => {
     JSON.stringify(gameConfig?.players)
   ]);
 
-  // 使用 useMemo 缓存 debateFlowState
+  // 使用 useDebateFlow 获取辩论流程状态
   const { state: debateFlowState, error: debateFlowError } = useDebateFlow(debateConfig);
 
   const toggleVisibility = () => {
     setIsVisible(!isVisible);
   };
 
-  // 监听状态变化
-  useEffect(() => {
-    const unsubscribe = gameConfigStore.subscribe((state) => {
-      setStoreState(state);
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
   // 添加更多调试信息的处理函数
-  const getPlayerRoleInfo = (players: any[]) => {
+  const getPlayerRoleInfo = useCallback((players: any[]) => {
     const roleCount = {
       affirmative: 0,
       negative: 0,
@@ -345,9 +573,9 @@ export const StateDebugger: React.FC = () => {
     });
     
     return roleCount;
-  };
+  }, []);
 
-  const getConfigValidationInfo = () => {
+  const getConfigValidationInfo = useCallback(() => {
     if (!gameConfig?.debate) return null;
     
     const validation = {
@@ -359,20 +587,41 @@ export const StateDebugger: React.FC = () => {
     };
     
     return validation;
-  };
+  }, [gameConfig]);
 
-  const getDebateFlowInfo = () => {
-    if (!debateFlowState) return null;
+  // 修改评分状态展示部分
+  const renderScoreSection = () => {
+    const scores = debugState?.debate?.history?.scores || [];
+    const currentRound = debugState?.debate?.currentRound || 1;
     
-    return {
-      isInitialized: Boolean(debateFlowState),
-      currentStatus: debateFlowState.status,
-      progress: `${debateFlowState.currentRound}/${debateFlowState.totalRounds}`,
-      activeSpeaker: debateFlowState.currentSpeaker?.name || '无',
-      nextSpeaker: debateFlowState.nextSpeaker?.name || '无',
-      speechCount: debateFlowState.speeches.length,
-      scoreCount: debateFlowState.scores.length
-    };
+    return (
+      <ScoreDebugSection>
+        <DebugTitle>评分状态</DebugTitle>
+        <DebugContent>
+          <DebugGrid>
+            <DebugItem>
+              <DebugLabel>总评分数:</DebugLabel>
+              <DebugValue>{scores.length}</DebugValue>
+            </DebugItem>
+            <DebugItem>
+              <DebugLabel>当前轮次评分:</DebugLabel>
+              <DebugValue>
+                {scores.filter(s => s.round === currentRound).length}
+              </DebugValue>
+            </DebugItem>
+            {scores.length > 0 && (
+              <DebugItem>
+                <DebugLabel>最新评分时间:</DebugLabel>
+                <DebugValue>
+                  {new Date(scores[scores.length - 1].timestamp).toLocaleTimeString()}
+                </DebugValue>
+              </DebugItem>
+            )}
+          </DebugGrid>
+          {renderScores()}
+        </DebugContent>
+      </ScoreDebugSection>
+    );
   };
 
   if (!isVisible) {
@@ -401,6 +650,7 @@ export const StateDebugger: React.FC = () => {
       <Header>
         <Title>辩论室状态调试器 v2.0</Title>
         <div>
+          <UpdateTime>最后更新: {new Date(lastUpdate).toLocaleTimeString()}</UpdateTime>
           <Button onClick={() => setViewMode(viewMode === 'simple' ? 'detailed' : 'simple')}>
             {viewMode === 'simple' ? '详细视图' : '简单视图'}
           </Button>
@@ -549,29 +799,20 @@ export const StateDebugger: React.FC = () => {
           <DebugSection>
             <DebugTitle>发言历史记录</DebugTitle>
             <DebugContent>
-              {debateFlowState && debateFlowState.speeches && debateFlowState.speeches.length > 0 ? (
-                <DebugList>
-                  {debateFlowState.speeches.slice(-5).map((speech, index) => (
-                    <DebugListItem key={speech.id}>
-                      <span>
-                        [{speech.round}] {speech.playerId} - {speech.type}
-                      </span>
-                      <span>{new Date(speech.timestamp).toLocaleTimeString()}</span>
-                    </DebugListItem>
-                  ))}
-                </DebugList>
-              ) : (
-                <div>暂无发言记录</div>
-              )}
+              {renderSpeechHistory()}
             </DebugContent>
           </DebugSection>
+
+          {/* 使用新的评分部分 */}
+          {renderScoreSection()}
         </>
       ) : (
         <StateView>
           {JSON.stringify({
             gameConfig: storeState,
             debateFlow: debateFlowState,
-            error: debateFlowError
+            error: debateFlowError,
+            scores: debugState?.debate?.history?.scores
           }, null, 2)}
         </StateView>
       )}

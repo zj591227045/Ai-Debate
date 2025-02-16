@@ -1,4 +1,4 @@
-import {
+import type {
   PlayerConfig,
   SpeakingOrderInfo,
   SpeakerInfo,
@@ -6,82 +6,40 @@ import {
 } from '../types/interfaces';
 
 export class SpeakingOrderManager {
-  private speakingOrder: SpeakingOrderInfo | null = null;
+  initializeOrder(
+    players: Array<PlayerConfig | SpeakerInfo>,
+    format: 'free' | 'structured'
+  ): SpeakingOrderInfo {
+    const speakers = players.map((player, index) => ({
+      player: this.convertToSpeakerInfo(player),
+      status: 'waiting' as SpeakerStatus,
+      sequence: index + 1
+    }));
 
-  initializeOrder(players: PlayerConfig[], format: 'free' | 'structured'): SpeakingOrderInfo {
-    if (!players.length) {
-      throw new Error('选手列表为空');
-    }
-
-    let orderedPlayers: PlayerConfig[];
-    if (format === 'free') {
-      orderedPlayers = this.shufflePlayers(players);
-    } else {
-      orderedPlayers = this.orderByTeam(players);
-    }
-
-    this.speakingOrder = {
+    return {
       format,
       currentRound: 1,
       totalRounds: 1,
-      speakers: orderedPlayers.map((player, index) => ({
-        player: this.playerConfigToSpeakerInfo(player),
-        status: 'pending' as SpeakerStatus,
-        sequence: index + 1
-      })),
+      speakers,
       history: []
     };
-
-    return this.speakingOrder;
   }
 
   getNextSpeaker(order: SpeakingOrderInfo): SpeakerInfo | null {
-    const pendingSpeakers = order.speakers.filter(s => s.status === 'pending');
-    if (!pendingSpeakers.length) {
+    const waitingSpeakers = order.speakers.filter(s => s.status === 'waiting');
+    if (!waitingSpeakers.length) {
       return null;
     }
-    return pendingSpeakers[0].player;
-  }
-
-  skipCurrentSpeaker(order: SpeakingOrderInfo): SpeakingOrderInfo {
-    const currentSpeakerIndex = order.speakers.findIndex(s => s.status === 'speaking');
-    if (currentSpeakerIndex === -1) {
-      throw new Error('没有正在发言的选手');
-    }
-
-    const updatedSpeakers = [...order.speakers];
-    updatedSpeakers[currentSpeakerIndex] = {
-      ...updatedSpeakers[currentSpeakerIndex],
-      status: 'skipped' as SpeakerStatus
-    };
-
-    return {
-      ...order,
-      speakers: updatedSpeakers
-    };
+    return waitingSpeakers[0].player;
   }
 
   handlePlayerExit(order: SpeakingOrderInfo, playerId: string): SpeakingOrderInfo {
-    const playerIndex = order.speakers.findIndex(s => s.player.id === playerId);
-    if (playerIndex === -1) {
-      throw new Error('选手未找到');
-    }
-
-    const updatedSpeakers = [...order.speakers];
-    if (updatedSpeakers[playerIndex].status === 'speaking') {
-      updatedSpeakers[playerIndex] = {
-        ...updatedSpeakers[playerIndex],
-        status: 'skipped' as SpeakerStatus
-      };
-    } else if (updatedSpeakers[playerIndex].status === 'pending') {
-      updatedSpeakers.splice(playerIndex, 1);
-      for (let i = playerIndex; i < updatedSpeakers.length; i++) {
-        updatedSpeakers[i] = {
-          ...updatedSpeakers[i],
-          sequence: i + 1
-        };
-      }
-    }
+    const updatedSpeakers = order.speakers.filter(s => s.player.id !== playerId);
+    
+    // 重新计算序列号
+    updatedSpeakers.forEach((speaker, index) => {
+      speaker.sequence = index + 1;
+    });
 
     return {
       ...order,
@@ -90,15 +48,19 @@ export class SpeakingOrderManager {
   }
 
   handlePlayerRejoin(order: SpeakingOrderInfo, player: PlayerConfig): SpeakingOrderInfo {
+    // 检查玩家是否已经在列表中
     if (order.speakers.some(s => s.player.id === player.id)) {
-      throw new Error('选手已在发言列表中');
+      return order;
     }
 
-    const updatedSpeakers = [...order.speakers, {
-      player: this.playerConfigToSpeakerInfo(player),
-      status: 'pending' as SpeakerStatus,
-      sequence: order.speakers.length + 1
-    }];
+    const updatedSpeakers = [
+      ...order.speakers,
+      {
+        player: this.convertToSpeakerInfo(player),
+        status: 'waiting' as SpeakerStatus,
+        sequence: order.speakers.length + 1
+      }
+    ];
 
     return {
       ...order,
@@ -106,14 +68,17 @@ export class SpeakingOrderManager {
     };
   }
 
-  private playerConfigToSpeakerInfo(player: PlayerConfig): SpeakerInfo {
-    return {
-      id: player.id,
-      name: player.name,
-      isAI: player.isAI,
-      role: player.role,
-      team: player.team
-    };
+  private convertToSpeakerInfo(player: PlayerConfig | SpeakerInfo): SpeakerInfo {
+    if ('characterConfig' in player) {
+      return {
+        id: player.id,
+        name: player.name,
+        isAI: player.isAI,
+        role: player.role,
+        team: player.team
+      };
+    }
+    return player;
   }
 
   private shufflePlayers(players: PlayerConfig[]): PlayerConfig[] {

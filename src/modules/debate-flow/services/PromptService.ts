@@ -1,5 +1,6 @@
 import type { Player } from '../../game-config/types';
 import type { Speech } from '@debate/types';
+import type { ProcessedSpeech, ScoringContext, JudgeConfig } from '../types/interfaces';
 
 export interface DebateContext {
   topic: {
@@ -80,51 +81,67 @@ ${innerThoughts}
   }
 
   // 生成评分的系统提示词
-  generateScoringSystemPrompt(judge: Player): string {
+  generateScoringSystemPrompt(judge: JudgeConfig): string {
     return `你是一位专业的辩论赛评委，需要以特定的评委身份对辩手的发言进行评分和点评。
 
 你的身份信息：
-- 姓名：${judge.name}
-- 性格：${judge.personality || '未指定'}
-- 说话风格：${judge.speakingStyle || '未指定'}
-- 专业背景：${judge.background || '未指定'}
-- 价值观：${judge.values || '未指定'}
-- 论证风格：${judge.argumentationStyle || '未指定'}
+姓名：${judge.name}
+${judge.characterConfig ? `
+性格特征：${judge.characterConfig.personality || ''}
+说话风格：${judge.characterConfig.speakingStyle || ''}
+专业背景：${judge.characterConfig.background || ''}
+价值观：${judge.characterConfig.values?.join('、') || ''}
+论证风格：${judge.characterConfig.argumentationStyle || ''}
+` : ''}
 
 评分维度包括：
-1. 逻辑性（40分）：论证的逻辑严密程度
-2. 拟人程度（30分）：观点和论证的拟人化程度
-3. 规则遵守（30分）：对辩论规则的遵守程度
+- 逻辑性（30分）：论证的逻辑严密程度
+- 论据支持（30分）：论据的充分性和相关性
+- 表达能力（20分）：语言表达的清晰度和说服力
+- 反驳能力（20分）：对对方论点的反驳效果
 
 请以你的评委身份，按照以下JSON格式输出评分结果：
 {
   "dimensions": {
-    "logic": number,       // 0-40分
-    "personification": number, // 0-30分
-    "compliance": number   // 0-30分
+    "logic": <0-30的整数>,
+    "evidence": <0-30的整数>,
+    "delivery": <0-20的整数>,
+    "rebuttal": <0-20的整数>
   },
   "feedback": {
     "strengths": string[],    // 3-5个优点
     "weaknesses": string[],   // 2-3个不足
     "suggestions": string[]   // 1-2个建议
   },
-  "comment": string          // 总体评语，不超过500字
+  "comment": string          // 总体评语，不超过300字
 }`;
   }
 
   // 生成评分的人类提示词
-  generateScoringHumanPrompt(context: DebateContext, speech: Speech): string {
-    const { topic, currentRound } = context;
+  generateScoringHumanPrompt(speech: ProcessedSpeech, context: ScoringContext): string {
+    const topic = context.rules.dimensions.find(d => d.name === 'topic')?.description || '未提供主题';
     
     return `请以评委身份对以下辩论发言进行评分：
 
-辩论主题：${topic.title}
-当前轮次：第${currentRound}轮
-发言选手：${speech.playerId}
-
+辩论主题：${topic}
+当前轮次：第${speech.round}轮
 发言内容：
 ${speech.content}
 
 请严格按照系统提示的JSON格式输出评分结果。评语要体现你的个性特征和价值观。`;
+  }
+
+  // 生成内心独白的系统提示词
+  generateInnerThoughtsPrompt(characterId: string): string {
+    return `你是一位专业的辩论选手，现在需要生成内心独白，分析当前局势和策略。
+请以第一人称的方式，表达你对当前辩论形势的思考和下一步的策略规划。
+要体现出你的个性特征和思维方式。`;
+  }
+
+  // 生成正式发言的系统提示词
+  generateSpeechPrompt(characterId: string): string {
+    return `你是一位专业的辩论选手，现在需要生成正式的辩论发言。
+请保持逻辑严密，论据充分，语言精炼有力。
+要体现出你的辩论风格和价值观。`;
   }
 } 

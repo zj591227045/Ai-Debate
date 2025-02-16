@@ -1,7 +1,7 @@
 import { BaseStore } from '../core/BaseStore';
 import { StateContainerFactory } from '../core/StateContainer';
-import { SessionState, DebateStatus } from '../types/session';
-import { StoreConfig } from '../types/store';
+import { SessionState, DebateStatus } from '@state/types/adapters';
+import { StoreConfig } from '@state/types/store';
 
 const DEFAULT_CONFIG: StoreConfig = {
   namespace: 'session',
@@ -57,7 +57,7 @@ export class SessionStore extends BaseStore<SessionState> {
         lastModified: Date.now()
       },
       debateState: {
-        status: DebateStatus.NOT_STARTED,
+        status: DebateStatus.PREPARING,
         progress: {
           currentRound: 1,
           currentSpeaker: '',

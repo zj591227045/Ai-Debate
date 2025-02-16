@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { motion } from 'framer-motion';
-
-// 定义状态类型
-type DebateStatus = 'preparing' | 'ongoing' | 'paused' | 'finished';
+import { DebateStatus } from '../../modules/state/types/adapters';
+import { Button, Space } from 'antd';
+import { ScoringModal } from './ScoringModal';
+import type { UnifiedPlayer, Score, BaseDebateSpeech } from '../../types/adapters';
 
 interface RoundInfo {
   currentRound: number;
@@ -62,7 +63,7 @@ const SpeakerName = styled.span`
   color: var(--color-text-primary);
 `;
 
-const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+const ButtonStyled = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: 8px 16px;
   border-radius: 4px;
   border: 1px solid transparent;
@@ -122,153 +123,194 @@ const Button = styled(motion.button)<{ variant?: 'primary' | 'secondary' | 'dang
 
 interface DebateControlProps {
   status: DebateStatus;
-  roundInfo: RoundInfo;
-  onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onEnd: () => void;
+  currentRound: number;
+  totalRounds: number;
+  currentSpeaker: UnifiedPlayer | null;
+  nextSpeaker?: UnifiedPlayer | null;
+  players: UnifiedPlayer[];
+  onStartScoring: (status: DebateStatus) => void;
+  onScoringComplete: (speech: BaseDebateSpeech) => void;
   onNextRound: () => void;
   onNextSpeaker: () => void;
-  getPlayerName: (playerId: string) => string;
+  scoringRules: Array<{
+    id: string;
+    name: string;
+    weight: number;
+    description: string;
+    criteria: string[];
+  }>;
+  judge: {
+    id: string;
+    name: string;
+    avatar?: string;
+    description?: string;
+  } | null;
 }
 
 export const DebateControl: React.FC<DebateControlProps> = ({
   status,
-  roundInfo,
-  onStart,
-  onPause,
-  onResume,
-  onEnd,
+  currentRound,
+  totalRounds,
+  currentSpeaker,
+  nextSpeaker,
+  players,
+  onStartScoring,
+  onScoringComplete,
   onNextRound,
   onNextSpeaker,
-  getPlayerName
+  scoringRules,
+  judge
 }) => {
-  // 检查是否是最后一轮
-  const isLastRound = roundInfo.currentRound === roundInfo.totalRounds;
-  
-  // 检查是否是当前轮次的最后一个发言者
-  const currentSpeakerIndex = roundInfo.speakingOrder.indexOf(roundInfo.currentSpeaker || '');
-  const isLastSpeaker = currentSpeakerIndex === roundInfo.speakingOrder.length - 1;
-  
-  // 检查是否有下一个发言者
-  const hasNextSpeaker = roundInfo.nextSpeaker && roundInfo.nextSpeaker !== roundInfo.currentSpeaker;
+  const [scoringModalVisible, setScoringModalVisible] = useState(false);
 
-  // 调试信息
-  console.log('辩论控制状态:', {
+  useEffect(() => {
+    console.log('状态变更检测:', {
+      status,
+      scoringModalVisible,
+      shouldShowModal: status === DebateStatus.SCORING
+    });
+
+    if (status === DebateStatus.SCORING) {
+      setScoringModalVisible(true);
+    }
+  }, [status]);
+
+  console.log('DebateControl渲染 - 当前状态:', {
     status,
-    currentRound: roundInfo.currentRound,
-    totalRounds: roundInfo.totalRounds,
-    currentSpeaker: roundInfo.currentSpeaker,
-    nextSpeaker: roundInfo.nextSpeaker,
-    speakingOrder: roundInfo.speakingOrder,
-    isLastRound,
-    isLastSpeaker,
-    hasNextSpeaker
+    currentRound,
+    totalRounds,
+    currentSpeaker: currentSpeaker?.name,
+    nextSpeaker: nextSpeaker?.name
   });
 
+  const handleStartScoring = () => {
+    console.log('点击开始评分按钮 - 当前状态:', {
+      status,
+      currentRound,
+      totalRounds,
+      modalVisible: scoringModalVisible
+    });
+    
+    if (status === DebateStatus.ROUND_COMPLETE) {
+      setScoringModalVisible(true);
+      onStartScoring(DebateStatus.SCORING);
+    } else if (status === DebateStatus.PREPARING) {
+      onStartScoring(DebateStatus.ONGOING);
+    }
+  };
+
+  const handleScoringComplete = (speech: BaseDebateSpeech) => {
+    console.log('评分完成，准备进入下一轮:', {
+      currentRound,
+      totalRounds,
+      status,
+      speech,
+      modalVisible: scoringModalVisible
+    });
+    
+    setScoringModalVisible(false);
+    onScoringComplete(speech);
+  };
+
+  const handleModalClose = () => {
+    console.log('关闭评分面板');
+    setScoringModalVisible(false);
+    if (status === DebateStatus.SCORING) {
+      // 如果在评分状态下关闭，恢复到轮次完成状态
+      onStartScoring(DebateStatus.ROUND_COMPLETE);
+    }
+  };
+
+  const handleNextRound = () => {
+    console.log('开始进入下一轮:', {
+      currentRound,
+      totalRounds,
+      status
+    });
+    
+    // 直接触发进入下一轮，不需要调用 handleNextSpeaker
+    onNextRound();
+  };
+
+  const handleNextSpeaker = () => {
+    console.log('点击下一位发言按钮');
+    onNextSpeaker();
+  };
+
   return (
-    <Container>
-      <RoundDisplay>
-        第 {roundInfo.currentRound}/{roundInfo.totalRounds} 轮
-      </RoundDisplay>
+    <>
+      <Container>
+        <RoundDisplay>
+          第 {currentRound}/{totalRounds} 轮
+        </RoundDisplay>
 
-      {status !== 'preparing' && (
-        <SpeakerInfo>
-          <SpeakerLabel>当前发言</SpeakerLabel>
-          <SpeakerName>
-            {roundInfo.currentSpeaker ? 
-              getPlayerName(roundInfo.currentSpeaker) : 
-              '等待开始'}
-          </SpeakerName>
-        </SpeakerInfo>
-      )}
+        {status !== DebateStatus.PREPARING && (
+          <SpeakerInfo>
+            <SpeakerLabel>当前发言</SpeakerLabel>
+            <SpeakerName>
+              {currentSpeaker ? 
+                currentSpeaker.name : 
+                '等待开始'}
+            </SpeakerName>
+          </SpeakerInfo>
+        )}
 
-      {status !== 'preparing' && hasNextSpeaker && (
-        <SpeakerInfo>
-          <SpeakerLabel>下一位</SpeakerLabel>
-          <SpeakerName>{getPlayerName(roundInfo.nextSpeaker || '')}</SpeakerName>
-        </SpeakerInfo>
-      )}
+        <div style={{ flex: 1 }} />
 
-      <div style={{ flex: 1 }} />
-
-      {status === 'preparing' && (
-        <Button
-          variant="primary"
-          onClick={onStart}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          开始辩论
-        </Button>
-      )}
-
-      {status === 'ongoing' && (
-        <>
-          <Button
-            onClick={onPause}
+        {status === DebateStatus.PREPARING && (
+          <ButtonStyled
+            variant="primary"
+            onClick={handleStartScoring}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            暂停
-          </Button>
+            开始辩论
+          </ButtonStyled>
+        )}
 
-          {hasNextSpeaker && (
-            <Button
+        {status === DebateStatus.ONGOING && (
+          <Space>
+            <ButtonStyled
               variant="primary"
-              onClick={onNextSpeaker}
+              onClick={handleNextSpeaker}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
               下一位发言
-            </Button>
-          )}
+            </ButtonStyled>
+          </Space>
+        )}
 
-          {isLastSpeaker && !isLastRound && (
-            <Button
-              variant="primary"
-              onClick={onNextRound}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              进入下一轮
-            </Button>
-          )}
+        {status === DebateStatus.ROUND_COMPLETE && (
+          <Button 
+            type="primary"
+            onClick={handleStartScoring}
+          >
+            开始评分
+          </Button>
+        )}
 
-          {isLastSpeaker && isLastRound && (
-            <Button
-              variant="danger"
-              onClick={onEnd}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              结束辩论
-            </Button>
-          )}
-        </>
-      )}
+        {status === DebateStatus.COMPLETED && (
+          <div style={{ 
+            padding: '8px 16px',
+            color: 'var(--color-text-secondary)',
+            fontWeight: 500
+          }}>
+            辩论已结束
+          </div>
+        )}
+      </Container>
 
-      {status === 'paused' && (
-        <Button
-          variant="primary"
-          onClick={onResume}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          继续辩论
-        </Button>
-      )}
-
-      {status === 'finished' && (
-        <div style={{ 
-          padding: '8px 16px',
-          backgroundColor: 'var(--color-bg-light)',
-          borderRadius: '4px',
-          color: 'var(--color-text-secondary)'
-        }}>
-          辩论已结束
-        </div>
-      )}
-    </Container>
+      <ScoringModal
+        visible={scoringModalVisible}
+        onClose={handleModalClose}
+        players={players}
+        currentRound={currentRound}
+        judge={judge}
+        scoringRules={scoringRules}
+        onScoringComplete={handleScoringComplete}
+        onNextRound={handleNextRound}
+      />
+    </>
   );
 }; 

@@ -1,20 +1,6 @@
 import type { GameConfigState } from './gameConfig';
 import type { UnifiedPlayer, BaseDebateSpeech } from '../../../types/adapters';
-
-
-/**
- * 辩论状态枚举
- */
-export enum DebateStatus {
-  /** 未开始 */
-  NOT_STARTED = 'not_started',
-  /** 进行中 */
-  IN_PROGRESS = 'in_progress',
-  /** 已暂停 */
-  PAUSED = 'paused',
-  /** 已完成 */
-  COMPLETED = 'completed'
-}
+import { DebateStatus } from '../../../types/adapters';
 
 /**
  * 辩论进度接口

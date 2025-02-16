@@ -1,19 +1,21 @@
 import { EventEmitter } from 'events';
-import {
+import type {
   IDebateFlow,
   DebateFlowConfig,
   DebateFlowState,
   SpeechInput,
   StateChangeHandler,
   SpeakingOrderInfo,
+  PlayerConfig,
   SpeakerInfo,
-  SpeechInfo,
-  PlayerConfig
+  SpeakerStatus
 } from '../types/interfaces';
+import { DebateStatus } from '../types/interfaces';
 import { LLMService } from './LLMService';
 import { SpeakingOrderManager } from './SpeakingOrderManager';
 import { SpeechProcessor } from './SpeechProcessor';
 import { ScoringSystem } from './ScoringSystem';
+import { DebateFlowEvent } from '../types/events';
 
 export class DebateFlowService implements IDebateFlow {
   private readonly eventEmitter: EventEmitter;
@@ -38,7 +40,7 @@ export class DebateFlowService implements IDebateFlow {
     
     // 初始化状态
     this.state = {
-      status: 'preparing',
+      status: DebateStatus.PREPARING,
       currentRound: 1,
       totalRounds: 1,
       currentSpeaker: null,
@@ -73,7 +75,7 @@ export class DebateFlowService implements IDebateFlow {
 
     // 设置初始状态
     this.state = {
-      status: 'preparing',
+      status: DebateStatus.PREPARING,
       currentRound: 1,
       totalRounds: config.rules.rounds,
       currentSpeaker: null,
@@ -94,54 +96,79 @@ export class DebateFlowService implements IDebateFlow {
   async startDebate(): Promise<void> {
     console.log('开始辩论，当前状态:', this.state.status);
     
-    if (this.state.status !== 'preparing') {
-      throw new Error('辩论已经开始');
+    // 保存之前的状态
+    this.previousState = { ...this.state };
+    
+    try {
+      if (this.state.status !== DebateStatus.PREPARING) {
+        throw new Error('辩论已经开始');
+      }
+
+      // 设置第一个发言者
+      const firstSpeaker = this.state.speakingOrder.speakers[0]?.player;
+      const secondSpeaker = this.state.speakingOrder.speakers[1]?.player;
+
+      if (!firstSpeaker) {
+        throw new Error('没有可用的发言者');
+      }
+
+      // 更新状态
+      this.state = {
+        ...this.state,
+        status: DebateStatus.ONGOING,
+        currentSpeaker: firstSpeaker,
+        nextSpeaker: secondSpeaker,
+        currentRound: 1,
+        currentSpeech: null
+      };
+
+      // 触发状态更新
+      this.emitStateChange();
+      
+      console.log('辩论开始成功，当前状态:', this.state.status);
+    } catch (error) {
+      // 发生错误时恢复之前的状态
+      if (this.previousState) {
+        this.state = this.previousState;
+        this.emitStateChange();
+      }
+      console.error('开始辩论失败:', error);
+      throw error;
     }
+  }
 
-    // 设置第一个发言者
-    const firstSpeaker = this.state.speakingOrder.speakers[0]?.player;
-    const secondSpeaker = this.state.speakingOrder.speakers[1]?.player;
-
-    if (!firstSpeaker) {
-      throw new Error('没有可用的发言者');
+  async pauseDebate(): Promise<void> {
+    if (this.state.status !== DebateStatus.ONGOING) {
+      throw new Error('辩论未在进行中');
     }
 
     this.state = {
       ...this.state,
-      status: 'ongoing',
-      currentSpeaker: firstSpeaker,
-      nextSpeaker: secondSpeaker
+      status: DebateStatus.PAUSED
     };
 
-    console.log('辩论开始，更新后的状态:', {
-      status: this.state.status,
-      currentSpeaker: this.state.currentSpeaker,
-      nextSpeaker: this.state.nextSpeaker
-    });
-
-    this.emitStateChange();
-  }
-
-  async pauseDebate(): Promise<void> {
-    if (this.state.status !== 'ongoing') {
-      throw new Error('辩论未在进行中');
-    }
-
-    this.state.status = 'paused';
     this.emitStateChange();
   }
 
   async resumeDebate(): Promise<void> {
-    if (this.state.status !== 'paused') {
+    if (this.state.status !== DebateStatus.PAUSED) {
       throw new Error('辩论未处于暂停状态');
     }
 
-    this.state.status = 'ongoing';
+    this.state = {
+      ...this.state,
+      status: DebateStatus.ONGOING
+    };
+
     this.emitStateChange();
   }
 
   async endDebate(): Promise<void> {
-    this.state.status = 'completed';
+    this.state = {
+      ...this.state,
+      status: DebateStatus.COMPLETED
+    };
+
     this.emitStateChange();
   }
 
@@ -215,7 +242,7 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private getNextSpeaker(speakingOrder: SpeakingOrderInfo): SpeakerInfo | null {
-    const pendingSpeaker = speakingOrder.speakers.find(s => s.status === 'pending');
+    const pendingSpeaker = speakingOrder.speakers.find(s => s.status === 'waiting');
     return pendingSpeaker ? pendingSpeaker.player : null;
   }
 
@@ -224,23 +251,17 @@ export class DebateFlowService implements IDebateFlow {
     
     // 如果没有下一个发言者，检查是否需要进入下一轮
     if (!this.state.nextSpeaker) {
-      console.log('没有下一个发言者，检查是否需要进入下一轮');
-      if (this.state.currentRound < this.state.totalRounds) {
-        // 开始新的轮次
-        this.state.currentRound++;
-        console.log('进入新一轮:', this.state.currentRound);
-        this.state.speakingOrder = this.speakingOrderManager.initializeOrder(
-          this.state.speakingOrder.speakers.map(s => s.player),
-          this.state.speakingOrder.format
-        );
-        this.state.currentSpeaker = null;
-        this.state.nextSpeaker = this.getNextSpeaker(this.state.speakingOrder);
-        this.emitStateChange();
-      } else {
-        // 辩论结束
-        console.log('所有轮次已完成，结束辩论');
-        await this.endDebate();
-      }
+      console.log('当前轮次所有发言者已完成');
+      
+      // 更新状态为等待评分
+      this.state = {
+        ...this.state,
+        status: DebateStatus.ROUND_COMPLETE,
+        currentSpeaker: null,
+        nextSpeaker: null
+      };
+      
+      this.emitStateChange();
       return;
     }
 
@@ -255,10 +276,10 @@ export class DebateFlowService implements IDebateFlow {
     
     if (currentSpeakerIndex !== -1) {
       // 将当前发言者标记为已完成
-      this.state.speakingOrder.speakers[currentSpeakerIndex].status = 'completed';
+      this.state.speakingOrder.speakers[currentSpeakerIndex].status = 'finished';
       
       // 找到下一个待发言的人
-      const nextSpeakerInfo = this.state.speakingOrder.speakers.find(s => s.status === 'pending');
+      const nextSpeakerInfo = this.state.speakingOrder.speakers.find(s => s.status === 'waiting');
       this.state.nextSpeaker = nextSpeakerInfo?.player || null;
     }
     
@@ -350,7 +371,6 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private emitStateChange(): void {
-    // 创建一个新的状态对象，避免直接引用
     const newState = {
       ...this.state,
       speakingOrder: {
@@ -362,16 +382,17 @@ export class DebateFlowService implements IDebateFlow {
       },
       currentSpeaker: this.state.currentSpeaker ? { ...this.state.currentSpeaker } : null,
       nextSpeaker: this.state.nextSpeaker ? { ...this.state.nextSpeaker } : null,
-      currentSpeech: this.state.currentSpeech ? { ...this.state.currentSpeech } : null,
-      speeches: [...this.state.speeches],
-      scores: [...this.state.scores]
+      currentSpeech: this.state.currentSpeech ? { ...this.state.currentSpeech } : null
     };
     
-    // 只有当状态真正发生变化时才触发更新
-    if (JSON.stringify(this.previousState) !== JSON.stringify(newState)) {
-      this.previousState = newState;
-      this.eventEmitter.emit('stateChange', newState);
-    }
+    console.log('状态更新:', {
+      status: newState.status,
+      currentSpeaker: newState.currentSpeaker?.name,
+      nextSpeaker: newState.nextSpeaker?.name,
+      round: newState.currentRound
+    });
+    
+    this.eventEmitter.emit('stateChange', newState);
   }
 
   async skipCurrentSpeaker(): Promise<void> {
@@ -379,9 +400,6 @@ export class DebateFlowService implements IDebateFlow {
       throw new Error('没有正在发言的选手');
     }
 
-    this.state.speakingOrder = this.speakingOrderManager.skipCurrentSpeaker(
-      this.state.speakingOrder
-    );
 
     await this.moveToNextSpeaker();
     this.emitStateChange();
@@ -407,5 +425,201 @@ export class DebateFlowService implements IDebateFlow {
     );
 
     this.emitStateChange();
+  }
+
+  // 添加开始评分的方法
+  async startScoring(): Promise<void> {
+    if (this.state.status !== DebateStatus.ROUND_COMPLETE) {
+      throw new Error('当前状态不允许开始评分');
+    }
+
+    this.state = {
+      ...this.state,
+      status: DebateStatus.SCORING
+    };
+    
+    this.emitStateChange();
+
+    try {
+      // 获取当前轮次的所有发言
+      const roundSpeeches = this.state.speeches.filter(
+        speech => speech.round === this.state.currentRound && speech.type === 'speech'
+      );
+
+      console.log(`开始为第 ${this.state.currentRound} 轮的 ${roundSpeeches.length} 条发言生成评分`);
+
+      // 生成评分
+      const roundScores = await Promise.all(
+        roundSpeeches.map(async speech => {
+          console.log(`正在为发言 ${speech.id} 生成评分`);
+          
+          const processedSpeech = {
+            ...speech,
+            metadata: {
+              wordCount: speech.content.split(/\s+/).length
+            }
+          };
+          
+          return await this.scoringSystem.generateScore(processedSpeech, {
+            judge: {
+              id: 'system_judge',
+              name: '系统评委',
+              characterConfig: {
+                id: 'system_judge_character',
+                personality: '公正严谨',
+                speakingStyle: '专业客观',
+                background: '专业辩论评委',
+                values: ['公平', '客观'],
+                argumentationStyle: '逻辑分析'
+              }
+            },
+            rules: {
+              dimensions: [
+                {
+                  name: 'logic',
+                  weight: 0.3,
+                  description: '逻辑性',
+                  criteria: ['论证清晰', '结构完整', '推理严谨']
+                },
+                {
+                  name: 'evidence',
+                  weight: 0.3,
+                  description: '论据充分性',
+                  criteria: ['证据充分', '例证恰当', '数据准确']
+                },
+                {
+                  name: 'delivery',
+                  weight: 0.2,
+                  description: '表达效果',
+                  criteria: ['语言流畅', '表达清晰', '感染力强']
+                },
+                {
+                  name: 'rebuttal',
+                  weight: 0.2,
+                  description: '反驳质量',
+                  criteria: ['针对性强', '反驳有力', '立场一致']
+                }
+              ]
+            },
+            previousScores: this.state.scores
+          });
+        })
+      );
+
+      console.log(`成功生成 ${roundScores.length} 条评分`);
+
+      // 更新状态中的评分
+      this.state = {
+        ...this.state,
+        scores: [...this.state.scores, ...roundScores]
+      };
+      
+      // 触发评分完成事件
+      this.eventEmitter.emit(DebateFlowEvent.ROUND_SCORED, {
+        round: this.state.currentRound,
+        scores: roundScores
+      });
+
+      // 检查是否需要进入下一轮
+      if (this.state.currentRound < this.state.totalRounds) {
+        console.log(`开始第 ${this.state.currentRound + 1} 轮`);
+        
+        // 开始新的轮次
+        this.state = {
+          ...this.state,
+          currentRound: this.state.currentRound + 1,
+          status: DebateStatus.ONGOING,
+          speakingOrder: this.speakingOrderManager.initializeOrder(
+            this.state.speakingOrder.speakers.map(s => s.player),
+            this.state.speakingOrder.format
+          ),
+          currentSpeaker: null,
+          nextSpeaker: null
+        };
+        
+        // 设置下一个发言者
+        this.state.nextSpeaker = this.speakingOrderManager.getNextSpeaker(
+          this.state.speakingOrder
+        );
+      } else {
+        console.log('所有轮次已完成，结束辩论');
+        
+        // 辩论结束
+        this.state = {
+          ...this.state,
+          status: DebateStatus.COMPLETED
+        };
+      }
+
+      this.emitStateChange();
+    } catch (error) {
+      console.error('评分过程出错:', error);
+      throw error;
+    }
+  }
+
+  // 添加开始新一轮的方法
+  async startNextRound(): Promise<void> {
+    console.log('开始新一轮:', {
+      currentRound: this.state.currentRound,
+      totalRounds: this.state.totalRounds,
+      status: this.state.status
+    });
+
+    // 1. 验证当前状态
+    if (this.state.status !== DebateStatus.SCORING && this.state.status !== DebateStatus.ROUND_COMPLETE) {
+      console.error('当前状态不允许开始新一轮:', this.state.status);
+      throw new Error('当前状态不允许开始新一轮');
+    }
+
+    // 2. 检查是否可以进入下一轮
+    if (this.state.currentRound >= this.state.totalRounds) {
+      console.log('所有轮次已完成');
+      this.state = {
+        ...this.state,
+        status: DebateStatus.COMPLETED
+      };
+      this.emitStateChange();
+      return;
+    }
+
+    // 3. 重置所有发言者状态
+    const resetSpeakers = this.state.speakingOrder.speakers.map(speaker => ({
+      ...speaker,
+      status: 'waiting' as const
+    }));
+
+    // 4. 更新状态
+    this.state = {
+      ...this.state,
+      currentRound: this.state.currentRound + 1,
+      status: DebateStatus.ONGOING,
+      currentSpeaker: null,
+      nextSpeaker: resetSpeakers[0]?.player || null,
+      speakingOrder: {
+        ...this.state.speakingOrder,
+        speakers: resetSpeakers,
+        currentRound: this.state.currentRound + 1
+      }
+    };
+
+    console.log('新一轮状态初始化完成:', {
+      round: this.state.currentRound,
+      status: this.state.status,
+      nextSpeaker: this.state.nextSpeaker?.name,
+      speakersCount: resetSpeakers.length,
+      speakersStatus: resetSpeakers.map(s => ({
+        name: s.player.name,
+        status: s.status
+      }))
+    });
+
+    // 5. 确保发出状态变更事件
+    this.emitStateChange();
+    
+    // 6. 如果有下一个发言者，自动开始第一个发言
+    if (this.state.nextSpeaker) {
+      await this.moveToNextSpeaker();
+    }
   }
 } 

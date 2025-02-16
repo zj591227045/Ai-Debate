@@ -1,5 +1,4 @@
-import type { DebateFlowState, Speech } from '../types/interfaces';
-import type { Score } from './ScoringSystem';
+import type { DebateFlowState, Speech, Score } from '../types/interfaces';
 
 export interface StateSnapshot {
   id: string;

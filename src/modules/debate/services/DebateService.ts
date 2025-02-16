@@ -139,7 +139,7 @@ ${context.topic.description ? `描述：${context.topic.description}` : ''}`);
       });
 
       for await (const response of stream) {
-        yield response.content;
+        yield response.content ?? '';
       }
     } catch (error) {
       console.error('生成流式发言失败:', error);
@@ -152,14 +152,34 @@ ${context.topic.description ? `描述：${context.topic.description}` : ''}`);
   /**
    * 解析响应内容
    */
-  private parseResponse(text: string): { content: string; reasoningContent?: string } {
-    const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
-    const reasoningContent = thinkMatch ? thinkMatch[1].trim() : undefined;
-    const content = text.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+  private parseResponse(content: string | null): { content: string; reasoningContent?: string } {
+    if (!content) {
+      return { content: '' };
+    }
 
-    return {
-      content,
-      reasoningContent
-    };
+    const thinkMatch = content.match(/<think>(.*?)<\/think>/s);
+    if (thinkMatch) {
+      const reasoningContent = thinkMatch[1].trim();
+      const mainContent = content.replace(/<think>.*?<\/think>/s, '').trim();
+      return {
+        content: mainContent || '',
+        reasoningContent
+      };
+    }
+
+    return { content: content.trim() };
+  }
+
+  async *generateStreamResponse(request: ChatRequest): AsyncGenerator<string> {
+    try {
+      const stream = await this.llmService.stream(request);
+
+      for await (const response of stream) {
+        yield response.content ?? '';
+      }
+    } catch (error) {
+      console.error('生成流式发言失败:', error);
+      throw error;
+    }
   }
 } 

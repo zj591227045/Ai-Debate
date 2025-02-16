@@ -1,7 +1,10 @@
 export interface ModelParameters {
   temperature: number;
-  maxTokens: number;
   topP: number;
+  maxTokens: number;
+  presencePenalty?: number;
+  frequencyPenalty?: number;
+  stopSequences?: string[];
 }
 
 export interface AuthConfig {
@@ -34,21 +37,37 @@ export interface ApiConfig {
   };
 }
 
+export interface ModelCapabilities {
+  streaming: boolean;
+  functionCalling: boolean;
+}
+
+export interface PricingInfo {
+  inputPrice: number;
+  outputPrice: number;
+  unit: string;
+  currency: string;
+}
+
+export interface ModelMetadata {
+  description: string;
+  contextWindow: number;
+  tokenizerName: string;
+  pricingInfo: PricingInfo;
+}
+
 export interface ModelConfig {
   id: string;
   name: string;
   provider: string;
   model: string;
-  parameters: {
-    temperature: number;
-    maxTokens: number;
-    topP: number;
-  };
   auth: {
     baseUrl: string;
-    apiKey?: string;
-    organizationId?: string;
+    apiKey: string;
   };
+  parameters: ModelParameters;
+  capabilities: ModelCapabilities;
+  metadata: ModelMetadata;
   providerSpecific?: Record<string, any>;
   isEnabled: boolean;
   createdAt: number;

@@ -30,7 +30,10 @@ export class OllamaProvider extends LLMProvider {
     try {
       // 验证 auth 对象存在
       if (!this.config.auth) {
-        this.config.auth = { baseUrl: 'http://localhost:11434' };
+        this.config.auth = { 
+          baseUrl: 'http://localhost:11434',
+          apiKey: '' // Ollama 不需要 API Key，但为了类型兼容性添加空字符串
+        };
         console.log('Created default auth config:', this.config.auth);
       }
 

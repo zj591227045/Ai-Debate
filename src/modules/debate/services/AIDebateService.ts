@@ -6,6 +6,7 @@ import { DebateState } from '../types/debate';
 import { UnifiedLLMService } from '../../llm/services/UnifiedLLMService';
 import { StoreManager } from '@state/core/StoreManager';
 import { Service } from 'typedi';
+import type { ChatRequest, ChatResponse } from '../../llm/api/types';
 
 interface DebugError {
   name?: string;
@@ -95,12 +96,26 @@ export class AIDebateService {
       parameters: {
         temperature: modelConfig.parameters?.temperature ?? 0.7,
         maxTokens: modelConfig.parameters?.maxTokens ?? 2048,
-        topP: modelConfig.parameters?.topP ?? 1.0,
-        ...modelConfig.parameters
+        topP: modelConfig.parameters?.topP ?? 1.0
       },
       auth: {
         baseUrl: modelConfig.auth?.baseUrl || '',
         apiKey: modelConfig.auth?.apiKey || ''
+      },
+      capabilities: {
+        streaming: true,
+        functionCalling: false
+      },
+      metadata: {
+        description: '辩论助手使用的模型',
+        contextWindow: 4096,
+        tokenizerName: modelConfig.provider,
+        pricingInfo: {
+          inputPrice: 0,
+          outputPrice: 0,
+          unit: '1K tokens',
+          currency: 'USD'
+        }
       },
       isEnabled: modelConfig.isEnabled ?? true,
       createdAt: modelConfig.createdAt || Date.now(),
@@ -231,5 +246,14 @@ export class AIDebateService {
                  历史发言：${state.speeches.map(s => `[${s.playerId}]: ${s.content}`).join('\n')}`
       }
     ];
+  }
+
+  async chat(request: ChatRequest): Promise<ChatResponse> {
+    try {
+      return await this.llmService.chat(request);
+    } catch (error) {
+      console.error('AI辩论服务调用失败:', error);
+      throw error;
+    }
   }
 }

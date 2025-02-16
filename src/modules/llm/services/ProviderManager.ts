@@ -3,13 +3,17 @@
  */
 
 import type { ModelConfig } from '../types/config';
-import type { LLMProvider } from './provider/base';
+import type { ModelProvider } from '../types/providers';
+import { LLMProvider } from './provider/base';
 import { ProviderFactory } from './provider/factory';
 import { LLMError, LLMErrorCode } from '../types/error';
 import { StoreManager } from '@state/core/StoreManager';
 
+// 确保 Provider 类型包含所有必需的属性
+type Provider = LLMProvider & ModelProvider;
+
 export class ProviderManager {
-  private providers: Map<string, LLMProvider>;
+  private providers: Map<string, Provider>;
   private modelConfigs: Map<string, ModelConfig>;
   private storeManager: StoreManager;
 
@@ -63,21 +67,26 @@ export class ProviderManager {
     try {
       if (!provider) {
         console.log('Creating new provider for:', cacheKey);
-        provider = ProviderFactory.createProvider(config);
+        const newProvider = ProviderFactory.createProvider(config) as Provider;
         
         // 初始化 provider
         console.log('Initializing provider');
-        await provider.initialize(skipModelValidation);
+        await newProvider.initialize(skipModelValidation);
         
         // 如果需要验证模型
         if (!skipModelValidation) {
           console.log('Validating provider config');
-          await provider.validateConfig();
+          await newProvider.validateConfig();
         }
         
         // 缓存 provider
-        this.providers.set(cacheKey, provider);
+        this.providers.set(cacheKey, newProvider);
+        provider = newProvider;
         console.log('Provider cached:', cacheKey);
+      }
+      
+      if (!provider) {
+        throw new Error('Failed to create or initialize provider');
       }
       
       console.groupEnd();
@@ -125,6 +134,21 @@ export class ProviderManager {
           ...storedConfig.parameters
         },
         auth: storedConfig.auth || { baseUrl: '', apiKey: '' },
+        capabilities: {
+          streaming: true,
+          functionCalling: false
+        },
+        metadata: {
+          description: '从存储加载的模型配置',
+          contextWindow: 4096,
+          tokenizerName: storedConfig.provider,
+          pricingInfo: {
+            inputPrice: 0,
+            outputPrice: 0,
+            unit: '1K tokens',
+            currency: 'USD'
+          }
+        },
         isEnabled: storedConfig.isEnabled || false,
         createdAt: storedConfig.createdAt || Date.now(),
         updatedAt: storedConfig.updatedAt || Date.now()

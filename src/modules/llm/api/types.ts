@@ -19,20 +19,14 @@ export interface ChatRequest {
   topP?: number;
   model?: string;
   stream?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface ChatResponse {
-  content: string;
-  metadata: {
-    modelId: string;
-    provider: string;
-    timestamp: number;
-    tokensUsed?: {
-      prompt: number;
-      completion: number;
-      total: number;
-    };
-  };
+  content: string | null;
+  timestamp?: number;
+  isError?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export interface ResponseMetadata {
@@ -56,6 +50,11 @@ export interface ServiceStatus {
 export interface TestConfig {
   message?: string;
   timeout?: number;
+}
+
+export interface TestResponse {
+  content: string;
+  metadata?: Record<string, any>;
 }
 
 export interface TestResult {

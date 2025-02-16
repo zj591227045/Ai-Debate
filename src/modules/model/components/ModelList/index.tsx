@@ -1,260 +1,174 @@
-import React, { useState, useRef } from 'react';
-import { useModel } from '../../context/ModelContext';
-import ModelForm from '../ModelForm';
-import { ModelConfig } from '../../types';
-import { UnifiedLLMService } from '../../../llm/services/UnifiedLLMService';
-import { adaptModelConfig } from '../../../llm/utils/adapters';
-import { message } from 'antd';
+import React, { useState } from 'react';
+import { ModelConfig } from '../../types/config';
+import { ModelConfigForm } from '../ModelConfigForm';
+import { useModelManagement } from '../../hooks/useModelManagement';
 import './styles.css';
 
-interface TestStatus {
-  [key: string]: {
-    testing: boolean;
-    success?: boolean;
-    error?: string;
-  };
-}
-
-export default function ModelList() {
-  console.log('ModelList组件渲染');
-  const { 
-    models, 
-    isLoading, 
+export const ModelList: React.FC = () => {
+  const {
+    models,
+    loading,
     error,
     addModel,
     updateModel,
     deleteModel,
-    toggleModel,
-    importConfigs,
-    exportConfigs 
-  } = useModel();
-  
-  console.log('ModelList获取到的models:', models);
-  console.log('ModelList loading状态:', isLoading);
-  console.log('ModelList error状态:', error);
+    toggleModelStatus
+  } = useModelManagement();
 
-  const [showForm, setShowForm] = useState(false);
-  const [editingModel, setEditingModel] = useState<string | null>(null);
-  const [testStatus, setTestStatus] = useState<TestStatus>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingModel, setEditingModel] = useState<ModelConfig | null>(null);
+  const [isAddingModel, setIsAddingModel] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
-  const handleAddModel = () => {
-    setEditingModel(null);
-    setShowForm(true);
+  const handleAddModel = async (config: ModelConfig) => {
+    try {
+      await addModel(config);
+      setIsAddingModel(false);
+    } catch (err) {
+      console.error('添加模型失败:', err);
+    }
   };
 
-  const handleEditModel = (id: string) => {
-    setEditingModel(id);
-    setShowForm(true);
+  const handleUpdateModel = async (config: ModelConfig) => {
+    try {
+      await updateModel(config.id, config);
+      setEditingModel(null);
+    } catch (err) {
+      console.error('更新模型失败:', err);
+    }
   };
 
   const handleDeleteModel = async (id: string) => {
-    if (window.confirm('确定要删除这个模型配置吗？')) {
-      try {
-        await deleteModel(id);
-        message.success('删除成功');
-      } catch (err) {
-        message.error('删除失败');
-      }
-    }
-  };
-
-  const handleFormSubmit = async (values: Omit<ModelConfig, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      if (editingModel) {
-        await updateModel(editingModel, values);
-        message.success('更新成功');
-      } else {
-        await addModel(values);
-        message.success('添加成功');
-      }
-      setShowForm(false);
-      setEditingModel(null);
+      await deleteModel(id);
+      setShowDeleteConfirm(null);
     } catch (err) {
-      message.error(editingModel ? '更新失败' : '添加失败');
+      console.error('删除模型失败:', err);
     }
   };
 
-  const handleFormCancel = () => {
-    setShowForm(false);
-    setEditingModel(null);
-  };
+  const renderModelCard = (model: ModelConfig) => (
+    <div key={model.id} className="model-card">
+      <div className="model-info">
+        <div className="model-header">
+          <h3>{model.name}</h3>
+          <div className="model-status">
+            <span className={`status-badge ${model.isEnabled ? 'enabled' : 'disabled'}`}>
+              {model.isEnabled ? '已启用' : '已禁用'}
+            </span>
+          </div>
+        </div>
+        
+        <div className="model-details">
+          <p><strong>供应商：</strong>{model.provider}</p>
+          <p><strong>模型：</strong>{model.model}</p>
+          <p><strong>服务地址：</strong>{model.auth.baseUrl}</p>
+        </div>
 
-  const handleExport = async () => {
-    try {
-      const configs = await exportConfigs();
-      const jsonStr = JSON.stringify(configs, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'model-configs.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      message.success('导出成功');
-    } catch (err) {
-      message.error('导出失败');
-    }
-  };
-
-  const handleImport = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const configs = JSON.parse(text);
-      await importConfigs(configs);
-      message.success('导入成功');
-    } catch (err) {
-      message.error('导入失败');
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const handleTestModel = async (model: ModelConfig) => {
-    setTestStatus(prev => ({
-      ...prev,
-      [model.id]: { testing: true }
-    }));
-
-    try {
-      const llmService = UnifiedLLMService.getInstance();
-      const llmConfig = adaptModelConfig(model);
-      await llmService.testConnection(llmConfig);
-      
-      setTestStatus(prev => ({
-        ...prev,
-        [model.id]: { testing: false, success: true }
-      }));
-      message.success('连接测试成功');
-    } catch (err) {
-      setTestStatus(prev => ({
-        ...prev,
-        [model.id]: { 
-          testing: false, 
-          success: false, 
-          error: err instanceof Error ? err.message : '未知错误' 
-        }
-      }));
-      message.error('连接测试失败');
-    }
-  };
-
-  const handleToggleModel = async (id: string, isEnabled: boolean) => {
-    try {
-      await toggleModel(id, isEnabled);
-      message.success(isEnabled ? '模型已启用' : '模型已禁用');
-    } catch (err) {
-      message.error('操作失败');
-    }
-  };
-
-  if (error) {
-    return <div className="error-message">加载失败: {error}</div>;
-  }
-
-  return (
-    <div className="model-list-container">
-      <div className="model-list-header">
-        <h2>模型配置管理</h2>
-        <div className="model-list-actions">
-          <button className="btn-secondary" onClick={handleImport}>
-            导入配置
-          </button>
-          <button className="btn-secondary" onClick={handleExport}>
-            导出配置
-          </button>
-          <button className="btn-primary" onClick={handleAddModel}>
-            添加模型配置
-          </button>
+        <div className="model-parameters">
+          <p><strong>参数配置：</strong></p>
+          <ul>
+            <li>温度：{model.parameters.temperature}</li>
+            <li>最大Token数：{model.parameters.maxTokens}</li>
+            <li>Top P：{model.parameters.topP}</li>
+          </ul>
         </div>
       </div>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        style={{ display: 'none' }}
-        accept=".json"
-        onChange={handleFileChange}
-      />
+      <div className="model-actions">
+        <button
+          className="btn-secondary"
+          onClick={() => setEditingModel(model)}
+        >
+          编辑
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => toggleModelStatus(model.id, !model.isEnabled)}
+        >
+          {model.isEnabled ? '禁用' : '启用'}
+        </button>
+        <button
+          className="btn-danger"
+          onClick={() => setShowDeleteConfirm(model.id)}
+        >
+          删除
+        </button>
+      </div>
 
-      {isLoading ? (
-        <div className="loading">加载中...</div>
+      {showDeleteConfirm === model.id && (
+        <div className="delete-confirm">
+          <p>确定要删除此模型配置吗？</p>
+          <div className="confirm-actions">
+            <button
+              className="btn-danger"
+              onClick={() => handleDeleteModel(model.id)}
+            >
+              确定
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setShowDeleteConfirm(null)}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  if (loading) {
+    return <div className="loading">加载中...</div>;
+  }
+
+  if (error) {
+    return <div className="error">加载失败: {error.message}</div>;
+  }
+
+  return (
+    <div className="model-list">
+      <div className="list-header">
+        <h2>模型配置</h2>
+        <button
+          className="btn-primary"
+          onClick={() => setIsAddingModel(true)}
+        >
+          添加模型
+        </button>
+      </div>
+
+      {models.length === 0 ? (
+        <div className="empty-state">
+          <p>暂无模型配置</p>
+          <button
+            className="btn-primary"
+            onClick={() => setIsAddingModel(true)}
+          >
+            添加第一个模型
+          </button>
+        </div>
       ) : (
         <div className="model-grid">
-          {models.map(model => (
-            <div key={model.id} className="model-config-card">
-              <div className="model-config-header">
-                <h3>{model.name}</h3>
-                <span className="provider-tag">{model.provider}</span>
-              </div>
-              <div className="model-config-info">
-                <div className="model-config-detail">
-                  <span className="label">模型</span>
-                  <span className="value">{model.model}</span>
-                </div>
-                <div className="model-config-detail">
-                  <span className="label">状态</span>
-                  <span className="value">{model.isEnabled ? '已启用' : '已禁用'}</span>
-                </div>
-              </div>
-              <div className="model-config-actions">
-                <button
-                  className="btn-secondary"
-                  onClick={() => handleToggleModel(model.id, !model.isEnabled)}
-                >
-                  {model.isEnabled ? '禁用' : '启用'}
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => handleTestModel(model)}
-                  disabled={testStatus[model.id]?.testing}
-                >
-                  {testStatus[model.id]?.testing ? '测试中...' : '测试连接'}
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => handleEditModel(model.id)}
-                >
-                  编辑
-                </button>
-                <button
-                  className="btn-danger"
-                  onClick={() => handleDeleteModel(model.id)}
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          ))}
+          {models.map(renderModelCard)}
         </div>
       )}
 
-      {showForm && (
-        <div className="model-form-modal">
-          <div className="model-form-modal-content">
-            <ModelForm
-              initialValues={
-                editingModel
-                  ? models.find((m) => m.id === editingModel)
-                  : undefined
-              }
-              onSubmit={handleFormSubmit}
-              onCancel={handleFormCancel}
+      {(isAddingModel || editingModel) && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <ModelConfigForm
+              initialData={editingModel || undefined}
+              onSubmit={editingModel ? handleUpdateModel : handleAddModel}
+              onCancel={() => {
+                setIsAddingModel(false);
+                setEditingModel(null);
+              }}
             />
           </div>
         </div>
       )}
     </div>
   );
-} 
+};
+
+export default ModelList; 

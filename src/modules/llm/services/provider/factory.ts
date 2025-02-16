@@ -1,5 +1,5 @@
 import type { ModelConfig } from '../../types/config';
-import type { LLMProvider } from './base';
+import type { LLMProvider } from '../../types/providers';
 import { OllamaProvider } from './ollama';
 import { DeepseekProvider } from './deepseek';
 import { SiliconFlowProvider } from './siliconflow';

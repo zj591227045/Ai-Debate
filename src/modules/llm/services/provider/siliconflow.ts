@@ -1,282 +1,284 @@
-import type { ChatRequest, ChatResponse, TestResult } from '../../api/types';
 import { LLMProvider } from './base';
-import { LLMError, LLMErrorCode } from '../../types/error';
-import type { ModelConfig } from '../../types/config';
+import { ModelProvider } from '../../types/providers';
+import { ChatRequest, ChatResponse, TestResult } from '../../api/types';
 import { SiliconFlowAdapter } from '../../adapters/siliconflow';
-import { PROVIDERS } from '../../types/providers';
+import { LLMError, LLMErrorCode } from '../../types/error';
+import { ModelConfig } from '../../types/config';
+import { Message } from '../../types/common';
 
-export class SiliconFlowProvider extends LLMProvider {
+export class SiliconFlowProvider extends LLMProvider implements ModelProvider {
+  private baseUrl: string;
+  private apiKey: string;
   private config: ModelConfig;
-  private initialized: boolean = false;
-  private adapter: SiliconFlowAdapter;
+  public readonly name = 'SiliconFlow';
 
   constructor(config: ModelConfig) {
     super();
+    if (!config.auth?.baseUrl || !config.auth?.apiKey) {
+      throw new LLMError(
+        LLMErrorCode.INVALID_CONFIG,
+        'SiliconFlow provider requires baseUrl and apiKey'
+      );
+    }
+    this.baseUrl = config.auth.baseUrl;
+    this.apiKey = config.auth.apiKey;
     this.config = config;
-    this.adapter = new SiliconFlowAdapter();
   }
 
-  get name(): string {
-    return PROVIDERS.SILICONFLOW;
+  getProviderName(): string {
+    return this.name;
+  }
+
+  handleError(error: unknown): LLMError {
+    if (error instanceof LLMError) {
+      return error;
+    }
+    if (error instanceof Error) {
+      if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+        return new LLMError(LLMErrorCode.TIMEOUT, '请求超时', error);
+      }
+      if (error.message.includes('network') || error.message.includes('ECONNREFUSED')) {
+        return new LLMError(LLMErrorCode.NETWORK_ERROR, '网络错误', error);
+      }
+      if (error.message.includes('rate limit') || error.message.includes('too many requests')) {
+        return new LLMError(LLMErrorCode.RATE_LIMIT_EXCEEDED, '请求频率超限', error);
+      }
+    }
+    return new LLMError(
+      LLMErrorCode.UNKNOWN,
+      this.name,
+      error instanceof Error ? error : undefined
+    );
   }
 
   async initialize(skipModelValidation = false): Promise<void> {
-    if (!this.config.auth.baseUrl) {
-      throw new LLMError(
-        LLMErrorCode.INVALID_CONFIG,
-        this.name,
-        new Error('缺少服务地址')
-      );
-    }
-
-    if (!this.config.auth.apiKey) {
-      throw new LLMError(
-        LLMErrorCode.INVALID_CONFIG,
-        this.name,
-        new Error('缺少 API 密钥')
-      );
-    }
-
     try {
       if (!skipModelValidation) {
-        const response = await this.makeRequest('/v1/models');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        await this.validateConfig();
       }
-      
-      this.initialized = true;
     } catch (error) {
       throw new LLMError(
         LLMErrorCode.INITIALIZATION_FAILED,
-        this.name,
-        error instanceof Error ? error : undefined
+        '初始化硅基流动服务失败',
+        error as Error
       );
     }
   }
 
-  private checkInitialized(): void {
-    if (!this.initialized) {
-      throw new LLMError(
-        LLMErrorCode.INITIALIZATION_FAILED,
-        this.name,
-        new Error('Provider not initialized')
-      );
+  async chat(messages: Message[], config?: Partial<ModelConfig>): Promise<Message>;
+  async chat(request: ChatRequest): Promise<ChatResponse>;
+  async chat(request: ChatRequest | Message[], config?: Partial<ModelConfig>): Promise<ChatResponse | Message> {
+    if (Array.isArray(request)) {
+      // 处理 Message[] 类型的请求
+      const lastMessage = request[request.length - 1];
+      const chatRequest: ChatRequest = {
+        message: lastMessage.content,
+        systemPrompt: request.find(msg => msg.role === 'system')?.content,
+        model: config?.model || this.config.model,
+        temperature: config?.parameters?.temperature || this.config.parameters.temperature,
+        maxTokens: config?.parameters?.maxTokens || this.config.parameters.maxTokens,
+        topP: config?.parameters?.topP || this.config.parameters.topP
+      };
+      const response = await this.chatInternal(chatRequest);
+      return {
+        role: 'assistant',
+        content: response.content || ''
+      };
+    } else {
+      // 处理 ChatRequest 类型的请求
+      return this.chatInternal(request);
     }
   }
 
-  private async makeRequest(endpoint: string, body?: any): Promise<Response> {
+  private async chatInternal(request: ChatRequest): Promise<ChatResponse> {
     try {
-      console.log('Making request to:', `${this.config.auth.baseUrl}${endpoint}`);
-      console.log('Request body:', body ? JSON.stringify(body, null, 2) : 'No body');
-      
-      const response = await fetch(`${this.config.auth.baseUrl}${endpoint}`, {
-        method: body ? 'POST' : 'GET',
+      const adapter = new SiliconFlowAdapter();
+      const requestData = adapter.adaptRequest(request);
+
+      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
         headers: {
-          ...(body && { 'Content-Type': 'application/json' }),
-          'Authorization': `Bearer ${this.config.auth.apiKey}`
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
         },
-        ...(body && { body: JSON.stringify(body) })
+        body: JSON.stringify(requestData)
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error('API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        throw new Error(
-          `API error: ${response.status} ${response.statusText}${
-            errorData ? ` - ${JSON.stringify(errorData)}` : ''
-          }`
-        );
+        const errorData = await response.json();
+        throw new Error(`API请求失败: ${response.statusText}\n${JSON.stringify(errorData, null, 2)}`);
       }
 
-      return response;
-    } catch (error) {
-      console.error('Request failed:', error);
-      throw error;
-    }
-  }
-
-  async chat(request: ChatRequest): Promise<ChatResponse> {
-    this.checkInitialized();
-
-    try {
-      // 如果是付费模型，先检查余额
-      if (request.model?.startsWith('Pro/')) {
-        const userInfo = await this.getUserInfo();
-        if (userInfo.balance <= 0) {
-          throw new Error('账户余额不足，请充值后再使用付费模型');
-        }
-      }
-
-      const adaptedRequest = this.adapter.adaptRequest(request);
-      console.log('Adapted request:', adaptedRequest);
-      
-      const response = await this.makeRequest('/v1/chat/completions', adaptedRequest);
       const data = await response.json();
-      return this.adapter.adaptResponse(data);
+      return adapter.adaptResponse(data);
     } catch (error) {
-      console.error('Chat error:', error);
-      throw new LLMError(
-        LLMErrorCode.API_ERROR,
-        this.name,
-        error instanceof Error ? error : new Error('Unknown error')
-      );
+      throw this.handleError(error);
     }
   }
 
   async *stream(request: ChatRequest): AsyncGenerator<ChatResponse> {
-    this.checkInitialized();
-
     try {
-      const adaptedRequest = this.adapter.adaptRequest({ ...request, stream: true });
-      const response = await this.makeRequest('/v1/chat/completions', adaptedRequest);
+      const adapter = new SiliconFlowAdapter();
+      const requestData = adapter.adaptRequest({
+        ...request,
+        stream: true
+      });
 
-      if (!response.body) {
-        throw new Error('Response body is null');
+      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`API请求失败: ${response.statusText}\n${JSON.stringify(errorData, null, 2)}`);
       }
 
-      yield* this.processStream(response.body);
+      if (!response.body) {
+        throw new Error('响应体为空');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine || trimmedLine === 'data: [DONE]') continue;
+
+            if (trimmedLine.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(trimmedLine.slice(6));
+                const response = adapter.adaptResponse(data);
+                if (response.content === null) {
+                  response.content = '';
+                }
+                yield response;
+              } catch (error) {
+                console.error('解析流式响应失败:', error);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
     } catch (error) {
-      throw new LLMError(
-        LLMErrorCode.STREAM_ERROR,
-        this.name,
-        error instanceof Error ? error : undefined
-      );
+      throw this.handleError(error);
     }
   }
 
-  private async *processStream(body: ReadableStream): AsyncGenerator<ChatResponse> {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+  async *streamChat(messages: Message[], config?: Partial<ModelConfig>): AsyncGenerator<Message> {
+    const chatRequest: ChatRequest = {
+      message: messages[messages.length - 1].content,
+      systemPrompt: messages.find(msg => msg.role === 'system')?.content,
+      model: config?.model || this.config.model,
+      temperature: config?.parameters?.temperature || this.config.parameters.temperature,
+      maxTokens: config?.parameters?.maxTokens || this.config.parameters.maxTokens,
+      topP: config?.parameters?.topP || this.config.parameters.topP,
+      stream: true
+    };
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (line.trim() === '') continue;
-          if (line === 'data: [DONE]') return;
-
-          try {
-            if (line.startsWith('data: ')) {
-              const data = JSON.parse(line.slice(6)); // 去掉 'data: ' 前缀
-              if (data.choices?.[0]?.delta?.content || data.choices?.[0]?.message?.content) {
-                yield this.adapter.adaptResponse(data);
-              }
-            }
-          } catch (error) {
-            console.error('Error parsing stream data:', error);
-            throw error;
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
+    for await (const response of this.stream(chatRequest)) {
+      yield {
+        role: 'assistant',
+        content: response.content || ''
+      };
     }
   }
 
   async test(): Promise<TestResult> {
+    const startTime = Date.now();
     try {
-      await this.initialize();
-      const response = await this.chat({
-        message: 'test',
-        systemPrompt: 'You are a helpful assistant.',
+      await this.chat({
+        message: '测试消息',
+        systemPrompt: '这是一个测试。',
+        temperature: 0.7,
+        maxTokens: 50
       });
+
       return {
         success: true,
-        latency: 0,
+        latency: Date.now() - startTime
       };
     } catch (error) {
       return {
         success: false,
-        latency: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        latency: Date.now() - startTime,
+        error: error instanceof Error ? error.message : '测试失败'
       };
     }
   }
 
   async listModels(): Promise<string[]> {
     try {
-      const response = await this.makeRequest('/v1/models');
-      const data = await response.json();
-      
-      // 过滤出可用的模型（根据余额和权限）
-      const availableModels = data.data.filter((model: any) => {
-        // 如果模型需要付费，检查余额
-        if (model.paid_only) {
-          return model.available;
+      const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
         }
-        return true;
       });
 
-      return availableModels.map((model: any) => model.id);
+      if (!response.ok) {
+        throw new Error(`获取模型列表失败: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data.map((model: any) => model.id);
     } catch (error) {
-      console.error('Failed to list models:', error);
-      throw new LLMError(
-        LLMErrorCode.API_ERROR,
-        this.name,
-        error instanceof Error ? error : undefined
-      );
+      throw this.handleError(error);
     }
   }
 
   async validateConfig(): Promise<void> {
-    if (!this.config.auth.baseUrl) {
-      throw new LLMError(
-        LLMErrorCode.INVALID_CONFIG,
-        this.name,
-        new Error('缺少服务地址')
-      );
-    }
-
-    if (!this.config.auth.apiKey) {
-      throw new LLMError(
-        LLMErrorCode.INVALID_CONFIG,
-        this.name,
-        new Error('缺少 API 密钥')
-      );
-    }
-
     try {
-      await this.makeRequest('/v1/models');
+      if (!this.config.auth?.baseUrl) {
+        throw new Error('缺少服务地址');
+      }
+      if (!this.config.auth?.apiKey) {
+        throw new Error('缺少API密钥');
+      }
+      if (!this.config.model) {
+        throw new Error('缺少模型配置');
+      }
+
+      // 验证连接
+      await this.listModels();
     } catch (error) {
       throw new LLMError(
         LLMErrorCode.INVALID_CONFIG,
-        this.name,
-        error instanceof Error ? error : undefined
+        '硅基流动配置验证失败',
+        error as Error
       );
     }
   }
 
-  async getUserInfo(): Promise<{
-    balance: number;
-    total_used: number;
+  async getCapabilities(): Promise<{
+    streaming: boolean;
+    functionCalling: boolean;
+    maxContextTokens: number;
+    maxResponseTokens: number;
+    multipleCompletions: boolean;
   }> {
-    try {
-      const response = await this.makeRequest('/v1/user/info');
-      const data = await response.json();
-      return {
-        balance: data.balance,
-        total_used: data.total_used
-      };
-    } catch (error) {
-      throw new LLMError(
-        LLMErrorCode.API_ERROR,
-        this.name,
-        error instanceof Error ? error : undefined
-      );
-    }
+    return {
+      streaming: true,
+      functionCalling: false,
+      maxContextTokens: 4096,
+      maxResponseTokens: 2048,
+      multipleCompletions: false
+    };
   }
 }
-
-export default SiliconFlowProvider; 

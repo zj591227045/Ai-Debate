@@ -36,7 +36,7 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({ modelConfig, o
         model: `${modelConfig.provider}:${modelConfig.model}:${modelConfig.auth.baseUrl}`
       });
       
-      setResponse(response.content);
+      setResponse(response.content ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : '测试失败');
       console.error('测试失败:', err);

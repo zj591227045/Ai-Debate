@@ -6,13 +6,16 @@ import { LLMProvider } from './provider/base';
 import { ProviderManager } from './ProviderManager';
 import { LLMError, LLMErrorCode } from '../types/error';
 import type { ChatRequest, ChatResponse, ServiceStatus } from '../api/types';
-import type { ModelConfig } from '../../model/types';
+import type { ModelConfig as LLMModelConfig } from '../types/config';
+import type { ModelConfig as AppModelConfig } from '../../model/types';
 import { moduleEventBus } from './events';
 import { LLMEvents } from '../api/events';
 import { StoreManager } from '../../state/core/StoreManager';
 import { LLMStore } from '../../state/stores/LLMStore';
 import type { LLMState } from '../../state/types/llm';
 import { ProviderFactory } from './provider/factory';
+import { ModelValidator } from './validator/ModelValidator';
+import { StreamHandler, StreamOptions } from './stream/StreamHandler';
 
 export interface GenerateStreamOptions {
   characterId: string;
@@ -29,9 +32,23 @@ export interface GenerateStreamResponse {
   };
 }
 
+// 适配模型配置
+function adaptModelConfig(config: AppModelConfig): LLMModelConfig {
+  const adaptedConfig = {
+    ...config,
+    auth: {
+      baseUrl: config.auth.baseUrl,
+      apiKey: config.auth.apiKey || ''
+    }
+  };
+
+  // 使用类型断言确保返回类型正确
+  return adaptedConfig as LLMModelConfig;
+}
+
 export class UnifiedLLMService {
   private static instance: UnifiedLLMService;
-  private currentConfig: ModelConfig | null = null;
+  private currentConfig: AppModelConfig | null = null;
   private readonly providerManager: ProviderManager;
   private readonly storeManager: StoreManager;
 
@@ -54,20 +71,16 @@ export class UnifiedLLMService {
   }
 
   async setModel(modelId: string): Promise<void> {
-    console.log('Setting model:', modelId);
     const config = await this.getModelConfig(modelId);
     if (!config) {
       throw new LLMError(
         LLMErrorCode.MODEL_NOT_FOUND,
         modelId,
-        new Error('Model config not found')
+        new Error(`Model ${modelId} not found`)
       );
     }
 
     this.currentConfig = config;
-    const llmStore = this.getLLMStore();
-    llmStore.setCurrentModel(modelId);
-    console.log('Model config set:', config);
   }
 
   private async getProvider(): Promise<LLMProvider> {
@@ -79,26 +92,11 @@ export class UnifiedLLMService {
       );
     }
 
-    if (!ProviderFactory.isProviderSupported(this.currentConfig.provider)) {
-      throw new LLMError(
-        LLMErrorCode.PROVIDER_NOT_FOUND,
-        this.currentConfig.provider,
-        new Error(`不支持的供应商: ${this.currentConfig.provider}`)
-      );
-    }
-
-    return this.providerManager.getProvider(this.currentConfig);
+    return this.providerManager.getProvider(adaptModelConfig(this.currentConfig));
   }
 
-  async getInitializedProvider(config: ModelConfig, skipModelValidation = false): Promise<LLMProvider> {
-    if (!ProviderFactory.isProviderSupported(config.provider)) {
-      throw new LLMError(
-        LLMErrorCode.PROVIDER_NOT_FOUND,
-        config.provider,
-        new Error(`不支持的供应商: ${config.provider}`)
-      );
-    }
-    return this.providerManager.getProvider(config, skipModelValidation);
+  async getInitializedProvider(config: AppModelConfig, skipModelValidation = false): Promise<LLMProvider> {
+    return this.providerManager.getProvider(adaptModelConfig(config), skipModelValidation);
   }
 
   async chat(request: ChatRequest): Promise<ChatResponse> {
@@ -110,7 +108,24 @@ export class UnifiedLLMService {
   async *stream(request: ChatRequest): AsyncGenerator<ChatResponse> {
     console.log('Stream request:', request);
     const provider = await this.getProvider();
-    yield* provider.stream(request);
+    
+    const streamHandler = new StreamHandler({
+      timeoutMs: 30000,
+      maxBufferSize: 1048576,
+      signal: request.signal
+    });
+
+    try {
+      for await (const response of streamHandler.handleStream(provider.stream(request))) {
+        // 确保返回的内容始终是字符串
+        yield {
+          ...response,
+          content: response.content || ''
+        };
+      }
+    } finally {
+      streamHandler.dispose();
+    }
   }
 
   getStatus(): ServiceStatus {
@@ -118,7 +133,7 @@ export class UnifiedLLMService {
     return llmStore.getServiceStatus();
   }
 
-  private async getModelConfig(modelId: string): Promise<ModelConfig | null> {
+  private async getModelConfig(modelId: string): Promise<AppModelConfig | null> {
     try {
       const config = await this.providerManager.getModelConfig(modelId);
       return config;
@@ -130,7 +145,17 @@ export class UnifiedLLMService {
     }
   }
 
-  public async setModelConfig(config: ModelConfig): Promise<void> {
+  public async setModelConfig(config: AppModelConfig): Promise<void> {
+    // 验证配置
+    const validationResult = ModelValidator.validateConfig(config);
+    if (!validationResult.isValid) {
+      throw new LLMError(
+        LLMErrorCode.INVALID_CONFIG,
+        validationResult.errors.map(e => e.message).join(', '),
+        new Error('Invalid model configuration')
+      );
+    }
+
     this.currentConfig = config;
     const llmStore = this.getLLMStore();
     llmStore.setCurrentModel(config.model);
@@ -138,7 +163,17 @@ export class UnifiedLLMService {
   }
 
   // 测试模型连接
-  public async testConnection(config: ModelConfig): Promise<void> {
+  public async testConnection(config: AppModelConfig): Promise<void> {
+    // 验证配置
+    const validationResult = ModelValidator.validateConfig(config);
+    if (!validationResult.isValid) {
+      throw new LLMError(
+        LLMErrorCode.INVALID_CONFIG,
+        validationResult.errors.map(e => e.message).join(', '),
+        new Error('Invalid model configuration')
+      );
+    }
+
     try {
       const provider = await this.getInitializedProvider(config);
       await provider.validateConfig();
@@ -160,26 +195,42 @@ export class UnifiedLLMService {
       const request: ChatRequest = {
         message: prompt,
         systemPrompt: `你是一位专业的辩论选手，正在进行${options.type === 'innerThoughts' ? '内心独白' : '正式发言'}。`,
-        stream: true
+        stream: true,
+        signal: options.signal
       };
+
+      const streamHandler = new StreamHandler({
+        timeoutMs: 30000,
+        maxBufferSize: 1048576,
+        signal: options.signal
+      });
 
       const stream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const response of provider.stream(request)) {
-              const text = response.content || '';
-              controller.enqueue(new TextEncoder().encode(text));
+            for await (const response of streamHandler.handleStream(provider.stream(request))) {
+              if (response.isError) {
+                // 如果是错误响应，添加错误标记
+                controller.enqueue(new TextEncoder().encode(`[错误] ${response.content || '未知错误'}`));
+                controller.close();
+                return;
+              }
+              controller.enqueue(new TextEncoder().encode(response.content || ''));
             }
             controller.close();
           } catch (error) {
             console.error('Stream generation error:', error);
-            // 发生错误时，发送一个默认消息而不是直接失败
-            const defaultText = options.type === 'innerThoughts'
-              ? '让我思考一下这个问题...'
-              : '根据目前的讨论情况，我认为...';
-            controller.enqueue(new TextEncoder().encode(defaultText));
+            const errorMessage = error instanceof LLMError 
+              ? error.message 
+              : '生成过程发生错误';
+            controller.enqueue(new TextEncoder().encode(`[错误] ${errorMessage}`));
             controller.close();
+          } finally {
+            streamHandler.dispose();
           }
+        },
+        cancel() {
+          streamHandler.dispose();
         }
       });
 
@@ -193,14 +244,13 @@ export class UnifiedLLMService {
       };
     } catch (error) {
       console.error('生成AI发言失败:', error);
-      // 返回一个带有默认内容的流
-      const defaultContent = options.type === 'innerThoughts'
-        ? '让我思考一下这个问题...'
-        : '根据目前的讨论情况，我认为...';
+      const errorMessage = error instanceof LLMError 
+        ? error.message 
+        : '生成过程发生错误';
       
       const stream = new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode(defaultContent));
+          controller.enqueue(new TextEncoder().encode(`[错误] ${errorMessage}`));
           controller.close();
         }
       });

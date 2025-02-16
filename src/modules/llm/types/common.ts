@@ -1,6 +1,20 @@
+/**
+ * 通用消息类型定义
+ */
 export interface Message {
-  role: 'system' | 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
+  reasoning_content?: string;
+  timestamp?: number;
+}
+
+/**
+ * 流式响应类型
+ */
+export interface StreamResponse {
+  content: string;
+  isError?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export interface ModelCapabilities {

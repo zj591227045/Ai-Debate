@@ -2,14 +2,17 @@ import type { ChatRequest, ChatResponse, TestResult } from '../../api/types';
 import { LLMProvider } from './base';
 import { LLMError, LLMErrorCode } from '../../types/error';
 import type { ModelConfig } from '../../types/config';
+import { DeepseekAdapter } from '../../adapters/deepseek';
 
 export class DeepseekProvider extends LLMProvider {
   private config: ModelConfig;
   private initialized: boolean = false;
+  private adapter: DeepseekAdapter;
 
   constructor(config: ModelConfig) {
     super();
     this.config = config;
+    this.adapter = new DeepseekAdapter();
   }
 
   get name(): string {
@@ -20,14 +23,16 @@ export class DeepseekProvider extends LLMProvider {
     if (!this.config.auth.baseUrl) {
       throw new LLMError(
         LLMErrorCode.INVALID_CONFIG,
-        this.name
+        this.name,
+        new Error('缺少服务地址')
       );
     }
 
     if (!this.config.auth.apiKey) {
       throw new LLMError(
         LLMErrorCode.INVALID_CONFIG,
-        this.name
+        this.name,
+        new Error('缺少 API 密钥')
       );
     }
 
@@ -37,9 +42,11 @@ export class DeepseekProvider extends LLMProvider {
           'Authorization': `Bearer ${this.config.auth.apiKey}`
         }
       });
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       this.initialized = true;
     } catch (error) {
       throw new LLMError(
@@ -54,41 +61,36 @@ export class DeepseekProvider extends LLMProvider {
     if (!this.initialized) {
       throw new LLMError(
         LLMErrorCode.INITIALIZATION_FAILED,
-        this.name
+        this.name,
+        new Error('Provider not initialized')
       );
     }
 
     try {
+      const adaptedRequest = this.adapter.adaptRequest({
+        ...request,
+        model: this.config.model
+      });
+
       const response = await fetch(`${this.config.auth.baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.config.auth.apiKey}`
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [{ role: 'user', content: request.message }],
-          stream: false,
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          top_p: request.topP
-        }),
+        body: JSON.stringify(adaptedRequest)
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error?.message || 
+          `HTTP error! status: ${response.status}`
+        );
       }
 
       const data = await response.json();
-      return {
-        content: data.choices[0].message.content,
-        metadata: {
-          modelId: this.config.model,
-          provider: this.name,
-          timestamp: Date.now(),
-          tokensUsed: data.usage
-        }
-      };
+      return this.adapter.adaptResponse(data);
     } catch (error) {
       throw new LLMError(
         LLMErrorCode.API_ERROR,
@@ -102,29 +104,33 @@ export class DeepseekProvider extends LLMProvider {
     if (!this.initialized) {
       throw new LLMError(
         LLMErrorCode.INITIALIZATION_FAILED,
-        this.name
+        this.name,
+        new Error('Provider not initialized')
       );
     }
 
     try {
+      const adaptedRequest = this.adapter.adaptRequest({
+        ...request,
+        model: this.config.model,
+        stream: true
+      });
+
       const response = await fetch(`${this.config.auth.baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${this.config.auth.apiKey}`
         },
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [{ role: 'user', content: request.message }],
-          stream: true,
-          temperature: request.temperature,
-          max_tokens: request.maxTokens,
-          top_p: request.topP
-        }),
+        body: JSON.stringify(adaptedRequest)
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error?.message || 
+          `HTTP error! status: ${response.status}`
+        );
       }
 
       if (!response.body) {
@@ -135,34 +141,30 @@ export class DeepseekProvider extends LLMProvider {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (line.trim() === '') continue;
-          if (line === 'data: [DONE]') return;
+          for (const line of lines) {
+            if (line.trim() === '') continue;
+            if (line === 'data: [DONE]') return;
 
-          try {
-            const data = JSON.parse(line.replace(/^data: /, ''));
-            if (data.choices?.[0]?.delta?.content) {
-              yield {
-                content: data.choices[0].delta.content,
-                metadata: {
-                  modelId: this.config.model,
-                  provider: this.name,
-                  timestamp: Date.now()
-                }
-              };
+            if (line.startsWith('data: ')) {
+              const chunk = line.slice(6);
+              const response = DeepseekAdapter.adaptStreamChunk(chunk);
+              if (response) {
+                yield response;
+              }
             }
-          } catch (error) {
-            console.error('Error parsing stream data:', error);
           }
         }
+      } finally {
+        reader.releaseLock();
       }
     } catch (error) {
       throw new LLMError(
@@ -176,19 +178,24 @@ export class DeepseekProvider extends LLMProvider {
   async test(): Promise<TestResult> {
     try {
       await this.initialize();
+      const startTime = Date.now();
+      
       const response = await this.chat({
-        message: 'test',
-        systemPrompt: 'You are a helpful assistant.',
+        message: '测试消息',
+        systemPrompt: '这是一个测试。',
+        temperature: 0.7,
+        maxTokens: 50
       });
+
       return {
         success: true,
-        latency: 0,
+        latency: Date.now() - startTime
       };
     } catch (error) {
       return {
         success: false,
         latency: 0,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : '未知错误'
       };
     }
   }
@@ -200,9 +207,11 @@ export class DeepseekProvider extends LLMProvider {
           'Authorization': `Bearer ${this.config.auth.apiKey}`
         }
       });
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
       const data = await response.json();
       return data.data.map((model: any) => model.id);
     } catch (error) {
@@ -237,6 +246,7 @@ export class DeepseekProvider extends LLMProvider {
           'Authorization': `Bearer ${this.config.auth.apiKey}`
         }
       });
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

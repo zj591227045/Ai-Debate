@@ -1,15 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ModelConfig } from '../../types';
-import { useModelTest } from '../../../llm/hooks/useModelTest';
-import { adaptModelConfig } from '../../../llm/utils/adapters';
-import '../ModelTestDialog/styles.css';
-
-interface Message {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  reasoning_content?: string;
-  timestamp?: number;
-}
+import type { ModelConfig } from '../../types/config';
+import { Message, StreamResponse } from '../../../llm/types/common';
+import { useModelTest } from '../../hooks/useModelTest';
+import './styles.css';
 
 interface ModelTestDialogProps {
   modelConfig: ModelConfig;
@@ -21,8 +14,8 @@ interface ModelTestDialogProps {
   showTimestamp?: boolean;
 }
 
-export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({ 
-  modelConfig: model, 
+export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
+  modelConfig: model,
   onClose,
   systemPrompt = '你是一个有帮助的AI助手。',
   placeholder = '输入消息...',
@@ -31,13 +24,26 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
   showTimestamp = true
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  const [userInput, setUserInput] = useState('');
   const [currentResponse, setCurrentResponse] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<Error | null>(null);
 
   // 适配模型配置
-  const adaptedConfig = adaptModelConfig(model);
+  const adaptConfig = (config: ModelConfig): ModelConfig => {
+    return {
+      ...config,
+      auth: {
+        baseUrl: config.auth?.baseUrl || '',
+        apiKey: config.auth?.apiKey || ''
+      },
+      parameters: {
+        temperature: config.parameters?.temperature ?? 0.7,
+        maxTokens: config.parameters?.maxTokens ?? 2048,
+        topP: config.parameters?.topP ?? 1.0
+      }
+    };
+  };
 
   // 添加调试信息
   //console.group('=== LLM Service Debug Info ===');
@@ -47,20 +53,25 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
 
   // 使用测试Hook
   const {
-    loading: isLoading,
+    sendMessage,
+    isLoading,
     testStream
   } = useModelTest({
-    modelConfig: adaptedConfig,
-    onStreamOutput: (response) => {
+    modelConfig: adaptConfig(model),
+    onStreamOutput: (response: StreamResponse) => {
       console.log('LLM Service Stream Chunk:', response.content);
-      setCurrentResponse(prev => ({
-        role: 'assistant',
-        content: prev ? prev.content + response.content : response.content,
-        timestamp: Date.now()
-      }));
+      setCurrentResponse(prev => {
+        const newResponse: Message = {
+          role: 'assistant',
+          content: (prev?.content || '') + (response.content || ''),
+          timestamp: Date.now()
+        };
+        return newResponse;
+      });
     },
     onError: (error: Error) => {
       console.error('LLM Service Error:', error);
+      setError(error);
     }
   });
 
@@ -74,26 +85,28 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
 
   const handleSubmit = async (e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!userInput.trim() || isLoading) return;
 
-    const userMessage = input.trim();
+    const userMessage = userInput.trim();
     console.group('=== LLM Service Request ===');
     console.log('Input Message:', userMessage);
     console.log('Current Messages:', messages);
     console.groupEnd();
 
-    setInput('');
+    setUserInput('');
     setMessages(prev => [...prev, { 
       role: 'user', 
       content: userMessage,
       timestamp: Date.now()
     }]);
     setCurrentResponse(null);
+    setError(null);
 
     try {
       // 构建系统提示词
       const prompt = messages.length === 0 ? systemPrompt : messages
-        .map(msg => `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}`)
+        .filter(msg => msg.role === 'system' || msg.role === 'user')
+        .map(msg => `${msg.role === 'user' ? 'Human' : 'System'}: ${msg.content}`)
         .join('\n');
 
       console.log('LLM Service System Prompt:', prompt);
@@ -180,8 +193,8 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
       <div className="input-container">
         <input
           type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+          value={userInput}
+          onChange={(e) => setUserInput(e.target.value)}
           placeholder={placeholder}
           maxLength={maxInputLength}
           disabled={isLoading}
@@ -194,7 +207,7 @@ export const ModelTestDialog: React.FC<ModelTestDialogProps> = ({
         />
         <button 
           onClick={handleSubmit}
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || !userInput.trim()}
         >
           {isLoading ? '发送中...' : '发送'}
         </button>

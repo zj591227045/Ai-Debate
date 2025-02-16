@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { AIDebateService } from '../services/AIDebateService';
 import { Character } from '../types/character';
 import { DebateState } from '../types/debate';
+import { LLMError } from '../../llm/types/error';
 
 interface UseAIDebateReturn {
   isGenerating: boolean;
@@ -20,12 +21,16 @@ export const useAIDebate = (): UseAIDebateReturn => {
     setIsGenerating(true);
     setError(null);
     try {
-      const thoughts = await service.generateInnerThoughts(character, state);
-      return thoughts;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('生成内心OS时发生未知错误');
-      setError(error);
-      throw error;
+      const response = await service.chat({
+        message: '请生成内心独白',
+        systemPrompt: `你是一位辩论选手，正在思考如何回应对方的观点。`
+      });
+      return response.content ?? '';
+    } catch (error) {
+      console.error('生成内心独白失败:', error);
+      const err = error instanceof Error ? error : new Error('生成内心独白失败');
+      setError(err);
+      throw err;
     } finally {
       setIsGenerating(false);
     }
@@ -35,12 +40,16 @@ export const useAIDebate = (): UseAIDebateReturn => {
     setIsGenerating(true);
     setError(null);
     try {
-      const speech = await service.generateSpeech(character, state, innerThoughts);
-      return speech;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('生成正式发言时发生未知错误');
-      setError(error);
-      throw error;
+      const response = await service.chat({
+        message: '请生成正式发言',
+        systemPrompt: `你是一位辩论选手，基于内心独白"${innerThoughts}"生成正式发言。`
+      });
+      return response.content ?? '';
+    } catch (error) {
+      console.error('生成正式发言失败:', error);
+      const err = error instanceof Error ? error : new Error('生成正式发言失败');
+      setError(err);
+      throw err;
     } finally {
       setIsGenerating(false);
     }
@@ -50,12 +59,16 @@ export const useAIDebate = (): UseAIDebateReturn => {
     setIsGenerating(true);
     setError(null);
     try {
-      const score = await service.generateScore(judge, state);
-      return score;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('生成评分时发生未知错误');
-      setError(error);
-      throw error;
+      const response = await service.chat({
+        message: '请对辩论表现进行评分',
+        systemPrompt: '你是一位专业的辩论评委。'
+      });
+      return response.content ?? '';
+    } catch (error) {
+      console.error('生成评分失败:', error);
+      const err = error instanceof Error ? error : new Error('生成评分失败');
+      setError(err);
+      throw err;
     } finally {
       setIsGenerating(false);
     }

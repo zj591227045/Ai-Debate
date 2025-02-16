@@ -5,6 +5,7 @@
 import { BaseProviderConfig } from './index';
 import { Message } from './common';
 import { ApiConfig, ModelConfig } from './config';
+import type { ChatRequest, ChatResponse } from '../api/types';
 
 /**
  * Ollama供应商配置
@@ -31,20 +32,6 @@ export interface DeepseekConfig extends BaseProviderConfig {
 }
 
 /**
- * 火山引擎供应商配置
- */
-export interface VolcengineConfig extends BaseProviderConfig {
-  apiSecret: string;
-  endpointId: string;
-  options?: {
-    temperature?: number;
-    topP?: number;
-    topK?: number;
-    maxTokens?: number;
-  };
-}
-
-/**
  * SiliconFlow供应商配置
  */
 export interface SiliconFlowConfig extends BaseProviderConfig {
@@ -56,16 +43,15 @@ export interface SiliconFlowConfig extends BaseProviderConfig {
 }
 
 /**
- * 供应商常量定义
+ * 供应商类型枚举
  */
-export const PROVIDERS = {
-  OLLAMA: 'ollama',
-  DEEPSEEK: 'deepseek',
-  SILICONFLOW: 'siliconflow',
-  VOLCENGINE: 'volcengine'
-} as const;
+export enum ProviderType {
+  OLLAMA = 'ollama',
+  DEEPSEEK = 'deepseek',
+  SILICONFLOW = 'siliconflow'
+}
 
-export type ProviderType = typeof PROVIDERS[keyof typeof PROVIDERS];
+export const PROVIDERS = ProviderType;
 
 /**
  * 供应商工厂接口
@@ -81,11 +67,10 @@ export interface ProviderFactory {
 export type ProviderSpecificConfig = 
   | OllamaConfig
   | DeepseekConfig
-  | VolcengineConfig
   | SiliconFlowConfig;
 
 export interface ModelProvider {
-  initialize(): Promise<void>;
+  initialize(skipModelValidation?: boolean): Promise<void>;
   validateConfig(): Promise<void>;
   listModels(): Promise<string[]>;
   chat(messages: Message[], config?: Partial<ModelConfig>): Promise<Message>;
@@ -97,4 +82,13 @@ export interface ModelProvider {
     maxResponseTokens: number;
     multipleCompletions: boolean;
   }>;
+}
+
+/**
+ * LLM供应商接口
+ */
+export interface LLMProvider {
+  chat(request: ChatRequest): Promise<ChatResponse>;
+  stream(request: ChatRequest): AsyncGenerator<ChatResponse>;
+  validateConfig(): Promise<void>;
 } 

@@ -1,84 +1,34 @@
 import { ProviderType } from '../../llm/types/providers';
-import type { ProviderConfig, ModelInfo } from './config';
+import type { ProviderConfig as IProviderConfig, ModelInfo as IModelInfo } from '../types/config';
 
-/**
- * 模型参数接口
- */
-export interface ModelParameters {
-  temperature: number;
-  maxTokens: number;
-  topP: number;
-  presencePenalty?: number;
-  frequencyPenalty?: number;
-  stopSequences?: string[];
+export interface ProviderConfig {
+  name: string;                 // 供应商名称
+  code: ProviderType;          // 供应商代码
+  description: string;          // 供应商描述
+  website?: string;            // 供应商官网
+  requiresApiKey: boolean;     // 是否需要API Key
+  requiresBaseUrl: boolean;    // 是否需要基础URL
+  defaultBaseUrl?: string;     // 默认基础URL
+  models: ModelInfo[];         // 支持的模型列表
+  parameterRanges: {          // 参数范围限制
+    temperature?: { min: number; max: number; default: number };
+    maxTokens?: { min: number; max: number; default: number };
+    topP?: { min: number; max: number; default: number };
+  };
 }
 
-/**
- * 认证配置接口
- */
-export interface AuthConfig {
-  baseUrl: string;
-  apiKey?: string;
-  organizationId?: string;
+export interface ModelInfo {
+  name: string;               // 模型名称
+  code: string;              // 模型代码
+  description: string;       // 模型描述
+  contextWindow: number;     // 上下文窗口大小
+  maxTokens: number;        // 最大token数
+  features: string[];       // 支持的特性
 }
 
-/**
- * 模型能力接口
- */
-export interface ModelCapabilities {
-  streaming: boolean;
-  functionCalling: boolean;
-}
-
-/**
- * 价格信息接口
- */
-export interface PricingInfo {
-  inputPrice: number;
-  outputPrice: number;
-  unit: string;
-  currency: string;
-}
-
-/**
- * 模型元数据接口
- */
-export interface ModelMetadata {
-  description: string;
-  contextWindow: number;
-  tokenizerName: string;
-  pricingInfo: PricingInfo;
-}
-
-/**
- * 模型配置接口
- */
-export interface ModelConfig {
-  id: string;
-  name: string;
-  provider: ProviderType;
-  model: string;
-  parameters: ModelParameters;
-  auth: AuthConfig;
-  capabilities: ModelCapabilities;
-  metadata: ModelMetadata;
-  isEnabled: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-// 模型参数范围
-export interface ModelParameterRange {
-  temperature: { min: number; max: number; step: number; default: number };
-  topP: { min: number; max: number; step: number; default: number };
-  maxTokens: { min: number; max: number; step: number; default: number };
-  presencePenalty?: { min: number; max: number; step: number; default: number };
-  frequencyPenalty?: { min: number; max: number; step: number; default: number };
-}
-
-// 预设的供应商配置
-export const DEFAULT_PROVIDERS: ProviderConfig[] = [
-  {
+// 供应商配置映射
+export const PROVIDER_CONFIGS: Record<ProviderType, IProviderConfig> = {
+  [ProviderType.OLLAMA]: {
     name: 'Ollama',
     code: ProviderType.OLLAMA,
     description: '本地运行的开源LLM服务',
@@ -118,7 +68,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
       topP: { min: 0, max: 1, default: 0.9 }
     }
   },
-  {
+  [ProviderType.DEEPSEEK]: {
     name: 'DeepSeek',
     code: ProviderType.DEEPSEEK,
     description: 'DeepSeek API服务',
@@ -142,7 +92,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
       topP: { min: 0, max: 1, default: 0.9 }
     }
   },
-  {
+  [ProviderType.SILICONFLOW]: {
     name: 'SiliconFlow',
     code: ProviderType.SILICONFLOW,
     description: 'SiliconFlow API服务',
@@ -166,13 +116,4 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
       topP: { min: 0, max: 1, default: 0.9 }
     }
   }
-];
-
-// 默认参数范围
-export const DEFAULT_PARAMETER_RANGES: ModelParameterRange = {
-  temperature: { min: 0, max: 2, step: 0.1, default: 0.7 },
-  topP: { min: 0, max: 1, step: 0.1, default: 0.9 },
-  maxTokens: { min: 1, max: 4096, step: 1, default: 2000 },
-  presencePenalty: { min: -2, max: 2, step: 0.1, default: 0 },
-  frequencyPenalty: { min: -2, max: 2, step: 0.1, default: 0 },
 }; 

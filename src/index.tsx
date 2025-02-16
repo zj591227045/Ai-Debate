@@ -52,6 +52,21 @@ async function initializeApp() {
           baseUrl: 'http://localhost:11434',
           apiKey: ''
         },
+        capabilities: {
+          streaming: true,
+          functionCalling: false
+        },
+        metadata: {
+          description: 'Ollama 本地模型服务',
+          contextWindow: 4096,
+          tokenizerName: 'llama2',
+          pricingInfo: {
+            inputPrice: 0,
+            outputPrice: 0,
+            unit: '1K tokens',
+            currency: 'USD'
+          }
+        },
         isEnabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now()

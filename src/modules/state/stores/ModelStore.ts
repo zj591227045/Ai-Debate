@@ -1,13 +1,18 @@
 import { BaseStore } from '../core/BaseStore';
 import { StateContainerFactory } from '../core/StateContainer';
 import type { ModelState } from '../types/state';
+import type { ModelStore as IModelStore } from '../types/stores';
+import { ModelConfig } from '../../model/types/config';
+
+const MODEL_STORAGE_KEY = 'model_configs';
 
 /**
  * 模型存储类
  */
-export class ModelStore extends BaseStore<ModelState> {
+export class ModelStore extends BaseStore<ModelState> implements IModelStore {
   protected data: ModelState;
   protected metadata: { lastUpdated: number };
+  private models: Map<string, ModelConfig>;
 
   constructor(config: {
     namespace: string;
@@ -22,6 +27,39 @@ export class ModelStore extends BaseStore<ModelState> {
     super(config);
     this.metadata = { lastUpdated: Date.now() };
     this.data = this.createInitialState().data;
+    this.models = new Map();
+    this.loadFromStorage();
+  }
+
+  /**
+   * 从LocalStorage加载数据
+   */
+  private loadFromStorage(): void {
+    try {
+      const storedData = localStorage.getItem(MODEL_STORAGE_KEY);
+      if (storedData) {
+        const configs: ModelConfig[] = JSON.parse(storedData);
+        configs.forEach(config => {
+          this.models.set(config.id, config);
+        });
+        console.log('从存储加载模型配置:', configs);
+      }
+    } catch (err) {
+      console.error('加载模型配置失败:', err);
+    }
+  }
+
+  /**
+   * 保存到LocalStorage
+   */
+  private saveToStorage(): void {
+    try {
+      const configs = Array.from(this.models.values());
+      localStorage.setItem(MODEL_STORAGE_KEY, JSON.stringify(configs));
+      console.log('保存模型配置到存储:', configs);
+    } catch (err) {
+      console.error('保存模型配置失败:', err);
+    }
   }
 
   /**
@@ -112,10 +150,9 @@ export class ModelStore extends BaseStore<ModelState> {
 
   /**
    * 设置当前模型
-   * @param modelId 模型ID
    */
-  public setCurrentModel(modelId: string): void {
-    const model = this.state.data.availableModels.find(m => m.id === modelId);
+  setCurrentModel(modelId: string): void {
+    const model = Array.from(this.models.values()).find(m => m.id === modelId);
     if (!model) {
       throw new Error(`Model with id "${modelId}" not found`);
     }
@@ -124,9 +161,8 @@ export class ModelStore extends BaseStore<ModelState> {
 
   /**
    * 更新模型配置
-   * @param config 配置更新
    */
-  public updateConfig(config: Partial<ModelState['config']>): void {
+  updateConfig(config: Partial<ModelState['config']>): void {
     this.setState({
       config: { ...this.state.data.config, ...config }
     });
@@ -170,5 +206,46 @@ export class ModelStore extends BaseStore<ModelState> {
     return this.state.data.availableModels.find(
       m => m.id === this.state.data.currentModel
     );
+  }
+
+  /**
+   * 获取所有模型配置
+   */
+  async getAllConfigs(): Promise<ModelConfig[]> {
+    return Array.from(this.models.values());
+  }
+
+  /**
+   * 获取指定ID的模型配置
+   */
+  async getConfigById(id: string): Promise<ModelConfig | null> {
+    return this.models.get(id) || null;
+  }
+
+  /**
+   * 添加新的模型配置
+   */
+  async addConfig(config: ModelConfig): Promise<void> {
+    this.models.set(config.id, config);
+    this.saveToStorage();
+  }
+
+  /**
+   * 更新模型配置
+   */
+  async updateConfigById(id: string, config: ModelConfig): Promise<void> {
+    if (!this.models.has(id)) {
+      throw new Error(`Model ${id} not found`);
+    }
+    this.models.set(id, config);
+    this.saveToStorage();
+  }
+
+  /**
+   * 删除模型配置
+   */
+  async deleteConfig(id: string): Promise<void> {
+    this.models.delete(id);
+    this.saveToStorage();
   }
 } 

@@ -1,286 +1,332 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Button, Input, Typography, Spin, Divider, Alert } from 'antd';
 import { LLMService } from '../modules/debate-flow/services/LLMService';
-import { ProcessedSpeech, JudgeConfig, ScoringContext, Score, ScoringRules } from '../modules/debate-flow/types/interfaces';
-import { ModelConfig } from '../modules/model/types/config';
-import { UnifiedLLMService } from '../modules/llm/services/UnifiedLLMService';
-import { ModelService } from '../modules/model/services/ModelService';
-import { CharacterConfigService } from '../modules/debate-flow/services/CharacterConfigService';
-import type { CharacterConfig } from '../modules/debate-flow/types/character';
-import './ScoringTest.css';
+import { ScoringSystem } from '../modules/debate-flow/services/ScoringSystem';
+import type { ProcessedSpeech, ScoringContext, ScoringRules, Score } from '../modules/debate-flow/types/interfaces';
+import type { CharacterConfig } from '../modules/character/types';
+import { StoreManager } from '../modules/state/core/StoreManager';
 
-const defaultJudgeConfig: JudgeConfig = {
-  id: 'test_judge',
-  name: '测试评委'
+const { TextArea } = Input;
+const { Title, Text } = Typography;
+
+// 测试用的评分规则
+const defaultScoringRules: ScoringRules = {
+  dimensions: [
+    {
+      name: "逻辑性",
+      weight: 30,
+      description: "论证的逻辑严密程度",
+      criteria: ["论点清晰", "论证充分", "结构完整"]
+    },
+    {
+      name: "创新性",
+      weight: 20,
+      description: "观点和论证的创新程度",
+      criteria: ["视角新颖", "论证方式创新", "例证独特"]
+    },
+    {
+      name: "表达性",
+      weight: 20,
+      description: "语言表达的准确性和流畅性",
+      criteria: ["用词准确", "语言流畅", "表达清晰"]
+    },
+    {
+      name: "互动性",
+      weight: 30,
+      description: "与对方观点的互动和回应程度",
+      criteria: ["回应准确", "反驳有力", "互动充分"]
+    }
+  ]
 };
 
-export const ScoringTest: React.FC = () => {
-  const [judgeConfig, setJudgeConfig] = useState<JudgeConfig>(defaultJudgeConfig);
-  const [modelConfig, setModelConfig] = useState<ModelConfig | null>(null);
-  const [characters, setCharacters] = useState<CharacterConfig[]>([]);
-  const [selectedCharacter, setSelectedCharacter] = useState<CharacterConfig | null>(null);
-  const [speechContent, setSpeechContent] = useState('');
-  const [scoringResult, setScoringResult] = useState('');
-  const [isScoring, setIsScoring] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const defaultSpeech = `我认为人工智能的发展应该受到适度监管。首先，从安全角度来看，AI技术的快速发展可能带来不可预见的风险。
+例如，在自动驾驶领域，如果没有适当的监管标准，可能会导致严重的安全事故。
 
-  // 加载AI角色列表
+其次，从伦理角度考虑，AI的决策过程需要保持透明和可解释性。如果没有监管，AI系统可能会做出带有偏见或歧视的决策，
+这将损害社会公平。
+
+最后，针对对方提出的"监管会阻碍创新"的观点，我认为恰恰相反。合理的监管框架能够为AI发展提供清晰的指导方向，
+反而会促进负责任的创新。就像交通规则不是为了限制出行，而是为了确保安全有序一样。`;
+
+const ScoringTest: React.FC = () => {
+  const [speech, setSpeech] = useState(defaultSpeech);
+  const [loading, setLoading] = useState(false);
+  const [score, setScore] = useState<Score | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [judge, setJudge] = useState<CharacterConfig | null>(null);
+  const [scoringRules, setScoringRules] = useState<ScoringRules>(defaultScoringRules);
+  const [scoringDescription, setScoringDescription] = useState<string>('');
+  const [streamingComment, setStreamingComment] = useState<string>('');
+  const [dimensions, setDimensions] = useState<Record<string, number>>({});
+  const [isCommentComplete, setIsCommentComplete] = useState(false);
+  const scoringSystemRef = useRef<ScoringSystem | null>(null);
+
   useEffect(() => {
-    const loadCharacters = async () => {
+    const loadJudgeAndRules = async () => {
       try {
-        const characterService = new CharacterConfigService();
-        const allCharacters = await characterService.getActiveCharacters();
-        // 只获取评委角色
-        const judges = allCharacters.filter(char => char.role === 'judge');
-        setCharacters(judges);
+        const storeManager = StoreManager.getInstance();
+        
+        // 等待存储初始化完成
+        await storeManager.hydrateAll();
+        
+        // 加载游戏配置
+        const gameConfigStore = storeManager.getStore('gameConfig');
+        const gameConfig = await gameConfigStore.getState();
+        console.log('游戏配置:', gameConfig);
+        
+        if (!gameConfig?.debate?.judging?.selectedJudge?.id) {
+          throw new Error('未找到选定的裁判');
+        }
+
+        // 加载评分规则
+        if (gameConfig.debate.judging) {
+          console.log('评分规则:', gameConfig.debate.judging);
+          const { description, dimensions } = gameConfig.debate.judging;
+          setScoringDescription(description || '');
+          if (dimensions) {
+            setScoringRules({
+              dimensions: dimensions
+            });
+          }
+        }
+
+        // 从游戏配置中获取裁判ID
+        const judgeId = gameConfig.debate.judging.selectedJudge.id;
+        console.log('选定的裁判ID:', judgeId);
+        
+        // 从 LocalStorage 中获取角色配置
+        const characterConfigsStr = localStorage.getItem('character_configs');
+        if (!characterConfigsStr) {
+          throw new Error('未找到角色配置数据');
+        }
+        
+        const characterConfigs = JSON.parse(characterConfigsStr);
+        console.log('角色配置列表:', characterConfigs);
+        
+        // 在角色列表中查找匹配ID的角色
+        const selectedJudge = characterConfigs.find((char: CharacterConfig) => char.id === judgeId);
+        console.log('选定的裁判配置:', selectedJudge);
+        
+        if (!selectedJudge) {
+          throw new Error(`未找到ID为 ${judgeId} 的裁判角色配置`);
+        }
+
+        // 初始化LLM服务
+        const llmService = new LLMService();
+        await llmService['initialize'](selectedJudge.id);
+        console.log('LLM服务初始化完成');
+
+        setJudge(selectedJudge);
       } catch (err) {
-        setError('加载评委角色失败: ' + (err instanceof Error ? err.message : String(err)));
+        console.error('加载裁判和规则失败:', err);
+        setError(err instanceof Error ? err.message : '加载裁判和规则失败');
       }
     };
 
-    loadCharacters();
+    loadJudgeAndRules();
   }, []);
 
-  // 处理角色选择
-  const handleCharacterSelect = async (characterId: string) => {
-    try {
-      const character = characters.find(c => c.id === characterId);
-      if (!character) {
-        throw new Error('未找到选中的角色');
-      }
-
-      setSelectedCharacter(character);
-      
-      // 更新评委配置
-      setJudgeConfig({
-        id: character.id,
-        name: character.name,
-        characterConfig: character
-      });
-
-      // 获取角色对应的模型配置
-      if (character.callConfig?.direct?.modelId) {
-        const modelService = new ModelService();
-        const config = await modelService.getModelById(character.callConfig.direct.modelId);
-        if (config) {
-          setModelConfig(config);
-          setError(null);
-        }
-      }
-    } catch (err) {
-      setError('选择角色失败: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  };
-
-  // 开始评分
-  const handleStartScoring = useCallback(async () => {
-    if (!speechContent.trim() || !selectedCharacter) {
-      setError('请输入发言内容并选择评委角色');
+  const handleTest = async () => {
+    if (!judge) {
+      setError('未找到裁判信息');
       return;
     }
 
-    setIsScoring(true);
+    setLoading(true);
     setError(null);
-    setScoringResult('');
-
-    const speech: ProcessedSpeech = {
-      id: 'test_speech_' + Date.now(),
-      content: speechContent,
-      timestamp: Date.now(),
-      round: 1,
-      type: 'speech',
-      playerId: 'test_player',
-      role: 'user',
-      metadata: {
-        wordCount: speechContent.length
-      }
-    };
-
-    const context: ScoringContext = {
-      judge: judgeConfig,
-      rules: {
-        dimensions: [
-          { 
-            name: 'logic', 
-            weight: 0.3, 
-            description: '论证的完整性、连贯性和说服力',
-            criteria: [
-              '论点表述清晰完整',
-              '论证过程连贯合理',
-              '结论具有说服力'
-            ]
-          },
-          { 
-            name: 'evidence', 
-            weight: 0.3, 
-            description: '论据的相关性、可靠性和充分性',
-            criteria: [
-              '论据与论点高度相关',
-              '论据来源可靠',
-              '论据数量充分'
-            ]
-          },
-          { 
-            name: 'delivery', 
-            weight: 0.2, 
-            description: '语言的清晰度、流畅度和感染力',
-            criteria: [
-              '语言表达清晰准确',
-              '语言组织流畅自然',
-              '表达具有感染力'
-            ]
-          },
-          { 
-            name: 'rebuttal', 
-            weight: 0.2, 
-            description: '对对方论点的理解和有效反驳',
-            criteria: [
-              '准确理解对方论点',
-              '反驳针对性强',
-              '反驳论证有力'
-            ]
-          }
-        ]
-      },
-      previousScores: [{
-        id: 'test-score-1',
-        speechId: 'test-speech-1',
-        judgeId: 'test-judge-1',
-        playerId: 'test-player-1',
-        round: 1,
-        timestamp: Date.now(),
-        dimensions: {
-          logic: 8.5,
-          evidence: 8.0,
-          delivery: 8.0,
-          rebuttal: 7.5
-        },
-        totalScore: 8.0,
-        comment: '整体表现良好，论证逻辑清晰，论据充分可靠。',
-        feedback: {
-          strengths: ['论证逻辑清晰', '论据充分可靠'],
-          weaknesses: ['反驳力度可以加强'],
-          suggestions: ['建议进一步加强反驳的针对性']
-        }
-      }]
-    };
+    setScore(null);
+    setStreamingComment('');
+    setDimensions({});
+    setIsCommentComplete(false);
 
     try {
-      const llmService = new LLMService();
-      let result = '';
-      
-      for await (const chunk of llmService.generateScore(speech, context)) {
-        result += chunk;
-        setScoringResult(prev => prev + chunk);
-      }
+      const testSpeech: ProcessedSpeech = {
+        id: `test_speech_${Date.now()}`,
+        playerId: "player_1",
+        content: speech,
+        type: "speech",
+        timestamp: Date.now(),
+        round: 1,
+        role: "assistant",
+        metadata: {
+          wordCount: speech.split(/\s+/).length
+        }
+      };
 
-      // 验证结果是否为有效的JSON
-      try {
-        const scoreData = JSON.parse(result);
-        console.log('评分结果解析成功:', scoreData);
-      } catch (parseError) {
-        setError('评分结果格式无效: ' + (parseError instanceof Error ? parseError.message : String(parseError)));
-      }
+      const testContext: ScoringContext = {
+        judge: {
+          id: judge.id,
+          name: judge.name,
+          characterConfig: judge
+        },
+        rules: scoringRules,
+        previousScores: []
+      };
+
+      const llmService = new LLMService();
+      const scoringSystem = new ScoringSystem(llmService);
+      scoringSystemRef.current = scoringSystem;
+
+      // 订阅评分事件
+      scoringSystem.onCommentStart(() => {
+        console.log('开始生成评语');
+        setStreamingComment('');
+        setIsCommentComplete(false);
+      });
+
+      scoringSystem.onCommentUpdate((chunk: string) => {
+        console.log('评语更新:', chunk);
+        setStreamingComment(prev => prev + chunk);
+      });
+
+      scoringSystem.onCommentComplete((comment: string) => {
+        console.log('评语完成:', comment);
+        setIsCommentComplete(true);
+      });
+
+      scoringSystem.onDimensionUpdate(({ dimension, score }) => {
+        console.log('维度分数更新:', dimension, score);
+        setDimensions(prev => ({
+          ...prev,
+          [dimension]: score
+        }));
+      });
+
+      const result = await scoringSystem.generateScore(testSpeech, testContext);
+      setScore(result);
     } catch (err) {
-      setError('评分失败: ' + (err instanceof Error ? err.message : String(err)));
+      setError(err instanceof Error ? err.message : '评分过程出错');
     } finally {
-      setIsScoring(false);
+      setLoading(false);
+      // 清理事件监听
+      if (scoringSystemRef.current) {
+        scoringSystemRef.current.removeAllListeners();
+      }
     }
-  }, [speechContent, selectedCharacter, judgeConfig]);
+  };
 
   return (
-    <div className="scoring-test">
-      <h1>评分测试</h1>
-
-      {/* 角色选择 */}
-      <section className="character-section">
-        <h2>选择评委角色</h2>
-        <select 
-          onChange={(e) => handleCharacterSelect(e.target.value)}
-          disabled={isScoring}
-          value={selectedCharacter?.id || ''}
-        >
-          <option value="">请选择评委角色</option>
-          {characters.map(char => (
-            <option key={char.id} value={char.id}>
-              {char.name}
-            </option>
-          ))}
-        </select>
-        {selectedCharacter && modelConfig && (
-          <div className="character-info">
-            <div className="info-row">
-              <label>角色名称:</label>
-              <span>{selectedCharacter.name}</span>
-            </div>
-            <div className="info-row">
-              <label>使用模型:</label>
-              <span>{modelConfig.name}</span>
-            </div>
-            <div className="info-row">
-              <label>模型提供商:</label>
-              <span>{modelConfig.provider}</span>
-            </div>
-            <div className="info-row">
-              <label>角色描述:</label>
-              <p>{selectedCharacter.description || '无'}</p>
-            </div>
-          </div>
+    <div className="p-6 max-w-4xl mx-auto">
+      <Title level={2}>评分系统测试</Title>
+      
+      <Card title="评分规则" className="mb-6">
+        {scoringDescription && (
+          <Alert
+            message="评分说明"
+            description={scoringDescription}
+            type="info"
+            showIcon
+            className="mb-4"
+          />
         )}
-      </section>
-
-      {/* 评委配置 */}
-      <section>
-        <h2>评委配置</h2>
-        <div className="form-group">
-          <label>评委名称</label>
-          <input
-            type="text"
-            value={judgeConfig.name}
-            onChange={(e) => setJudgeConfig(prev => ({
-              ...prev,
-              name: e.target.value
-            }))}
-            disabled={isScoring}
-          />
+        <div className="grid grid-cols-2 gap-4">
+          {scoringRules.dimensions.map(dim => (
+            <Card key={dim.name} size="small" title={`${dim.name} (${dim.weight}分)`}>
+              <Text>{dim.description}</Text>
+              <div className="mt-2">
+                <Text type="secondary">评分标准：{dim.criteria.join('、')}</Text>
+              </div>
+            </Card>
+          ))}
         </div>
-      </section>
+      </Card>
 
-      {/* 发言内容 */}
-      <section>
-        <h2>发言内容</h2>
-        <div className="form-group">
-          <textarea
-            value={speechContent}
-            onChange={(e) => setSpeechContent(e.target.value)}
-            rows={6}
-            disabled={isScoring}
-          />
-        </div>
-      </section>
+      <Card title="当前裁判" className="mb-6">
+        {judge ? (
+          <div>
+            <Text strong>{judge.name}</Text>
+            {judge.persona?.personality?.length > 0 && (
+              <div className="mt-2">
+                <Text type="secondary">性格特征：{judge.persona.personality.join('、')}</Text>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Text type="warning">正在加载裁判信息...</Text>
+        )}
+      </Card>
 
-      {/* 操作按钮 */}
-      <section>
-        <button
-          onClick={handleStartScoring}
-          disabled={isScoring || !speechContent.trim() || !selectedCharacter}
+      <Card title="测试发言" className="mb-6">
+        <TextArea
+          value={speech}
+          onChange={e => setSpeech(e.target.value)}
+          rows={8}
+          className="mb-4"
+        />
+        <Button 
+          type="primary" 
+          onClick={handleTest} 
+          loading={loading}
+          disabled={!judge}
         >
-          {isScoring ? '评分中...' : '开始评分'}
-        </button>
-      </section>
+          生成评分
+        </Button>
+      </Card>
 
-      {/* 错误信息 */}
-      {error && (
-        <section className="error-section">
-          <div className="error-message">{error}</div>
-        </section>
+      {loading && (
+        <Card>
+          <div className="text-center py-4">
+            <Spin tip="正在生成评分..." />
+          </div>
+          {streamingComment && (
+            <div className="mt-4">
+              <Title level={4}>总体评价</Title>
+              <div className="p-4 bg-gray-50 rounded">
+                <Text>{streamingComment}</Text>
+              </div>
+            </div>
+          )}
+          {isCommentComplete && Object.keys(dimensions).length > 0 && (
+            <div className="mt-4">
+              <Divider>维度评分</Divider>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(dimensions).map(([dimension, score]) => (
+                  <Card key={dimension} size="small">
+                    <div className="flex justify-between items-center">
+                      <Text strong>{dimension}</Text>
+                      <Text>{score}分</Text>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
       )}
 
-      {/* 评分结果 */}
-      {scoringResult && (
-        <section>
-          <h2>评分结果</h2>
-          <pre className="scoring-result">{scoringResult}</pre>
-        </section>
+      {error && (
+        <Card className="mt-4 bg-red-50">
+          <Text type="danger">{error}</Text>
+        </Card>
+      )}
+
+      {score && !loading && (
+        <Card title="评分结果" className="mt-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            {Object.entries(score.dimensions).map(([dim, value]) => (
+              <Card key={dim} size="small">
+                <div className="flex justify-between items-center">
+                  <Text strong>{dim}</Text>
+                  <Text>{value}分</Text>
+                </div>
+              </Card>
+            ))}
+          </div>
+          
+          <Divider />
+          
+          <div className="flex justify-between items-center mb-4">
+            <Text strong>总分</Text>
+            <Text>{score.totalScore.toFixed(2)}分</Text>
+          </div>
+          
+          <div>
+            <Text strong>评语：</Text>
+            <div className="mt-2 p-4 bg-gray-50 rounded">
+              <Text>{score.comment}</Text>
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
-import { Tooltip, Divider, message, Spin, Result, Button } from 'antd';
+import { Tooltip, Divider, message, Spin, Result, Button, Card, Space, Typography } from 'antd';
 import { 
   BulbOutlined,
   BulbFilled
@@ -9,29 +9,36 @@ import {
 import { Resizable } from 're-resizable';
 import { useCharacter } from '../modules/character/context/CharacterContext';
 import { useDebateFlow } from '../hooks/debate/useDebateFlow';
-import type { CharacterConfig } from '../modules/character/types';
 import { CharacterConfigService } from '../modules/storage/services/CharacterConfigService';
 import { useStore } from '../modules/state';
-import type { DebateRole } from '../types/roles';
+import { useAIInteraction } from '../hooks/debate/useAIInteraction';
+import { DebateFlowService } from '../modules/debate-flow/services/DebateFlowService';
+import { ScoringSystem } from '../modules/scoring/services/ScoringSystem';
 import { SpeechList } from '../components/debate/SpeechList';
-import type { DebateProgress, DebateHistory, SessionAction, DebateState, SessionState } from '../modules/state/types/session';
 import { DebateControl } from '../components/debate/DebateControl';
-import type { SpeechType } from '../types/adapters';
 import { StateDebugger } from '../components/debug/StateDebugger';
 import { ScoreDisplay } from '../components/debate/ScoreDisplay';
 import { ScoreStatisticsDisplay } from '../components/debate/ScoreStatistics';
-import { useAIInteraction } from '../hooks/debate/useAIInteraction';
-import type { UnifiedPlayer, BaseDebateSpeech, Score } from '../types/adapters';
-import { DebateStatus } from '../modules/state/types/adapters';
-import { ScoringSystem } from '../modules/scoring/services/ScoringSystem';
-import type { BaseDebateScore, Judge, DebateConfig } from '../types/interfaces';
 import { DebateErrorBoundary } from '../components/error/DebateErrorBoundary';
+import { ScoringPanel } from '../components/debate/ScoringPanel';
+import type { CharacterConfig } from '../modules/character/types';
+import type { DebateRole } from '../types/roles';
+import type { 
+  DebateProgress, 
+  DebateHistory, 
+  SessionAction, 
+  DebateState, 
+  SessionState 
+} from '../modules/state/types/session';
+import type { SpeechType, UnifiedPlayer, BaseDebateSpeech, BaseDebateScore } from '../types/adapters';
+import type { Judge, DebateConfig } from '../types/interfaces';
 import type { 
   DebateFlowConfig, 
   DebateRules,
   SpeechInput,
-  DebateStatus as DebateFlowStatus
+  DebateFlowState
 } from '../modules/debate-flow/types/interfaces';
+import { DebateStatus } from '../modules/debate-flow/types/interfaces';
 
 // 主容器
 const Container = styled.div`
@@ -613,7 +620,7 @@ interface UIState {
   status: DebateStatus;
   history: {
     speeches: BaseDebateSpeech[];
-    scores: Score[];
+    scores: BaseDebateScore[];
   };
   streamingSpeech: {
     playerId: string;
@@ -650,10 +657,21 @@ interface JudgeConfig {
     name: string;
     avatar?: string;
   };
-  scores?: Score[];
-  currentRoundScores?: Score[];
+  scores?: BaseDebateScore[];
+  currentRoundScores?: BaseDebateScore[];
   statistics?: any;
   rankings?: any[];
+}
+
+interface GameJudging {
+  description: string;
+  dimensions: any[];
+  totalScore: number;
+  selectedJudge?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
 }
 
 export const DebateRoom: React.FC = () => {
@@ -663,9 +681,37 @@ export const DebateRoom: React.FC = () => {
   const { state: modelState } = useStore('model');
   const { state: characterState } = useCharacter();
   
+  // 获取裁判信息
+  const getJudgeInfo = useCallback(() => {
+    if (!gameConfig?.debate?.judging) {
+      return null;
+    }
+
+    const judging = gameConfig.debate.judging as GameJudging;
+    
+    // 如果没有选定的裁判，返回系统裁判
+    if (!judging.selectedJudge) {
+      return {
+        id: 'system_judge',
+        name: '系统评委',
+        description: '由AI驱动的智能评分系统'
+      };
+    }
+
+    return {
+      id: judging.selectedJudge.id,
+      name: judging.selectedJudge.name,
+      avatar: judging.selectedJudge.avatar,
+      description: judging.description
+    };
+  }, [gameConfig?.debate?.judging]);
+
+  // 使用 useMemo 缓存 judgeInfo
+  const judgeInfo = useMemo(() => getJudgeInfo(), [getJudgeInfo]);
+
   // 使用新的 useDebateFlow hook
   const { 
-    state: debateState, 
+    state: debateFlowState, 
     scores,
     error: debateError, 
     actions: debateActions 
@@ -706,9 +752,10 @@ export const DebateRoom: React.FC = () => {
             argumentationStyle: player.argumentationStyle || ''
           } : undefined
         })),
-        rules
+        rules,
+        judge: judgeInfo
       } as DebateFlowConfig;
-    }, [gameConfig?.debate, gameConfig?.players])
+    }, [gameConfig?.debate, gameConfig?.players, judgeInfo])
   );
   
   // 本地UI状态
@@ -775,64 +822,61 @@ export const DebateRoom: React.FC = () => {
 
   // 修改状态同步
   useEffect(() => {
-    if (!debateState) {
-      console.log('debateState 为空，跳过状态同步');
+    if (!debateFlowState) {
+      console.log('debateFlowState 为空，跳过状态同步');
       return;
     }
 
     setUiState((prev: UIState) => {
-      const mappedStatus = mapToDebateStatus(debateState.status);
+      const mappedStatus = mapToDebateStatus(debateFlowState.status);
 
       // 检查是否有流式内容
       const hasStreamingContent = 
-        debateState.currentSpeech?.status === 'streaming' &&
-        debateState.currentSpeech?.content;
+        debateFlowState.currentSpeech?.status === 'streaming' &&
+        debateFlowState.currentSpeech?.content;
 
       const newState: UIState = {
         ...prev,
-        isLoading: false,
         isDarkMode: prev.isDarkMode,
         playerListWidth: prev.playerListWidth,
         showDebugger: prev.showDebugger,
-        currentSpeaker: debateState.currentSpeaker ? {
-          id: debateState.currentSpeaker.id,
-          name: debateState.currentSpeaker.name,
-          role: debateState.currentSpeaker.role as DebateRole,
-          isAI: debateState.currentSpeaker.isAI
+        currentSpeaker: debateFlowState.currentSpeaker ? {
+          id: debateFlowState.currentSpeaker.id,
+          name: debateFlowState.currentSpeaker.name,
+          role: debateFlowState.currentSpeaker.role as DebateRole,
+          isAI: debateFlowState.currentSpeaker.isAI
         } : null,
-        currentRound: debateState.currentRound,
+        currentRound: debateFlowState.currentRound,
         status: mappedStatus,
         history: {
-          speeches: debateState.speeches.map(speech => ({
+          speeches: debateFlowState.speeches.map(speech => ({
             id: speech.id,
             playerId: speech.playerId,
             content: speech.content,
-            timestamp: typeof speech.timestamp === 'number' ? 
-                      new Date(speech.timestamp).toISOString() : 
-                      speech.timestamp,
+            type: speech.type,
+            timestamp: new Date(speech.timestamp).toISOString(),
             round: speech.round,
-            references: [],
             role: speech.role,
-            type: speech.type
+            references: []
           })),
           scores: prev.history.scores
         },
-        streamingSpeech: hasStreamingContent && debateState.currentSpeech ? {
-          playerId: debateState.currentSpeaker?.id || '',
-          content: debateState.currentSpeech.content,
-          type: debateState.currentSpeech.type || 'innerThoughts'
+        streamingSpeech: hasStreamingContent && debateFlowState.currentSpeech ? {
+          playerId: debateFlowState.currentSpeaker?.id || '',
+          content: debateFlowState.currentSpeech.content,
+          type: debateFlowState.currentSpeech.type || 'innerThoughts'
         } : null,
         players: prev.players
       };
 
       return newState;
     });
-  }, [debateState]);
+  }, [debateFlowState]);
 
   // 错误处理
   useEffect(() => {
     if (debateError) {
-      message.error(`辩论流程错误: ${debateError.message}`);
+      message.error(debateError.message);
     }
   }, [debateError]);
 
@@ -842,34 +886,6 @@ export const DebateRoom: React.FC = () => {
   // 添加角色配置服务和状态
   const [characterConfigs, setCharacterConfigs] = useState<Record<string, CharacterConfig>>({});
   const characterService = useMemo(() => new CharacterConfigService(), []);
-
-  // 修改获取裁判信息的函数
-  const getJudgeInfo = useCallback(() => {
-    if (!gameConfig?.debate?.judging) {
-      return null;
-    }
-
-    // 使用类型断言确保类型正确
-    const judging = gameConfig.debate.judging as JudgeConfig;
-    
-    if (!judging.selectedJudge) {
-      return {
-        id: 'system_judge',
-        name: '系统评委',
-        description: '由AI驱动的智能评分系统'
-      };
-    }
-
-    return {
-      id: judging.selectedJudge.id,
-      name: judging.selectedJudge.name,
-      avatar: judging.selectedJudge.avatar,
-      description: judging.description
-    };
-  }, [gameConfig?.debate?.judging]);
-
-  // 使用 useMemo 缓存 judgeInfo
-  const judgeInfo = useMemo(() => getJudgeInfo(), [getJudgeInfo]);
 
   // 修改加载角色配置的 effect
   useEffect(() => {
@@ -1070,7 +1086,7 @@ export const DebateRoom: React.FC = () => {
       
       if (isLastSpeaker) {
         const roundSpeeches = uiState.history.speeches.filter(s => s.round === uiState.currentRound);
-        const roundScores: Score[] = [];
+        const roundScores: BaseDebateScore[] = [];
         
         if (judgeInfo) {
           for (const roundSpeech of roundSpeeches) {
@@ -1299,6 +1315,9 @@ export const DebateRoom: React.FC = () => {
     );
   };
 
+  const [debateService, setDebateService] = useState<DebateFlowService | null>(null);
+  const [localDebateState, setLocalDebateState] = useState<DebateFlowState | null>(null);
+
   return (
     <DebateErrorBoundary>
       <Container>
@@ -1313,11 +1332,11 @@ export const DebateRoom: React.FC = () => {
               currentRound={uiState.currentRound}
               totalRounds={gameConfig.debate.topic.rounds}
               currentSpeaker={uiState.currentSpeaker}
-              nextSpeaker={debateState?.nextSpeaker ? {
-                id: debateState.nextSpeaker.id,
-                name: debateState.nextSpeaker.name,
-                role: debateState.nextSpeaker.role as DebateRole,
-                isAI: debateState.nextSpeaker.isAI
+              nextSpeaker={localDebateState?.nextSpeaker ? {
+                id: localDebateState.nextSpeaker.id,
+                name: localDebateState.nextSpeaker.name,
+                role: localDebateState.nextSpeaker.role as DebateRole,
+                isAI: localDebateState.nextSpeaker.isAI
               } : null}
               players={uiState.players}
               onStartScoring={handleDebateStateChange}
@@ -1536,7 +1555,27 @@ export const DebateRoom: React.FC = () => {
             {/* 实时评分展示(每轮结束) */}
             {uiState.history.scores.length > 0 && (
               <div style={{ margin: '20px 0', padding: '20px', background: '#fff', borderRadius: '8px' }}>
-                <h3 style={{ marginBottom: '16px' }}>本轮评分</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3>本轮评分</h3>
+                  <Space>
+                    {debateService && (
+                      <Button 
+                        type="primary"
+                        onClick={() => debateService.resetCurrentRoundScoring()}
+                        disabled={uiState.status !== DebateStatus.ROUND_COMPLETE && uiState.status !== DebateStatus.SCORING}
+                      >
+                        重新评分
+                      </Button>
+                    )}
+                    <Button 
+                      type="primary"
+                      onClick={handleNextRound}
+                      disabled={uiState.status !== DebateStatus.ROUND_COMPLETE && uiState.status !== DebateStatus.SCORING}
+                    >
+                      进入下一轮
+                    </Button>
+                  </Space>
+                </div>
                 {uiState.history.scores
                   .filter(score => score.round === uiState.currentRound)
                   .map(score => (
@@ -1619,6 +1658,20 @@ export const DebateRoom: React.FC = () => {
               ...prev,
               showDebugger: !prev.showDebugger
             }))}
+          />
+        )}
+
+        {/* 评分面板 */}
+        {debateService && (
+          uiState.status === DebateStatus.SCORING || 
+          uiState.status === DebateStatus.ROUND_COMPLETE
+        ) && (
+          <ScoringPanel
+            debateFlow={debateService}
+            currentRound={uiState.currentRound}
+            scores={uiState.history.scores}
+            isScoring={uiState.status === DebateStatus.SCORING}
+            onNextRound={handleNextRound}
           />
         )}
       </Container>

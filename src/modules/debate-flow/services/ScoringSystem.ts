@@ -6,7 +6,8 @@ import type {
   ScoringContext,
   ScoreStatistics,
   PlayerRanking,
-  SpeechRole
+  SpeechRole,
+  ScoringDimension
 } from '../types/interfaces';
 import { LLMService } from './LLMService';
 
@@ -20,124 +21,203 @@ export class ScoringSystem implements IScoringSystem {
     this.llmService = llmService;
   }
 
+  // 添加事件订阅方法
+  onCommentStart(handler: () => void): void {
+    this.eventEmitter.on('score:comment_start', handler);
+  }
+
+  onCommentUpdate(handler: (chunk: string) => void): void {
+    this.eventEmitter.on('score:comment_update', handler);
+  }
+
+  onCommentComplete(handler: (comment: string) => void): void {
+    this.eventEmitter.on('score:comment_complete', handler);
+  }
+
+  onDimensionUpdate(handler: (data: { dimension: string; score: number }) => void): void {
+    this.eventEmitter.on('score:dimension_update', handler);
+  }
+
+  removeAllListeners(): void {
+    this.eventEmitter.removeAllListeners();
+  }
+
   async generateScore(speech: ProcessedSpeech, context: ScoringContext): Promise<Score> {
     try {
       // 使用 LLM 生成评分
       const scoreGen = this.llmService.generateScore(speech, context);
       let scoreContent = '';
+      let currentComment = '';
+      let isParsingScores = false;
+      const dimensions: Record<string, number> = {};
       
+      // 收集所有的流式输出
       for await (const chunk of scoreGen) {
         scoreContent += chunk;
+        
+        // 如果遇到"总评："，开始收集评语
+        if (chunk.includes('总评：')) {
+          isParsingScores = false;
+          // 触发评语开始事件
+          this.eventEmitter.emit('score:comment_start');
+          continue;
+        }
+        
+        // 如果遇到"第三部分：维度评分"，开始解析分数
+        if (chunk.includes('第三部分：维度评分')) {
+          isParsingScores = true;
+          // 如果之前在收集评语，触发评语完成事件
+          if (currentComment) {
+            this.eventEmitter.emit('score:comment_complete', currentComment.trim());
+          }
+          continue;
+        }
+        
+        // 如果在解析分数模式下，检查是否是分数行
+        if (isParsingScores) {
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            const scoreMatch = line.trim().match(/^([^：]+)：\s*(\d+)\s*$/);
+            if (scoreMatch) {
+              const [, dimension, scoreStr] = scoreMatch;
+              const score = parseInt(scoreStr, 10);
+              if (!isNaN(score) && score >= 0 && score <= 100) {
+                const dimensionName = dimension.trim();
+                dimensions[dimensionName] = score;
+                // 触发单个维度分数更新事件
+                this.eventEmitter.emit('score:dimension_update', {
+                  dimension: dimensionName,
+                  score
+                });
+              }
+            }
+          }
+        } else {
+          // 如果不在解析分数模式，则收集评语
+          currentComment += chunk;
+          // 实时触发评语更新事件
+          this.eventEmitter.emit('score:comment_update', chunk);
+        }
+      }
+
+      // 在所有内容接收完成后，重新解析一次分数
+      const scoreLines = scoreContent.split('\n');
+      let foundScoreSection = false;
+      
+      for (const line of scoreLines) {
+        const trimmedLine = line.trim();
+        
+        if (trimmedLine.includes('第三部分：维度评分')) {
+          foundScoreSection = true;
+          continue;
+        }
+        
+        if (foundScoreSection) {
+          const scoreMatch = trimmedLine.match(/^([^：]+)：\s*(\d+)\s*$/);
+          if (scoreMatch) {
+            const [, dimension, scoreStr] = scoreMatch;
+            const score = parseInt(scoreStr, 10);
+            if (!isNaN(score) && score >= 0 && score <= 100) {
+              dimensions[dimension.trim()] = score;
+            }
+          }
+        }
       }
       
-      try {
-        // 解析 LLM 返回的评分结果
-        const scoreData = JSON.parse(scoreContent);
-        
-        // 验证评分数据
-        this.validateScoreData(scoreData);
-        
-        const score: Score = {
-          id: `score_${Date.now()}`,
-          speechId: speech.id,
-          judgeId: context.judge.id,
-          playerId: speech.playerId,
-          round: speech.round,
-          timestamp: Date.now(),
-          dimensions: scoreData.dimensions,
-          totalScore: this.calculateTotalScore(scoreData.dimensions),
-          feedback: {
-            strengths: scoreData.feedback.strengths,
-            weaknesses: scoreData.feedback.weaknesses,
-            suggestions: scoreData.feedback.suggestions
-          },
-          comment: scoreData.comment
-        };
+      console.log('开始解析评分内容:', scoreContent);
+      console.log('当前评语:', currentComment);
+      console.log('当前维度分数:', dimensions);
+      
+      // 验证评分数据
+      const finalResult = {
+        dimensions,
+        comment: currentComment.trim()
+      };
+      
+      console.log('解析后的评分数据:', finalResult);
 
-        // 保存评分并触发事件
-        this.scores.push(score);
-        this.eventEmitter.emit('score:generated', score);
-        return score;
-      } catch (parseError) {
-        console.warn('评分结果解析失败，使用模拟评分:', parseError);
-        return this.generateFallbackScore(speech, context);
-      }
+      // 验证评分数据
+      this.validateScoreData(finalResult, context);
+      
+      const score: Score = {
+        id: `score_${Date.now()}`,
+        speechId: speech.id,
+        judgeId: context.judge.id,
+        playerId: speech.playerId,
+        round: speech.round,
+        timestamp: Date.now(),
+        dimensions: finalResult.dimensions,
+        totalScore: this.calculateTotalScore(finalResult.dimensions, context.rules.dimensions),
+        comment: finalResult.comment
+      };
+
+      console.log('生成的最终评分:', score);
+
+      // 触发最终评分完成事件
+      this.eventEmitter.emit('score:complete', score);
+      
+      // 保存评分并返回
+      this.scores.push(score);
+      return score;
     } catch (error) {
-      console.warn('LLM评分生成失败，使用模拟评分:', error);
-      return this.generateFallbackScore(speech, context);
+      console.error('LLM评分生成失败，详细错误:', error);
+      throw error; // 不再使用fallback评分，而是直接抛出错误
     }
   }
 
-  private validateScoreData(data: any): void {
+  private validateScoreData(data: any, context: ScoringContext): void {
     if (!data.dimensions || typeof data.dimensions !== 'object') {
       throw new Error('无效的维度评分数据');
-    }
-
-    const requiredDimensions = ['logic', 'evidence', 'delivery', 'rebuttal'];
-    for (const dim of requiredDimensions) {
-      if (typeof data.dimensions[dim] !== 'number' || 
-          data.dimensions[dim] < 0 || 
-          data.dimensions[dim] > 100) {
-        throw new Error(`维度 ${dim} 的评分无效`);
-      }
-    }
-
-    if (!Array.isArray(data.feedback?.strengths) || 
-        !Array.isArray(data.feedback?.weaknesses) || 
-        !Array.isArray(data.feedback?.suggestions)) {
-      throw new Error('无效的反馈数据格式');
     }
 
     if (typeof data.comment !== 'string') {
       throw new Error('无效的评语格式');
     }
+
+    // 检查每个维度的分数是否在有效范围内
+    Object.entries(data.dimensions).forEach(([dim, score]) => {
+      if (typeof score !== 'number' || score < 0 || score > 100) {
+        throw new Error(`维度 ${dim} 的评分无效: ${score}`);
+      }
+    });
+
+    // 从context中获取维度配置
+    const requiredDimensions = new Map(
+      context.rules.dimensions.map(dim => [dim.name, dim.weight])
+    );
+    
+    const actualDimensions = new Set(Object.keys(data.dimensions));
+    
+    console.log('期望的维度:', Array.from(requiredDimensions.keys()));
+    console.log('实际的维度:', Array.from(actualDimensions));
+    console.log('解析到的维度分数:', data.dimensions);
+
+    const missingDimensions = Array.from(requiredDimensions.keys())
+      .filter(dim => !actualDimensions.has(dim));
+    
+    if (missingDimensions.length > 0) {
+      console.error('缺失的维度:', missingDimensions);
+      console.error('当前维度:', Array.from(actualDimensions));
+      throw new Error(`评分维度不完整，缺少: ${missingDimensions.join(', ')}`);
+    }
   }
 
-  private generateFallbackScore(speech: ProcessedSpeech, context: ScoringContext): Score {
-    const dimensions = {
-      logic: this.generateMockDimensionScore(),
-      evidence: this.generateMockDimensionScore(),
-      delivery: this.generateMockDimensionScore(),
-      rebuttal: this.generateMockDimensionScore()
-    };
+  private calculateTotalScore(dimensions: Record<string, number>, rules: ScoringDimension[]): number {
+    // 从rules中获取维度权重
+    const weights: Record<string, number> = {};
+    rules.forEach(rule => {
+      weights[rule.name] = rule.weight;
+    });
 
-    const score: Score = {
-      id: `score_${Date.now()}`,
-      speechId: speech.id,
-      judgeId: context.judge.id,
-      playerId: speech.playerId,
-      round: speech.round,
-      timestamp: Date.now(),
-      dimensions,
-      totalScore: this.calculateTotalScore(dimensions),
-      feedback: {
-        strengths: ['论点清晰', '论据充分', '表达流畅'],
-        weaknesses: ['可以进一步加强论证', '反驳力度可以增强'],
-        suggestions: ['建议增加更多具体例证', '可以更好地回应对方论点']
-      },
-      comment: '整体表现不错，论证较为充分，但仍有提升空间。'
-    };
+    // 计算加权总分
+    let totalScore = 0;
+    Object.entries(dimensions).forEach(([dimension, score]) => {
+      const weight = weights[dimension] || 0;
+      // 将原始分数(0-100)转换为权重分数
+      totalScore += (score / 100) * weight;
+    });
 
-    this.scores.push(score);
-    this.eventEmitter.emit('score:generated', score);
-    return score;
-  }
-
-  private generateMockDimensionScore(): number {
-    return Math.floor(Math.random() * 15) + 75; // 75-90之间的随机分数
-  }
-
-  private calculateTotalScore(dimensions: Record<string, number>): number {
-    const weights = {
-      logic: 0.3,
-      evidence: 0.3,
-      delivery: 0.2,
-      rebuttal: 0.2
-    };
-
-    return Object.entries(dimensions).reduce((total, [dim, score]) => {
-      return total + score * weights[dim as keyof typeof weights];
-    }, 0);
+    return totalScore;
   }
 
   getScoreStatistics(): ScoreStatistics {

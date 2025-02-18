@@ -507,70 +507,117 @@ ${speech.content}
   }
 
   async *generateScore(speech: ProcessedSpeech, context: ScoringContext): AsyncGenerator<string> {
-    console.group('=== 生成评分 ===');
-    console.log('评分输入:', { speech, context });
-    
     try {
-      const systemPrompt = this.promptService.generateScoringSystemPrompt(context.judge);
+      const prompt = this.promptService.generateScoringSystemPrompt(context.judge, context.rules);
       const humanPrompt = this.promptService.generateScoringHumanPrompt(speech, context);
-
-      console.log('生成的提示词:', {
-        systemPrompt,
-        humanPrompt
-      });
-
-      if (!systemPrompt || !humanPrompt) {
-        console.error('提示词生成失败');
-        throw new LLMError(
-          LLMErrorCode.API_ERROR,
-          '生成评分提示词失败'
-        );
-      }
 
       const request = {
         message: humanPrompt,
-        systemPrompt: systemPrompt,
-        temperature: 0.3,
-        maxTokens: 2048,
+        systemPrompt: prompt,
+        temperature: 0.7,
+        maxTokens: 2000,
         topP: 0.95,
         stream: true
       };
 
-      console.log('发送评分请求:', request);
+      let content = '';
+      let currentComment = '';
+      let isParsingScores = false;
+      const dimensions: Record<string, number> = {};
 
-      let responseContent = '';
       for await (const chunk of this.llmService.stream(request)) {
         if (chunk.content) {
-          responseContent += chunk.content;
+          content += chunk.content;
           yield chunk.content;
+
+          // 如果遇到"总评："，开始收集评语
+          if (chunk.content.includes('总评：')) {
+            isParsingScores = false;
+            continue;
+          }
+
+          // 如果遇到"第三部分：维度评分"，开始解析分数
+          if (chunk.content.includes('第三部分：维度评分')) {
+            isParsingScores = true;
+            continue;
+          }
+
+          // 如果正在解析分数，检查每一行是否包含分数
+          if (isParsingScores) {
+            const lines = chunk.content.split('\n');
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              // 修改正则表达式以更准确地匹配分数行
+              const scoreMatch = trimmedLine.match(/^([^：]+)：\s*(\d+)\s*$/);
+              if (scoreMatch) {
+                const [, dimension, scoreStr] = scoreMatch;
+                const score = parseInt(scoreStr, 10);
+                if (!isNaN(score) && score >= 0 && score <= 100) {
+                  dimensions[dimension.trim()] = score;
+                }
+              }
+            }
+          } else {
+            // 如果不在解析分数，收集评语
+            currentComment += chunk.content;
+          }
         }
       }
 
-      // 验证响应是否为有效的 JSON
-      try {
-        const scoreData = JSON.parse(responseContent);
-        console.log('评分结果:', scoreData);
+      // 在所有内容接收完成后，重新解析一次分数
+      const scoreLines = content.split('\n');
+      let foundScoreSection = false;
+      
+      for (const line of scoreLines) {
+        const trimmedLine = line.trim();
         
-        if (!scoreData.dimensions || !scoreData.feedback) {
-          throw new Error('评分结果格式无效');
+        if (trimmedLine.includes('第三部分：维度评分')) {
+          foundScoreSection = true;
+          continue;
         }
-      } catch (parseError) {
-        console.error('评分结果解析失败:', parseError);
-        throw new LLMError(
-          LLMErrorCode.INVALID_RESPONSE,
-          '评分结果格式无效',
-          parseError instanceof Error ? parseError : undefined
-        );
+        
+        if (foundScoreSection) {
+          const scoreMatch = trimmedLine.match(/^([^：]+)：\s*(\d+)\s*$/);
+          if (scoreMatch) {
+            const [, dimension, scoreStr] = scoreMatch;
+            const score = parseInt(scoreStr, 10);
+            if (!isNaN(score) && score >= 0 && score <= 100) {
+              dimensions[dimension.trim()] = score;
+            }
+          }
+        }
       }
+
+      // 验证维度完整性
+      const expectedDimensions = context.rules.dimensions.map(d => d.name);
+      const actualDimensions = Object.keys(dimensions);
+      
+      console.log('期望的维度:', expectedDimensions);
+      console.log('实际的维度:', actualDimensions);
+      console.log('解析到的维度分数:', dimensions);
+
+      const missingDimensions = expectedDimensions.filter(dim => !actualDimensions.includes(dim));
+      if (missingDimensions.length > 0) {
+        console.error('评分维度不完整:', {
+          expected: expectedDimensions,
+          actual: actualDimensions,
+          missing: missingDimensions,
+          dimensions,
+          fullContent: content
+        });
+        throw new Error(`评分维度不完整，缺少以下维度：${missingDimensions.join(', ')}`);
+      }
+
+      return {
+        type: 'success',
+        value: {
+          dimensions,
+          comment: currentComment.trim()
+        }
+      };
     } catch (error) {
       console.error('评分生成失败:', error);
-      throw new LLMError(
-        LLMErrorCode.API_ERROR,
-        '评分生成失败',
-        error instanceof Error ? error : undefined
-      );
-    } finally {
-      console.groupEnd();
+      throw new LLMError(LLMErrorCode.API_ERROR, '评分生成失败', error instanceof Error ? error : undefined);
     }
   }
 

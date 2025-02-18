@@ -13,13 +13,17 @@ import {
   ProcessedSpeech,
   DebateContext,
   DebateSceneType,
-  DebateStatus
+  DebateStatus,
+  PlayerConfig,
+  ScoringContext,
+  ScoringDimension
 } from '../types/interfaces';
 import { LLMService } from './LLMService';
 import { SpeakingOrderManager } from './SpeakingOrderManager';
 import { SpeechProcessor } from './SpeechProcessor';
 import { ScoringSystem } from './ScoringSystem';
 import { DebateFlowEvent } from '../types/events';
+import { StoreManager } from '../../state/core/StoreManager';
 
 export class DebateFlowService implements IDebateFlow {
   private readonly eventEmitter: EventEmitter;
@@ -30,6 +34,7 @@ export class DebateFlowService implements IDebateFlow {
   private state: DebateFlowState;
   private debateContext: DebateContext;
   private previousState: DebateFlowState | null = null;
+  private readonly storeManager: StoreManager;
 
   constructor(
     llmService: LLMService,
@@ -42,6 +47,7 @@ export class DebateFlowService implements IDebateFlow {
     this.speakingOrderManager = speakingOrderManager;
     this.speechProcessor = speechProcessor;
     this.scoringSystem = scoringSystem;
+    this.storeManager = StoreManager.getInstance();
     
     // 初始化状态
     this.state = {
@@ -641,131 +647,146 @@ export class DebateFlowService implements IDebateFlow {
   // 添加开始评分的方法
   async startScoring(): Promise<void> {
     if (this.state.status !== DebateStatus.ROUND_COMPLETE) {
-      throw new Error('当前状态不允许开始评分');
+      throw new Error('当前状态不允许评分');
     }
-
-    this.state = {
-      ...this.state,
-      status: DebateStatus.SCORING
-    };
-    
-    this.emitStateChange();
 
     try {
       // 获取当前轮次的所有发言
       const roundSpeeches = this.state.speeches.filter(
-        speech => speech.round === this.state.currentRound && speech.type === 'speech'
+        speech => speech.round === this.state.currentRound
       );
 
-      console.log(`开始为第 ${this.state.currentRound} 轮的 ${roundSpeeches.length} 条发言生成评分`);
+      if (roundSpeeches.length === 0) {
+        throw new Error('当前轮次没有可评分的发言');
+      }
 
-      // 生成评分
+      // 获取评分规则
+      const gameConfig = await this.storeManager.getStore('gameConfig').getState();
+      if (!gameConfig?.debate?.judging) {
+        throw new Error('未找到评分规则配置');
+      }
+
+      const { selectedJudge, dimensions } = gameConfig.debate.judging;
+      if (!selectedJudge || !dimensions) {
+        throw new Error('评分配置不完整');
+      }
+
+      // 获取裁判角色配置
+      const characterConfigsStr = localStorage.getItem('character_configs');
+      if (!characterConfigsStr) {
+        throw new Error('未找到角色配置数据');
+      }
+      
+      const characterConfigs = JSON.parse(characterConfigsStr);
+      const judge = characterConfigs.find((char: any) => char.id === selectedJudge.id);
+      
+      if (!judge) {
+        throw new Error(`未找到ID为 ${selectedJudge.id} 的裁判角色配置`);
+      }
+
+      // 初始化评分系统
+      const llmService = new LLMService();
+      await llmService['initialize'](judge.id);
+      const scoringSystem = new ScoringSystem(llmService);
+
+      // 设置评分事件监听
+      scoringSystem.onCommentStart(() => {
+        this.eventEmitter.emit('scoring:comment_start');
+      });
+
+      scoringSystem.onCommentUpdate((chunk: string) => {
+        this.eventEmitter.emit('scoring:comment_update', chunk);
+      });
+
+      scoringSystem.onCommentComplete((comment: string) => {
+        this.eventEmitter.emit('scoring:comment_complete', comment);
+      });
+
+      scoringSystem.onDimensionUpdate(({ dimension, score }) => {
+        this.eventEmitter.emit('scoring:dimension_update', { dimension, score });
+      });
+
+      // 为每个发言生成评分
+      console.group('=== 开始LLM评分流程 ===');
+      console.log('评分配置:', {
+        judgeId: judge.id,
+        judgeName: judge.name,
+        dimensions: dimensions
+      });
+
       const roundScores = await Promise.all(
         roundSpeeches.map(async speech => {
-          console.log(`正在为发言 ${speech.id} 生成评分`);
+          console.group(`正在为发言 ${speech.id} 生成评分`);
+          console.log('发言内容:', speech.content);
           
-          const processedSpeech = {
+          const processedSpeech: ProcessedSpeech = {
             ...speech,
             metadata: {
               wordCount: speech.content.split(/\s+/).length
             }
           };
-          
-          return await this.scoringSystem.generateScore(processedSpeech, {
+
+          const scoringContext: ScoringContext = {
             judge: {
-              id: 'system_judge',
-              name: '系统评委',
-              characterConfig: {
-                id: 'system_judge_character',
-                personality: '公正严谨',
-                speakingStyle: '专业客观',
-                background: '专业辩论评委',
-                values: ['公平', '客观'],
-                argumentationStyle: '逻辑分析'
-              }
+              id: judge.id,
+              name: judge.name,
+              characterConfig: judge
             },
             rules: {
-              dimensions: [
-                {
-                  name: 'logic',
-                  weight: 0.3,
-                  description: '逻辑性',
-                  criteria: ['论证清晰', '结构完整', '推理严谨']
-                },
-                {
-                  name: 'evidence',
-                  weight: 0.3,
-                  description: '论据充分性',
-                  criteria: ['证据充分', '例证恰当', '数据准确']
-                },
-                {
-                  name: 'delivery',
-                  weight: 0.2,
-                  description: '表达效果',
-                  criteria: ['语言流畅', '表达清晰', '感染力强']
-                },
-                {
-                  name: 'rebuttal',
-                  weight: 0.2,
-                  description: '反驳质量',
-                  criteria: ['针对性强', '反驳有力', '立场一致']
-                }
-              ]
+              dimensions: dimensions.map((dim: ScoringDimension) => ({
+                name: dim.name,
+                weight: dim.weight,
+                description: dim.description,
+                criteria: dim.criteria
+              }))
             },
             previousScores: this.state.scores
+          };
+
+          console.log('评分上下文:', {
+            judge: scoringContext.judge,
+            dimensions: scoringContext.rules.dimensions,
+            previousScoresCount: scoringContext.previousScores.length
           });
+
+          try {
+            console.log('调用LLM评分服务...');
+            const score = await scoringSystem.generateScore(processedSpeech, scoringContext);
+            console.log('LLM评分结果:', {
+              dimensions: score.dimensions,
+              totalScore: score.totalScore,
+              commentLength: score.comment.length
+            });
+            console.groupEnd();
+            return score;
+          } catch (error) {
+            console.error(`为发言 ${speech.id} 生成评分失败:`, error);
+            console.groupEnd();
+            throw error;
+          }
         })
       );
 
-      console.log(`成功生成 ${roundScores.length} 条评分`);
+      console.log(`成功生成 ${roundScores.length} 条评分:`, roundScores);
+      console.groupEnd();
 
       // 更新状态中的评分
       this.state = {
         ...this.state,
         scores: [...this.state.scores, ...roundScores]
       };
-      
-      // 触发评分完成事件
-      this.eventEmitter.emit(DebateFlowEvent.ROUND_SCORED, {
-        round: this.state.currentRound,
-        scores: roundScores
-      });
 
-      // 检查是否需要进入下一轮
-      if (this.state.currentRound < this.state.totalRounds) {
-        console.log(`开始第 ${this.state.currentRound + 1} 轮`);
-        
-        // 开始新的轮次
-        this.state = {
-          ...this.state,
-          currentRound: this.state.currentRound + 1,
-          status: DebateStatus.ONGOING,
-          speakingOrder: this.speakingOrderManager.initializeOrder(
-            this.state.speakingOrder.speakers.map(s => s.player),
-            this.state.speakingOrder.format
-          ),
-          currentSpeaker: null,
-          nextSpeaker: null
-        };
-        
-        // 设置下一个发言者
-        this.state.nextSpeaker = this.speakingOrderManager.getNextSpeaker(
-          this.state.speakingOrder
-        );
-      } else {
-        console.log('所有轮次已完成，结束辩论');
-        
-        // 辩论结束
-        this.state = {
-          ...this.state,
-          status: DebateStatus.COMPLETED
-        };
-      }
+      // 发送评分完成事件
+      this.eventEmitter.emit('scoring:complete', roundScores);
 
-      this.emitStateChange();
     } catch (error) {
       console.error('评分过程出错:', error);
       throw error;
+    } finally {
+      // 清理评分系统的事件监听
+      if (this.scoringSystem) {
+        this.scoringSystem.removeAllListeners();
+      }
     }
   }
 
@@ -831,6 +852,37 @@ export class DebateFlowService implements IDebateFlow {
     // 6. 如果有下一个发言者，自动开始第一个发言
     if (this.state.nextSpeaker) {
       await this.moveToNextSpeaker();
+    }
+  }
+
+  private async validateScoringDimensions(dimensions: ScoringDimension[]): Promise<boolean> {
+    const requiredDimensions = new Set(['逻辑性', '创新性', '表达性', '互动性']);
+    const providedDimensions = new Set(dimensions.map((dim: ScoringDimension) => dim.name));
+    
+    return Array.from(requiredDimensions).every((dim: string) => providedDimensions.has(dim));
+  }
+
+  // 重置当前轮次的评分
+  async resetCurrentRoundScoring(): Promise<void> {
+    console.log('重置当前轮次评分');
+    try {
+      // 移除当前轮次的所有评分
+      this.state = {
+        ...this.state,
+        scores: this.state.scores.filter(score => score.round !== this.state.currentRound)
+      };
+      
+      // 重置状态为轮次完成，准备重新评分
+      this.state.status = DebateStatus.ROUND_COMPLETE;
+      
+      // 发出状态变更事件
+      this.emitStateChange();
+      
+      // 重新开始评分
+      await this.startScoring();
+    } catch (error) {
+      console.error('重置评分失败:', error);
+      throw error;
     }
   }
 } 

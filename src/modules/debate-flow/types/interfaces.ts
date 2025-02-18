@@ -239,13 +239,15 @@ export interface ScoringContext {
   previousScores: Score[];
 }
 
+export interface ScoringDimension {
+  name: string;
+  weight: number;
+  description: string;
+  criteria: string[];
+}
+
 export interface ScoringRules {
-  dimensions: Array<{
-    name: string;
-    weight: number;
-    description: string;
-    criteria: string[];
-  }>;
+  dimensions: ScoringDimension[];
 }
 
 export interface Score {
@@ -257,11 +259,6 @@ export interface Score {
   timestamp: number;
   dimensions: Record<string, number>;
   totalScore: number;
-  feedback: {
-    strengths: string[];
-    weaknesses: string[];
-    suggestions: string[];
-  };
   comment: string;
 }
 

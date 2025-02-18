@@ -5,7 +5,9 @@ import {
   ScoringContext, 
   JudgeConfig,
   DebateContext,
-  DebateSceneType
+  DebateSceneType,
+  ScoringRules,
+  ScoringDimension
 } from '../types/interfaces';
 
 // 角色特征接口
@@ -313,8 +315,12 @@ ${innerThoughts}
   }
 
   // 生成评分的系统提示词
-  generateScoringSystemPrompt(judge: JudgeConfig): string {
-    return `你是一位专业的辩论赛评委，需要以特定的评委身份对辩手的发言进行评分和点评。
+  generateScoringSystemPrompt(judge: JudgeConfig, rules: ScoringRules): string {
+    const dimensionsText = rules.dimensions
+      .map((d: ScoringDimension) => `- ${d.name}（权重：${d.weight}）：${d.description}\n  评分标准：${d.criteria.join('、')}`)
+      .join('\n');
+
+    return `你是一位专业的辩论赛评委，需要以特定的评委身份对辩手的发言进行评分和点评，要使用第一人称角度发言。
 
 你的身份信息：
 姓名：${judge.name}
@@ -326,41 +332,38 @@ ${judge.characterConfig ? `
 论证风格：${judge.characterConfig.argumentationStyle || ''}
 ` : ''}
 
-评分维度包括：
-- 逻辑性（30分）：论证的逻辑严密程度
-- 论据支持（30分）：论据的充分性和相关性
-- 表达能力（20分）：语言表达的清晰度和说服力
-- 反驳能力（20分）：对对方论点的反驳效果
+评分维度：
+${dimensionsText}
 
-请以你的评委身份，按照以下JSON格式输出评分结果：
-{
-  "dimensions": {
-    "logic": <0-30的整数>,
-    "evidence": <0-30的整数>,
-    "delivery": <0-20的整数>,
-    "rebuttal": <0-20的整数>
-  },
-  "feedback": {
-    "strengths": string[],    // 3-5个优点
-    "weaknesses": string[],   // 2-3个不足
-    "suggestions": string[]   // 1-2个建议
-  },
-  "comment": string          // 总体评语，不超过300字
-}`;
+请严格按照以下格式和顺序输出评分结果：
+
+第一部分：总体评价
+总评：<此处输入你的总体评价，不超过500字>
+
+第二部分：详细评语
+<此处按维度分点输出详细评语，每个维度的评语需要具体分析优缺点>
+
+第三部分：维度评分（注意：分数必须是0-100之间的整数）
+${rules.dimensions.map((d: ScoringDimension) => `${d.name}：<分数>`).join('\n')}
+
+注意事项：
+1. 必须严格按照上述顺序输出：先输出总评，再输出详细评语，最后输出分数
+2. 分数必须是0-100之间的整数
+3. 必须包含所有评分维度
+4. 评语要体现你的个性特征和价值观
+5. 评语要针对每个维度的表现进行具体分析
+6. 分数部分必须单独成行，每个维度的分数独占一行`;
   }
 
   // 生成评分的人类提示词
   generateScoringHumanPrompt(speech: ProcessedSpeech, context: ScoringContext): string {
-    const topic = context.rules.dimensions.find(d => d.name === 'topic')?.description || '未提供主题';
-    
-    return `请以评委身份对以下辩论发言进行评分：
+    return `请对以下辩论发言进行评分：
 
-辩论主题：${topic}
 当前轮次：第${speech.round}轮
 发言内容：
 ${speech.content}
 
-请严格按照系统提示的JSON格式输出评分结果。评语要体现你的个性特征和价值观。`;
+请严格按照系统提示的格式输出评分结果。评语要体现你的个性特征和价值观，并对每个维度的表现进行具体分析。`;
   }
 
   // 生成内心独白的系统提示词

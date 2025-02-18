@@ -5,6 +5,8 @@ import { DebateStatus } from '../../modules/state/types/adapters';
 import { Button, Space } from 'antd';
 import { ScoringModal } from './ScoringModal';
 import type { UnifiedPlayer, Score, BaseDebateSpeech } from '../../types/adapters';
+import type { DebateRole } from '../../types/roles';
+import type { CharacterConfig } from '../../modules/character/types';
 
 interface RoundInfo {
   currentRound: number;
@@ -126,7 +128,7 @@ interface DebateControlProps {
   currentRound: number;
   totalRounds: number;
   currentSpeaker: UnifiedPlayer | null;
-  nextSpeaker?: UnifiedPlayer | null;
+  nextSpeaker: UnifiedPlayer | null;
   players: UnifiedPlayer[];
   onStartScoring: (status: DebateStatus) => void;
   onScoringComplete: (speech: BaseDebateSpeech) => void;
@@ -144,7 +146,9 @@ interface DebateControlProps {
     name: string;
     avatar?: string;
     description?: string;
+    characterConfig?: CharacterConfig;
   } | null;
+  speeches: BaseDebateSpeech[];
 }
 
 export const DebateControl: React.FC<DebateControlProps> = ({
@@ -159,7 +163,8 @@ export const DebateControl: React.FC<DebateControlProps> = ({
   onNextRound,
   onNextSpeaker,
   scoringRules,
-  judge
+  judge,
+  speeches
 }) => {
   const [scoringModalVisible, setScoringModalVisible] = useState(false);
 
@@ -306,8 +311,15 @@ export const DebateControl: React.FC<DebateControlProps> = ({
         onClose={handleModalClose}
         players={players}
         currentRound={currentRound}
-        judge={judge}
+        judge={judge ? {
+          id: judge.characterConfig?.id || judge.id,
+          name: judge.name,
+          avatar: judge.avatar,
+          description: judge.description,
+          characterConfig: judge.characterConfig
+        } : null}
         scoringRules={scoringRules}
+        speeches={speeches}
         onScoringComplete={handleScoringComplete}
         onNextRound={handleNextRound}
       />

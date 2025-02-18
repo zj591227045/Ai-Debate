@@ -20,7 +20,6 @@ import { StateDebugger } from '../components/debug/StateDebugger';
 import { ScoreDisplay } from '../components/debate/ScoreDisplay';
 import { ScoreStatisticsDisplay } from '../components/debate/ScoreStatistics';
 import { DebateErrorBoundary } from '../components/error/DebateErrorBoundary';
-import { ScoringPanel } from '../components/debate/ScoringPanel';
 import type { CharacterConfig } from '../modules/character/types';
 import type { DebateRole } from '../types/roles';
 import type { 
@@ -1345,6 +1344,7 @@ export const DebateRoom: React.FC = () => {
               onNextSpeaker={handleNextSpeaker}
               scoringRules={defaultDimensions}
               judge={judgeInfo}
+              speeches={uiState.history.speeches}
             />
           </div>
           <ToolButton onClick={handleThemeChange}>
@@ -1552,43 +1552,7 @@ export const DebateRoom: React.FC = () => {
               characterConfigs={characterConfigs}
             />
             
-            {/* 实时评分展示(每轮结束) */}
-            {uiState.history.scores.length > 0 && (
-              <div style={{ margin: '20px 0', padding: '20px', background: '#fff', borderRadius: '8px' }}>
-                <div className="flex justify-between items-center mb-4">
-                  <h3>本轮评分</h3>
-                  <Space>
-                    {debateService && (
-                      <Button 
-                        type="primary"
-                        onClick={() => debateService.resetCurrentRoundScoring()}
-                        disabled={uiState.status !== DebateStatus.ROUND_COMPLETE && uiState.status !== DebateStatus.SCORING}
-                      >
-                        重新评分
-                      </Button>
-                    )}
-                    <Button 
-                      type="primary"
-                      onClick={handleNextRound}
-                      disabled={uiState.status !== DebateStatus.ROUND_COMPLETE && uiState.status !== DebateStatus.SCORING}
-                    >
-                      进入下一轮
-                    </Button>
-                  </Space>
-                </div>
-                {uiState.history.scores
-                  .filter(score => score.round === uiState.currentRound)
-                  .map(score => (
-                    <ScoreDisplay
-                      key={score.id}
-                      score={score}
-                      judgeName={uiState.players.find(p => p.id === score.judgeId)?.name || '评委'}
-                    />
-                  ))}
-              </div>
-            )}
-            
-            {/* 总体评分统计(辩论结束) */}
+            {/* 评分统计(辩论结束) */}
             {uiState.status === DebateStatus.COMPLETED && (
               <div style={{ margin: '20px 0', padding: '20px', background: '#fff', borderRadius: '8px' }}>
                 <h3 style={{ marginBottom: '16px' }}>辩论总评</h3>
@@ -1658,20 +1622,6 @@ export const DebateRoom: React.FC = () => {
               ...prev,
               showDebugger: !prev.showDebugger
             }))}
-          />
-        )}
-
-        {/* 评分面板 */}
-        {debateService && (
-          uiState.status === DebateStatus.SCORING || 
-          uiState.status === DebateStatus.ROUND_COMPLETE
-        ) && (
-          <ScoringPanel
-            debateFlow={debateService}
-            currentRound={uiState.currentRound}
-            scores={uiState.history.scores}
-            isScoring={uiState.status === DebateStatus.SCORING}
-            onNextRound={handleNextRound}
           />
         )}
       </Container>

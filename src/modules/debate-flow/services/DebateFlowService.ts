@@ -1,16 +1,20 @@
 import { EventEmitter } from 'events';
-import type {
+import type { Player } from '../../game-config/types';
+import type { Speech } from '@debate/types';
+import {
   IDebateFlow,
   DebateFlowConfig,
   DebateFlowState,
   SpeechInput,
   StateChangeHandler,
-  SpeakingOrderInfo,
-  PlayerConfig,
+  SpeakingOrder,
   SpeakerInfo,
-  SpeakerStatus
+  Score,
+  ProcessedSpeech,
+  DebateContext,
+  DebateSceneType,
+  DebateStatus
 } from '../types/interfaces';
-import { DebateStatus } from '../types/interfaces';
 import { LLMService } from './LLMService';
 import { SpeakingOrderManager } from './SpeakingOrderManager';
 import { SpeechProcessor } from './SpeechProcessor';
@@ -24,6 +28,7 @@ export class DebateFlowService implements IDebateFlow {
   private readonly speechProcessor: SpeechProcessor;
   private readonly scoringSystem: ScoringSystem;
   private state: DebateFlowState;
+  private debateContext: DebateContext;
   private previousState: DebateFlowState | null = null;
 
   constructor(
@@ -56,22 +61,61 @@ export class DebateFlowService implements IDebateFlow {
       speeches: [],
       scores: []
     };
+
+    // 初始化辩论上下文
+    this.debateContext = {
+      topic: {
+        title: '',
+        background: ''
+      },
+      currentRound: 1,
+      totalRounds: 1,
+      previousSpeeches: [],
+      sceneType: DebateSceneType.OPENING,
+      stance: 'positive'
+    };
   }
 
   async initialize(config: DebateFlowConfig): Promise<void> {
     console.log('初始化辩论流程:', config);
     
+    // 将 PlayerConfig 转换为 Player
+    const players: Player[] = config.players.map(player => ({
+      id: player.id,
+      name: player.name,
+      isAI: player.isAI,
+      role: player.role,
+      team: player.team,
+      characterId: player.characterConfig?.id,
+      personality: player.characterConfig?.personality,
+      speakingStyle: player.characterConfig?.speakingStyle,
+      background: player.characterConfig?.background,
+      values: player.characterConfig?.values?.join(','),
+      argumentationStyle: player.characterConfig?.argumentationStyle
+    }));
+    
     const speakingOrder = this.speakingOrderManager.initializeOrder(
-      config.players,
+      players,
       config.rules.format
     );
 
-    console.log('生成发言顺序:', speakingOrder);
+    console.log('生成发言顺序:', {
+      format: speakingOrder.format,
+      speakers: speakingOrder.speakers.map(s => ({
+        id: s.player.id,
+        name: s.player.name,
+        characterId: s.player.characterId,
+        status: s.status
+      }))
+    });
 
     // 确保有发言者
     if (!speakingOrder.speakers || speakingOrder.speakers.length === 0) {
       throw new Error('没有可用的发言者');
     }
+
+    // 更新LLM服务的玩家列表
+    this.llmService.setPlayers(players);
 
     // 设置初始状态
     this.state = {
@@ -79,17 +123,45 @@ export class DebateFlowService implements IDebateFlow {
       currentRound: 1,
       totalRounds: config.rules.rounds,
       currentSpeaker: null,
-      nextSpeaker: speakingOrder.speakers[0]?.player || null,
+      nextSpeaker: speakingOrder.speakers[0] ? { ...speakingOrder.speakers[0].player } : null,
       speakingOrder: {
         ...speakingOrder,
-        totalRounds: config.rules.rounds
+        totalRounds: config.rules.rounds,
+        // 确保每个发言者对象都完整复制
+        speakers: speakingOrder.speakers.map(s => ({
+          ...s,
+          player: { ...s.player }
+        }))
       },
       currentSpeech: null,
       speeches: [],
       scores: []
     };
 
-    console.log('初始化状态:', this.state);
+    // 更新辩论上下文
+    this.debateContext = {
+      topic: {
+        title: config.topic.title,
+        background: config.topic.background
+      },
+      currentRound: 1,
+      totalRounds: config.rules.rounds,
+      previousSpeeches: [],
+      sceneType: DebateSceneType.OPENING,
+      stance: 'positive'
+    };
+
+    console.log('初始化状态:', {
+      status: this.state.status,
+      currentSpeaker: this.state.currentSpeaker,
+      nextSpeaker: this.state.nextSpeaker,
+      speakersCount: this.state.speakingOrder.speakers.length,
+      players: players.map(p => ({
+        id: p.id,
+        name: p.name,
+        characterId: p.characterId
+      }))
+    });
     this.emitStateChange();
   }
 
@@ -241,7 +313,7 @@ export class DebateFlowService implements IDebateFlow {
     return () => this.eventEmitter.off('stateChange', handler);
   }
 
-  private getNextSpeaker(speakingOrder: SpeakingOrderInfo): SpeakerInfo | null {
+  private getNextSpeaker(speakingOrder: SpeakingOrder): SpeakerInfo | null {
     const pendingSpeaker = speakingOrder.speakers.find(s => s.status === 'waiting');
     return pendingSpeaker ? pendingSpeaker.player : null;
   }
@@ -267,7 +339,18 @@ export class DebateFlowService implements IDebateFlow {
 
     // 更新当前发言者和下一个发言者
     const prevSpeaker = this.state.currentSpeaker;
-    this.state.currentSpeaker = this.state.nextSpeaker;
+    
+    // 从原始玩家列表中获取完整的玩家信息
+    const currentSpeakerInfo = this.state.speakingOrder.speakers.find(
+      s => s.player.id === this.state.nextSpeaker?.id
+    );
+    
+    if (!currentSpeakerInfo) {
+      throw new Error(`找不到发言者信息: ${this.state.nextSpeaker?.id}`);
+    }
+    
+    // 确保保留所有玩家属性
+    this.state.currentSpeaker = { ...currentSpeakerInfo.player };
     
     // 更新发言顺序中的状态
     const currentSpeakerIndex = this.state.speakingOrder.speakers.findIndex(
@@ -280,13 +363,15 @@ export class DebateFlowService implements IDebateFlow {
       
       // 找到下一个待发言的人
       const nextSpeakerInfo = this.state.speakingOrder.speakers.find(s => s.status === 'waiting');
-      this.state.nextSpeaker = nextSpeakerInfo?.player || null;
+      // 同样确保保留所有玩家属性
+      this.state.nextSpeaker = nextSpeakerInfo ? { ...nextSpeakerInfo.player } : null;
     }
     
     console.log('发言者更新:', {
       prevSpeaker: prevSpeaker?.id,
-      currentSpeaker: this.state.currentSpeaker.id,
-      nextSpeaker: this.state.nextSpeaker?.id
+      currentSpeaker: this.state.currentSpeaker,
+      nextSpeaker: this.state.nextSpeaker,
+      currentSpeakerCharacterId: this.state.currentSpeaker.characterId
     });
 
     // 只有当发言者真正改变时才触发状态更新
@@ -301,98 +386,224 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private async handleAISpeech(speaker: SpeakerInfo): Promise<void> {
-    // 首先生成内心独白
-    const innerThoughtsGen = this.llmService.generateStream({
-      systemPrompt: `你是一位专业的辩论选手，现在需要生成内心独白，分析当前局势和策略。`,
-      characterId: speaker.id,
-      type: 'innerThoughts'
-    });
-
-    this.state.currentSpeech = {
-      type: 'innerThoughts',
-      content: '',
-      status: 'streaming'
-    };
-
-    for await (const chunk of innerThoughtsGen) {
-      if (this.state.currentSpeech) {
-        this.state.currentSpeech.content += chunk;
-        this.emitStateChange();
-      }
-    }
-
-    if (this.state.currentSpeech) {
-      this.state.currentSpeech.status = 'completed';
-      // 保存内心独白到历史记录
-      this.state.speeches.push({
-        id: `${speaker.id}-innerThoughts-${Date.now()}`,
-        playerId: speaker.id,
-        content: this.state.currentSpeech.content,
+    try {
+      this.updateDebateContext(speaker);
+      
+      // 初始化状态
+      this.state.currentSpeech = {
         type: 'innerThoughts',
-        timestamp: Date.now(),
-        round: this.state.currentRound,
-        role: 'assistant'
-      });
-    }
+        content: '',
+        status: 'streaming'
+      };
+      this.emitStateChange();
 
-    // 然后生成正式发言
-    const speechGen = this.llmService.generateStream({
-      systemPrompt: `你是一位专业的辩论选手，现在需要生成正式的辩论发言。`,
-      characterId: speaker.id,
-      type: 'speech'
-    });
-
-    this.state.currentSpeech = {
-      type: 'speech',
-      content: '',
-      status: 'streaming'
-    };
-
-    for await (const chunk of speechGen) {
-      if (this.state.currentSpeech) {
-        this.state.currentSpeech.content += chunk;
-        this.emitStateChange();
+      console.group('=== 生成内心独白 ===');
+      let chunkCount = 0;
+      let accumulatedContent = '';
+      let lastUpdateTime = Date.now();
+      const UPDATE_INTERVAL = 30; // 从50ms减少到30ms
+      const MIN_CHARS_FOR_UPDATE = 5; // 新增：累积5个字符
+      
+      for await (const chunk of this.llmService.generateInnerThoughts(
+        speaker,
+        this.debateContext
+      )) {
+        chunkCount++;
+        const currentTime = Date.now();
+        const timeSinceLastUpdate = currentTime - lastUpdateTime;
+        const newCharsCount = chunk.length;
+        
+        console.log(`处理数据块 ${chunkCount}:`, {
+          chunkContent: chunk,
+          chunkLength: chunk.length,
+          timeSinceLastUpdate,
+          willUpdate: timeSinceLastUpdate >= UPDATE_INTERVAL || newCharsCount >= MIN_CHARS_FOR_UPDATE
+        });
+        
+        accumulatedContent += chunk;
+        
+        // 使用节流控制更新频率，或当新字符数达到阈值时更新
+        if (timeSinceLastUpdate >= UPDATE_INTERVAL || newCharsCount >= MIN_CHARS_FOR_UPDATE) {
+          if (this.state.currentSpeech) {
+            console.log(`更新状态 - 数据块 ${chunkCount}:`, {
+              contentLength: accumulatedContent.length,
+              timestamp: currentTime,
+              triggerReason: timeSinceLastUpdate >= UPDATE_INTERVAL ? 'interval' : 'chars'
+            });
+            
+            this.state.currentSpeech = {
+              type: 'innerThoughts',
+              content: accumulatedContent,
+              status: 'streaming'
+            };
+            this.emitStateChange();
+            lastUpdateTime = currentTime;
+          }
+        }
       }
-    }
+      console.log(`内心独白生成完成，共处理 ${chunkCount} 个数据块`);
+      console.groupEnd();
 
-    if (this.state.currentSpeech) {
-      this.state.currentSpeech.status = 'completed';
-      // 保存正式发言到历史记录
-      this.state.speeches.push({
-        id: `${speaker.id}-speech-${Date.now()}`,
-        playerId: speaker.id,
-        content: this.state.currentSpeech.content,
+      // 确保最后一次更新
+      if (this.state.currentSpeech) {
+        this.state.currentSpeech = {
+          type: 'innerThoughts',
+          content: accumulatedContent,
+          status: 'completed'
+        };
+        this.emitStateChange();
+        
+        const innerThoughts = accumulatedContent;
+        
+        // 保存内心独白到历史记录
+        this.state.speeches.push({
+          id: `${speaker.id}-innerThoughts-${Date.now()}`,
+          playerId: speaker.id,
+          content: innerThoughts,
+          type: 'innerThoughts',
+          timestamp: Date.now(),
+          round: this.state.currentRound,
+          role: 'assistant'
+        });
+
+        // 生成正式发言
+        this.state.currentSpeech = {
+          type: 'speech',
+          content: '',
+          status: 'streaming'
+        };
+        this.emitStateChange();
+
+        console.group('=== 生成正式发言 ===');
+        chunkCount = 0;
+        accumulatedContent = '';
+        lastUpdateTime = Date.now();
+        const UPDATE_INTERVAL = 20; // 进一步降低到20ms
+        const MIN_CHARS_FOR_UPDATE = 3; // 降低到3个字符
+        const MAX_BUFFER_SIZE = 10; // 最大缓冲区大小（字符数）
+        let bufferContent = '';
+        
+        for await (const chunk of this.llmService.generateSpeech(
+          speaker,
+          this.debateContext,
+          innerThoughts
+        )) {
+          chunkCount++;
+          const currentTime = Date.now();
+          const timeSinceLastUpdate = currentTime - lastUpdateTime;
+          
+          bufferContent += chunk;
+          const shouldUpdate = 
+            timeSinceLastUpdate >= UPDATE_INTERVAL || 
+            bufferContent.length >= MIN_CHARS_FOR_UPDATE ||
+            bufferContent.length >= MAX_BUFFER_SIZE;
+          
+          console.log(`接收到第 ${chunkCount} 个数据块:`, {
+            length: chunk.length,
+            content: chunk,
+            bufferLength: bufferContent.length,
+            timeSinceLastUpdate,
+            willUpdate: shouldUpdate
+          });
+          
+          if (shouldUpdate) {
+            accumulatedContent += bufferContent;
+            
+            if (this.state.currentSpeech) {
+              console.log(`更新正式发言状态 - 数据块 ${chunkCount}:`, {
+                contentLength: accumulatedContent.length,
+                bufferLength: bufferContent.length,
+                timestamp: currentTime,
+                triggerReason: timeSinceLastUpdate >= UPDATE_INTERVAL ? 'interval' : 
+                             bufferContent.length >= MAX_BUFFER_SIZE ? 'buffer_full' : 'chars'
+              });
+              
+              this.state.currentSpeech = {
+                type: 'speech',
+                content: accumulatedContent,
+                status: 'streaming'
+              };
+              this.emitStateChange();
+              lastUpdateTime = currentTime;
+              bufferContent = ''; // 清空缓冲区
+            }
+          }
+        }
+        console.log(`正式发言生成完成，共处理 ${chunkCount} 个数据块`);
+        console.groupEnd();
+
+        // 确保最后一次更新
+        if (this.state.currentSpeech) {
+          this.state.currentSpeech = {
+            type: 'speech',
+            content: accumulatedContent,
+            status: 'completed'
+          };
+          this.emitStateChange();
+          
+          // 保存正式发言到历史记录
+          this.state.speeches.push({
+            id: `${speaker.id}-speech-${Date.now()}`,
+            playerId: speaker.id,
+            content: accumulatedContent,
+            type: 'speech',
+            timestamp: Date.now(),
+            round: this.state.currentRound,
+            role: 'assistant'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('AI发言生成失败:', error);
+      this.state.currentSpeech = {
         type: 'speech',
-        timestamp: Date.now(),
-        round: this.state.currentRound,
-        role: 'assistant'
-      });
+        content: '很抱歉，我暂时无法生成合适的发言。',
+        status: 'failed'
+      };
+      this.emitStateChange();
     }
   }
 
+  private updateDebateContext(speaker: SpeakerInfo): void {
+    // 更新场景类型
+    if (this.state.currentRound === 1) {
+      this.debateContext.sceneType = DebateSceneType.OPENING;
+    } else {
+      const lastSpeech = this.state.speeches[this.state.speeches.length - 1];
+      this.debateContext.sceneType = lastSpeech && lastSpeech.type === 'speech'
+        ? DebateSceneType.REBUTTAL
+        : DebateSceneType.DEFENSE;
+    }
+
+    // 更新立场
+    this.debateContext.stance = speaker.team === 'affirmative' ? 'positive' : 'negative';
+
+    // 更新其他上下文信息
+    this.debateContext.currentRound = this.state.currentRound;
+    this.debateContext.previousSpeeches = this.state.speeches;
+  }
+
   private emitStateChange(): void {
+    // 创建一个新的状态对象
     const newState = {
       ...this.state,
-      speakingOrder: {
-        ...this.state.speakingOrder,
-        speakers: this.state.speakingOrder.speakers.map(speaker => ({
-          ...speaker,
-          player: { ...speaker.player }
-        }))
-      },
-      currentSpeaker: this.state.currentSpeaker ? { ...this.state.currentSpeaker } : null,
-      nextSpeaker: this.state.nextSpeaker ? { ...this.state.nextSpeaker } : null,
-      currentSpeech: this.state.currentSpeech ? { ...this.state.currentSpeech } : null
+      currentSpeech: this.state.currentSpeech 
+        ? { 
+            type: this.state.currentSpeech.type,
+            content: this.state.currentSpeech.content,
+            status: this.state.currentSpeech.status,
+            // 添加时间戳到currentSpeech对象
+            _timestamp: Date.now()
+          } 
+        : null,
+      // 移除全局时间戳，改为只在currentSpeech中使用
+      _lastUpdate: Date.now()
     };
     
-    console.log('状态更新:', {
-      status: newState.status,
-      currentSpeaker: newState.currentSpeaker?.name,
-      nextSpeaker: newState.nextSpeaker?.name,
-      round: newState.currentRound
+    // 使用Promise.resolve().then确保在微任务队列中执行
+    Promise.resolve().then(() => {
+      this.eventEmitter.emit('stateChange', newState);
     });
-    
-    this.eventEmitter.emit('stateChange', newState);
   }
 
   async skipCurrentSpeaker(): Promise<void> {
@@ -418,7 +629,7 @@ export class DebateFlowService implements IDebateFlow {
     this.emitStateChange();
   }
 
-  async handlePlayerRejoin(player: PlayerConfig): Promise<void> {
+  async handlePlayerRejoin(player: Player): Promise<void> {
     this.state.speakingOrder = this.speakingOrderManager.handlePlayerRejoin(
       this.state.speakingOrder,
       player

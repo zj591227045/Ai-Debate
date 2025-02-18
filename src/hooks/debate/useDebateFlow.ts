@@ -30,95 +30,111 @@ interface UseDebateFlowResult {
 }
 
 export function useDebateFlow(config?: DebateFlowConfig): UseDebateFlowResult {
+  // 创建所需的服务实例
+  const [adapter] = useState(() => {
+    const llmService = new LLMService();
+    const speakingOrderManager = new SpeakingOrderManager();
+    const speechProcessor = new SpeechProcessor();
+    const scoringSystem = new ScoringSystem(llmService);
+    
+    // 创建辩论流程服务
+    const debateService = new DebateFlowService(
+      llmService,
+      speakingOrderManager,
+      speechProcessor,
+      scoringSystem
+    );
+    
+    return new DebateFlowAdapter(debateService);
+  });
   const [state, setState] = useState<DebateFlowState | null>(null);
   const [scores, setScores] = useState<Score[]>([]);
   const [error, setError] = useState<Error | null>(null);
-  const [debateAdapter, setDebateAdapter] = useState<DebateFlowAdapter | null>(null);
   const [scoringAdapter, setScoringAdapter] = useState<ScoringAdapter | null>(null);
 
-  // 初始化适配器
+  // 使用useCallback优化状态更新函数
+  const handleStateChange = useCallback((newState: DebateFlowState) => {
+    setState(prev => {
+      // 如果没有前一个状态，直接更新
+      if (!prev) return newState;
+
+      // 检查是否有流式内容更新
+      const hasStreamingContent = 
+        newState.currentSpeech?.status === 'streaming' &&
+        newState.currentSpeech.content !== prev.currentSpeech?.content;
+
+      // 如果是流式内容，立即更新并添加强制更新标记
+      if (hasStreamingContent) {
+        return {
+          ...newState,
+          _forceUpdate: Math.random(),
+          _timestamp: Date.now()
+        };
+      }
+
+      // 对于非流式内容，检查其他状态变化
+      if (prev.status !== newState.status ||
+          prev.currentRound !== newState.currentRound ||
+          prev.currentSpeech?.status !== newState.currentSpeech?.status ||
+          prev.currentSpeaker?.id !== newState.currentSpeaker?.id ||
+          prev.nextSpeaker?.id !== newState.nextSpeaker?.id) {
+        return {
+          ...newState,
+          _timestamp: Date.now()
+        };
+      }
+
+      return prev;
+    });
+  }, []);
+
   useEffect(() => {
-    if (!config) return;
-
-    try {
-      // 初始化所需的服务
-      const llmService = new LLMService();
-      const speakingOrderManager = new SpeakingOrderManager();
-      const speechProcessor = new SpeechProcessor();
-      const scoringSystem = new ScoringSystem(llmService);
-      
-      // 创建辩论流程服务
-      const debateService = new DebateFlowService(
-        llmService,
-        speakingOrderManager,
-        speechProcessor,
-        scoringSystem
-      );
-      
-      const newDebateAdapter = new DebateFlowAdapter(debateService);
-      const newScoringAdapter = new ScoringAdapter(scoringSystem);
-
-      setDebateAdapter(newDebateAdapter);
-      setScoringAdapter(newScoringAdapter);
-
-      // 订阅状态变更
-      const unsubscribeState = newDebateAdapter.onStateChange((newState) => {
-        setState(newState);
-      });
-
-      // 订阅评分生成
-      const unsubscribeScore = newScoringAdapter.onScoreGenerated((score) => {
-        setScores(prev => [...prev, score]);
-      });
-
-      // 初始化辩论
-      newDebateAdapter.initialize(config).catch(setError);
-
-      return () => {
-        unsubscribeState();
-        unsubscribeScore();
-      };
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('初始化失败'));
+    if (config) {
+      adapter.initialize(config).catch(setError);
     }
-  }, [config]);
+  }, [adapter, config]);
+
+  useEffect(() => {
+    const unsubscribe = adapter.onStateChange(handleStateChange);
+    return () => unsubscribe();
+  }, [adapter, handleStateChange]);
 
   // 辩论控制动作
   const actions = {
     startDebate: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.startDebate();
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.startDebate();
+    }, [adapter]),
 
     pauseDebate: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.pauseDebate();
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.pauseDebate();
+    }, [adapter]),
 
     resumeDebate: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.resumeDebate();
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.resumeDebate();
+    }, [adapter]),
 
     endDebate: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.endDebate();
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.endDebate();
+    }, [adapter]),
 
     submitSpeech: useCallback(async (speech: SpeechInput) => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.submitSpeech(speech);
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.submitSpeech(speech);
+    }, [adapter]),
 
     skipCurrentSpeaker: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.skipCurrentSpeaker();
-    }, [debateAdapter]),
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.skipCurrentSpeaker();
+    }, [adapter]),
 
     startNextRound: useCallback(async () => {
-      if (!debateAdapter) throw new Error('辩论流程未初始化');
-      await debateAdapter.startNextRound();
-    }, [debateAdapter])
+      if (!adapter) throw new Error('辩论流程未初始化');
+      await adapter.startNextRound();
+    }, [adapter])
   };
 
   return {

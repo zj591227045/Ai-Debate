@@ -120,14 +120,16 @@ export class SiliconFlowAdapter extends BaseProviderAdapter<SiliconFlowRequest, 
       if (chunk.choices && chunk.choices.length > 0) {
         const choice = chunk.choices[0];
         const content = choice.delta?.content ?? choice.message?.content ?? null;
+        const reasoningContent = choice.delta?.reasoning_content ?? choice.message?.reasoning_content ?? null;
         
-        if (content !== null) {
+        if (content !== null || reasoningContent !== null) {
           yield {
             content,
             timestamp: chunk.created * 1000,
             metadata: {
               modelId: chunk.model,
               provider: PROVIDERS.SILICONFLOW,
+              reasoning: reasoningContent,
               finishReason: choice.finish_reason
             }
           };
@@ -171,21 +173,21 @@ export class SiliconFlowAdapter extends BaseProviderAdapter<SiliconFlowRequest, 
 
       const choice = data.choices[0];
       const content = choice.delta?.content ?? choice.message?.content ?? null;
+      const reasoningContent = choice.delta?.reasoning_content ?? choice.message?.reasoning_content ?? null;
       
-      if (content === null) {
-        return null;
+      if (content !== null || reasoningContent !== null) {
+        return {
+          content,
+          timestamp: data.created * 1000,
+          metadata: {
+            modelId: data.model,
+            provider: PROVIDERS.SILICONFLOW,
+            reasoning: reasoningContent,
+            finishReason: choice.finish_reason
+          }
+        };
       }
-
-      return {
-        content,
-        timestamp: data.created * 1000,
-        metadata: {
-          modelId: data.model,
-          provider: PROVIDERS.SILICONFLOW,
-          reasoning: choice.delta?.reasoning_content ?? choice.message?.reasoning_content ?? null,
-          finishReason: choice.finish_reason
-        }
-      };
+      return null;
     } catch (error) {
       console.error('解析流式响应失败:', error, '\n原始数据:', chunk);
       return null;

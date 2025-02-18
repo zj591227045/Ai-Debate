@@ -210,7 +210,7 @@ export class OllamaProvider extends LLMProvider {
 
             try {
               const data = JSON.parse(line);
-              console.log('Ollama stream chunk:', data);
+              //console.log('Ollama stream chunk:', data);
               
               yield {
                 content: data.response,

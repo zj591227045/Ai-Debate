@@ -5,8 +5,8 @@ import { useModelManagement } from '../../hooks/useModelManagement';
 import './styles.css';
 
 export const ModelList: React.FC = () => {
-  const {
-    models,
+  const { 
+    models, 
     loading,
     error,
     addModel,
@@ -23,7 +23,7 @@ export const ModelList: React.FC = () => {
     try {
       await addModel(config);
       setIsAddingModel(false);
-    } catch (err) {
+      } catch (err) {
       console.error('添加模型失败:', err);
     }
   };
@@ -75,34 +75,34 @@ export const ModelList: React.FC = () => {
       </div>
 
       <div className="model-actions">
-        <button
-          className="btn-secondary"
+                <button
+                  className="btn-secondary"
           onClick={() => setEditingModel(model)}
-        >
+                >
           编辑
-        </button>
-        <button
-          className="btn-secondary"
+                </button>
+                <button
+                  className="btn-secondary"
           onClick={() => toggleModelStatus(model.id, !model.isEnabled)}
-        >
+                >
           {model.isEnabled ? '禁用' : '启用'}
-        </button>
-        <button
+                </button>
+                <button
           className="btn-danger"
           onClick={() => setShowDeleteConfirm(model.id)}
-        >
+                >
           删除
-        </button>
+                </button>
       </div>
 
       {showDeleteConfirm === model.id && (
         <div className="delete-confirm">
           <p>确定要删除此模型配置吗？</p>
           <div className="confirm-actions">
-            <button
-              className="btn-danger"
-              onClick={() => handleDeleteModel(model.id)}
-            >
+                <button
+                  className="btn-danger"
+                  onClick={() => handleDeleteModel(model.id)}
+                >
               确定
             </button>
             <button
@@ -110,9 +110,9 @@ export const ModelList: React.FC = () => {
               onClick={() => setShowDeleteConfirm(null)}
             >
               取消
-            </button>
-          </div>
-        </div>
+                </button>
+              </div>
+            </div>
       )}
     </div>
   );

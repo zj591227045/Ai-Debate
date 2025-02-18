@@ -11,9 +11,9 @@ import type {
 import { LLMService } from './LLMService';
 
 export class ScoringSystem implements IScoringSystem {
-  private readonly eventEmitter: EventEmitter;
-  private readonly llmService: LLMService;
   private scores: Score[] = [];
+  private eventEmitter: EventEmitter;
+  private llmService: LLMService;
 
   constructor(llmService: LLMService) {
     this.eventEmitter = new EventEmitter();
@@ -22,7 +22,7 @@ export class ScoringSystem implements IScoringSystem {
 
   async generateScore(speech: ProcessedSpeech, context: ScoringContext): Promise<Score> {
     try {
-      // 尝试使用LLM生成评分
+      // 使用 LLM 生成评分
       const scoreGen = this.llmService.generateScore(speech, context);
       let scoreContent = '';
       
@@ -31,8 +31,11 @@ export class ScoringSystem implements IScoringSystem {
       }
       
       try {
-        // 尝试解析LLM返回的评分结果
+        // 解析 LLM 返回的评分结果
         const scoreData = JSON.parse(scoreContent);
+        
+        // 验证评分数据
+        this.validateScoreData(scoreData);
         
         const score: Score = {
           id: `score_${Date.now()}`,
@@ -51,51 +54,77 @@ export class ScoringSystem implements IScoringSystem {
           comment: scoreData.comment
         };
 
+        // 保存评分并触发事件
         this.scores.push(score);
         this.eventEmitter.emit('score:generated', score);
         return score;
       } catch (parseError) {
         console.warn('评分结果解析失败，使用模拟评分:', parseError);
-        throw parseError; // 抛出以触发模拟评分生成
+        return this.generateFallbackScore(speech, context);
       }
     } catch (error) {
       console.warn('LLM评分生成失败，使用模拟评分:', error);
-      
-      // 生成模拟评分
-      const mockScore: Score = {
-        id: `score_${Date.now()}`,
-        speechId: speech.id,
-        judgeId: context.judge.id,
-        playerId: speech.playerId,
-        round: speech.round,
-        timestamp: Date.now(),
-        dimensions: {
-          logic: this.generateMockDimensionScore(),
-          evidence: this.generateMockDimensionScore(),
-          delivery: this.generateMockDimensionScore(),
-          rebuttal: this.generateMockDimensionScore()
-        },
-        totalScore: 0, // 将在下面计算
-        feedback: {
-          strengths: ['论点清晰', '论据充分', '表达流畅'],
-          weaknesses: ['可以进一步加强论证', '反驳力度可以增强'],
-          suggestions: ['建议增加更多具体例证', '可以更好地回应对方论点']
-        },
-        comment: '整体表现不错，论证较为充分，但仍有提升空间。建议在下一轮发言中加强反驳力度，并提供更多具体的例证支持。'
-      };
-      
-      // 计算总分
-      mockScore.totalScore = this.calculateTotalScore(mockScore.dimensions);
-      
-      this.scores.push(mockScore);
-      this.eventEmitter.emit('score:generated', mockScore);
-      return mockScore;
+      return this.generateFallbackScore(speech, context);
     }
   }
 
+  private validateScoreData(data: any): void {
+    if (!data.dimensions || typeof data.dimensions !== 'object') {
+      throw new Error('无效的维度评分数据');
+    }
+
+    const requiredDimensions = ['logic', 'evidence', 'delivery', 'rebuttal'];
+    for (const dim of requiredDimensions) {
+      if (typeof data.dimensions[dim] !== 'number' || 
+          data.dimensions[dim] < 0 || 
+          data.dimensions[dim] > 100) {
+        throw new Error(`维度 ${dim} 的评分无效`);
+      }
+    }
+
+    if (!Array.isArray(data.feedback?.strengths) || 
+        !Array.isArray(data.feedback?.weaknesses) || 
+        !Array.isArray(data.feedback?.suggestions)) {
+      throw new Error('无效的反馈数据格式');
+    }
+
+    if (typeof data.comment !== 'string') {
+      throw new Error('无效的评语格式');
+    }
+  }
+
+  private generateFallbackScore(speech: ProcessedSpeech, context: ScoringContext): Score {
+    const dimensions = {
+      logic: this.generateMockDimensionScore(),
+      evidence: this.generateMockDimensionScore(),
+      delivery: this.generateMockDimensionScore(),
+      rebuttal: this.generateMockDimensionScore()
+    };
+
+    const score: Score = {
+      id: `score_${Date.now()}`,
+      speechId: speech.id,
+      judgeId: context.judge.id,
+      playerId: speech.playerId,
+      round: speech.round,
+      timestamp: Date.now(),
+      dimensions,
+      totalScore: this.calculateTotalScore(dimensions),
+      feedback: {
+        strengths: ['论点清晰', '论据充分', '表达流畅'],
+        weaknesses: ['可以进一步加强论证', '反驳力度可以增强'],
+        suggestions: ['建议增加更多具体例证', '可以更好地回应对方论点']
+      },
+      comment: '整体表现不错，论证较为充分，但仍有提升空间。'
+    };
+
+    this.scores.push(score);
+    this.eventEmitter.emit('score:generated', score);
+    return score;
+  }
+
   private generateMockDimensionScore(): number {
-    // 生成70-95之间的随机分数
-    return Math.floor(Math.random() * 25) + 70;
+    return Math.floor(Math.random() * 15) + 75; // 75-90之间的随机分数
   }
 
   private calculateTotalScore(dimensions: Record<string, number>): number {
@@ -106,8 +135,8 @@ export class ScoringSystem implements IScoringSystem {
       rebuttal: 0.2
     };
 
-    return Object.entries(dimensions).reduce((total, [dimension, score]) => {
-      return total + score * (weights[dimension as keyof typeof weights] || 0);
+    return Object.entries(dimensions).reduce((total, [dim, score]) => {
+      return total + score * weights[dim as keyof typeof weights];
     }, 0);
   }
 

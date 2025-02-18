@@ -164,32 +164,32 @@ export const DebateControl: React.FC<DebateControlProps> = ({
   const [scoringModalVisible, setScoringModalVisible] = useState(false);
 
   useEffect(() => {
-    console.log('状态变更检测:', {
-      status,
-      scoringModalVisible,
-      shouldShowModal: status === DebateStatus.SCORING
-    });
+    //console.log('状态变更检测:', {
+    //  status,
+    //  scoringModalVisible,
+    //  shouldShowModal: status === DebateStatus.SCORING
+    //});
 
     if (status === DebateStatus.SCORING) {
       setScoringModalVisible(true);
     }
   }, [status]);
 
-  console.log('DebateControl渲染 - 当前状态:', {
-    status,
-    currentRound,
-    totalRounds,
-    currentSpeaker: currentSpeaker?.name,
-    nextSpeaker: nextSpeaker?.name
-  });
+  //console.log('DebateControl渲染 - 当前状态:', {
+  //  status,
+  //  currentRound,
+  //  totalRounds,
+  //  currentSpeaker: currentSpeaker?.name,
+  //  nextSpeaker: nextSpeaker?.name
+  //});
 
   const handleStartScoring = () => {
-    console.log('点击开始评分按钮 - 当前状态:', {
-      status,
-      currentRound,
-      totalRounds,
-      modalVisible: scoringModalVisible
-    });
+    //console.log('点击开始评分按钮 - 当前状态:', {
+    //  status,
+    //  currentRound,
+    //  totalRounds,
+    //  modalVisible: scoringModalVisible
+    //});
     
     if (status === DebateStatus.ROUND_COMPLETE) {
       setScoringModalVisible(true);
@@ -200,13 +200,13 @@ export const DebateControl: React.FC<DebateControlProps> = ({
   };
 
   const handleScoringComplete = (speech: BaseDebateSpeech) => {
-    console.log('评分完成，准备进入下一轮:', {
-      currentRound,
-      totalRounds,
-      status,
-      speech,
-      modalVisible: scoringModalVisible
-    });
+    //console.log('评分完成，准备进入下一轮:', {
+    //  currentRound,
+    //  totalRounds,
+    //  status,
+    //  speech,
+    //  modalVisible: scoringModalVisible
+    //});
     
     setScoringModalVisible(false);
     onScoringComplete(speech);

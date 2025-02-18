@@ -159,6 +159,14 @@ export interface GenerateStreamOptions {
   humanPrompt?: string;
 }
 
+// 辩论场景类型
+export enum DebateSceneType {
+  OPENING = 'opening',
+  REBUTTAL = 'rebuttal',
+  DEFENSE = 'defense',
+  SUMMARY = 'summary'
+}
+
 export interface DebateContext {
   topic: {
     title: string;
@@ -167,6 +175,8 @@ export interface DebateContext {
   currentRound: number;
   totalRounds: number;
   previousSpeeches: Speech[];
+  sceneType?: DebateSceneType;
+  stance?: 'positive' | 'negative';
 }
 
 // 服务接口

@@ -43,7 +43,9 @@ export class OllamaAdapter extends BaseProviderAdapter<OllamaRequest, OllamaResp
     });
 
     return {
-      model: request.model || 'qwen2.5',
+      model: request.model || (() => {
+        throw new Error('Model is required for Ollama requests');
+      })(),
       messages,
       stream: request.stream,
       options: {

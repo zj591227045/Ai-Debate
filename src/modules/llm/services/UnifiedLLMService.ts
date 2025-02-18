@@ -21,6 +21,8 @@ export interface GenerateStreamOptions {
   characterId: string;
   type: 'innerThoughts' | 'speech';
   signal?: AbortSignal;
+  systemPrompt: string;
+  humanPrompt?: string;
 }
 
 export interface GenerateStreamResponse {
@@ -51,6 +53,8 @@ export class UnifiedLLMService {
   private currentConfig: AppModelConfig | null = null;
   private readonly providerManager: ProviderManager;
   private readonly storeManager: StoreManager;
+  private lastConfigCheck: number = 0;
+  private readonly CONFIG_CHECK_INTERVAL: number = 1000; // 1秒的检查间隔
 
   constructor(providerManager: ProviderManager) {
     this.providerManager = providerManager;
@@ -70,6 +74,55 @@ export class UnifiedLLMService {
     return this.storeManager.getStore<LLMStore>('llm');
   }
 
+  private async refreshCurrentConfig(): Promise<void> {
+    const currentTime = Date.now();
+    // 如果距离上次检查时间不足 CONFIG_CHECK_INTERVAL，则跳过
+    if (currentTime - this.lastConfigCheck < this.CONFIG_CHECK_INTERVAL) {
+      return;
+    }
+
+    try {
+      const modelStore = this.storeManager.getModelStore();
+      const configs = await modelStore.getAllConfigs();
+      const enabledConfig = configs.find(m => m.isEnabled);
+
+      if (enabledConfig) {
+        // 检查配置是否发生实质性变化
+        const configChanged = !this.currentConfig || 
+            this.currentConfig.id !== enabledConfig.id || 
+            this.currentConfig.updatedAt !== enabledConfig.updatedAt ||
+            this.currentConfig.model !== enabledConfig.model ||
+            this.currentConfig.provider !== enabledConfig.provider;
+
+        if (configChanged) {
+          console.log('检测到模型配置变更:', {
+            from: this.currentConfig?.model,
+            to: enabledConfig.model,
+            fromId: this.currentConfig?.id,
+            toId: enabledConfig.id,
+            fromUpdatedAt: this.currentConfig?.updatedAt,
+            toUpdatedAt: enabledConfig.updatedAt
+          });
+          
+          // 更新当前配置
+          this.currentConfig = enabledConfig;
+          
+          // 更新 LLM Store
+          const llmStore = this.getLLMStore();
+          llmStore.setCurrentModel(enabledConfig.model);
+          
+          // 强制清理 Provider 缓存
+          await this.providerManager.clearProviderCache(enabledConfig.id);
+        }
+      }
+
+      this.lastConfigCheck = currentTime;
+    } catch (error) {
+      console.error('刷新模型配置失败:', error);
+      throw error;
+    }
+  }
+
   async setModel(modelId: string): Promise<void> {
     const config = await this.getModelConfig(modelId);
     if (!config) {
@@ -81,9 +134,11 @@ export class UnifiedLLMService {
     }
 
     this.currentConfig = config;
+    this.lastConfigCheck = Date.now();
   }
 
   private async getProvider(): Promise<LLMProvider> {
+    try {
     if (!this.currentConfig) {
       throw new LLMError(
         LLMErrorCode.MODEL_NOT_FOUND,
@@ -92,7 +147,11 @@ export class UnifiedLLMService {
       );
     }
 
-    return this.providerManager.getProvider(adaptModelConfig(this.currentConfig));
+      return this.providerManager.getProvider(adaptModelConfig(this.currentConfig));
+    } catch (error) {
+      console.error('获取 Provider 失败:', error);
+      throw error;
+    }
   }
 
   async getInitializedProvider(config: AppModelConfig, skipModelValidation = false): Promise<LLMProvider> {
@@ -109,6 +168,15 @@ export class UnifiedLLMService {
     console.log('Stream request:', request);
     const provider = await this.getProvider();
     
+    // 确保请求中包含模型信息
+    const enrichedRequest = {
+      ...request,
+      model: request.model || this.currentConfig?.model,
+      temperature: request.temperature || this.currentConfig?.parameters?.temperature,
+      topP: request.topP || this.currentConfig?.parameters?.topP,
+      maxTokens: request.maxTokens || this.currentConfig?.parameters?.maxTokens
+    };
+    
     const streamHandler = new StreamHandler({
       timeoutMs: 30000,
       maxBufferSize: 1048576,
@@ -116,7 +184,7 @@ export class UnifiedLLMService {
     });
 
     try {
-      for await (const response of streamHandler.handleStream(provider.stream(request))) {
+      for await (const response of streamHandler.handleStream(provider.stream(enrichedRequest))) {
         // 确保返回的内容始终是字符串
         yield {
           ...response,
@@ -156,9 +224,17 @@ export class UnifiedLLMService {
       );
     }
 
+    // 直接设置当前配置
     this.currentConfig = config;
+    this.lastConfigCheck = Date.now();
+    
+    // 更新 LLM Store
     const llmStore = this.getLLMStore();
     llmStore.setCurrentModel(config.model);
+    
+    // 清理旧的 Provider 缓存
+    await this.providerManager.clearProviderCache(config.id);
+    
     console.log('Model config set:', config);
   }
 
@@ -188,16 +264,18 @@ export class UnifiedLLMService {
     
     try {
       const provider = await this.getProvider();
-      const prompt = options.type === 'innerThoughts' 
-        ? '让我思考一下这个问题...'
-        : '根据目前的讨论情况，我认为...';
-
       const request: ChatRequest = {
-        message: prompt,
-        systemPrompt: `你是一位专业的辩论选手，正在进行${options.type === 'innerThoughts' ? '内心独白' : '正式发言'}。`,
+        message: options.humanPrompt || '请根据上下文生成回应...',
+        systemPrompt: options.systemPrompt,
         stream: true,
-        signal: options.signal
+        signal: options.signal,
+        model: this.currentConfig?.model,
+        temperature: this.currentConfig?.parameters?.temperature,
+        topP: this.currentConfig?.parameters?.topP,
+        maxTokens: this.currentConfig?.parameters?.maxTokens
       };
+
+      console.log('发送到Provider的请求:', request);
 
       const streamHandler = new StreamHandler({
         timeoutMs: 30000,
@@ -208,24 +286,42 @@ export class UnifiedLLMService {
       const stream = new ReadableStream({
         async start(controller) {
           try {
+            console.group('=== 流式生成过程 ===');
+            console.log('开始处理流式响应');
+            let chunkCount = 0;
+            let lastChunkTime = Date.now();
+            
             for await (const response of streamHandler.handleStream(provider.stream(request))) {
-              if (response.isError) {
-                // 如果是错误响应，添加错误标记
-                controller.enqueue(new TextEncoder().encode(`[错误] ${response.content || '未知错误'}`));
-                controller.close();
-                return;
+              chunkCount++;
+              const currentTime = Date.now();
+              const timeSinceLastChunk = currentTime - lastChunkTime;
+              
+              console.log(`接收到第 ${chunkCount} 个数据块:`, {
+                content: response.content,
+                chunkInterval: timeSinceLastChunk,
+                timestamp: currentTime
+              });
+              
+              if (response.content) {
+                const chunk = new TextEncoder().encode(response.content);
+                controller.enqueue(chunk);
+                console.log(`已发送数据块 ${chunkCount}:`, {
+                  originalLength: response.content.length,
+                  encodedLength: chunk.length,
+                  content: response.content
+                });
               }
-              controller.enqueue(new TextEncoder().encode(response.content || ''));
+              
+              lastChunkTime = currentTime;
             }
+            
+            console.log(`流式生成完成，共处理 ${chunkCount} 个数据块`);
             controller.close();
           } catch (error) {
-            console.error('Stream generation error:', error);
-            const errorMessage = error instanceof LLMError 
-              ? error.message 
-              : '生成过程发生错误';
-            controller.enqueue(new TextEncoder().encode(`[错误] ${errorMessage}`));
-            controller.close();
+            console.error('流式生成错误:', error);
+            controller.error(error);
           } finally {
+            console.groupEnd();
             streamHandler.dispose();
           }
         },

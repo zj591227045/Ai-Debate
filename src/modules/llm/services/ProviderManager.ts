@@ -38,8 +38,8 @@ export class ProviderManager {
       );
     }
 
-    // 使用完整的缓存键
-    const cacheKey = `${config.provider}::${config.auth.baseUrl}`;
+    // 使用更细粒度的缓存键，包含模型信息和更新时间
+    const cacheKey = `${config.provider}::${config.auth.baseUrl}::${config.model}::${config.id}::${config.updatedAt}`;
     console.log('Cache key:', cacheKey);
     
     // 只有在不跳过模型验证时才保存配置到本地存储
@@ -49,7 +49,20 @@ export class ProviderManager {
       if (configId) {
         const existingConfig = await modelStore.getById(configId);
         if (existingConfig) {
-          await modelStore.updateModel(configId, config);
+          // 检查配置是否真的需要更新
+          if (existingConfig.updatedAt !== config.updatedAt ||
+              existingConfig.model !== config.model ||
+              existingConfig.provider !== config.provider ||
+              JSON.stringify(existingConfig.parameters) !== JSON.stringify(config.parameters)) {
+            await modelStore.updateModel(configId, config);
+            // 清除所有与此配置相关的旧缓存
+            for (const [key, _] of this.providers.entries()) {
+              if (key.includes(configId)) {
+                console.log('清除旧的 provider 缓存:', key);
+                this.providers.delete(key);
+              }
+            }
+          }
         } else {
           const id = await modelStore.addModel(config);
           config.id = id;
@@ -83,6 +96,19 @@ export class ProviderManager {
         this.providers.set(cacheKey, newProvider);
         provider = newProvider;
         console.log('Provider cached:', cacheKey);
+      } else {
+        // 即使有缓存的 provider，也要检查配置是否需要更新
+        const currentConfig = await this.getModelConfig(config.id);
+        if (currentConfig && currentConfig.updatedAt > config.updatedAt) {
+          console.log('配置已更新，重新创建 provider');
+          const newProvider = ProviderFactory.createProvider(currentConfig) as Provider;
+          await newProvider.initialize(skipModelValidation);
+          if (!skipModelValidation) {
+            await newProvider.validateConfig();
+          }
+          this.providers.set(cacheKey, newProvider);
+          provider = newProvider;
+        }
       }
       
       if (!provider) {
@@ -158,6 +184,18 @@ export class ProviderManager {
     }
     
     return null;
+  }
+
+  public async clearProviderCache(configId: string): Promise<void> {
+    console.log('清理 Provider 缓存:', configId);
+    
+    // 删除所有包含该配置 ID 的缓存
+    for (const [key, _] of this.providers.entries()) {
+      if (key.includes(configId)) {
+        console.log('删除缓存:', key);
+        this.providers.delete(key);
+      }
+    }
   }
 }
 

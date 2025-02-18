@@ -22,12 +22,12 @@ class LLMService {
   private controller: AbortController;
 
   constructor(config: AIServiceConfig) {
-    console.log('LLMService 初始化配置:', {
-      baseURL: config.baseURL,
-      hasApiKey: !!config.apiKey,
-      timeout: config.timeout,
-      maxRetries: config.maxRetries
-    });
+    //console.log('LLMService 初始化配置:', {
+    //  baseURL: config.baseURL,
+    //  hasApiKey: !!config.apiKey,
+    //  timeout: config.timeout,
+    //  maxRetries: config.maxRetries
+    //});
     this.config = config;
     this.controller = new AbortController();
   }

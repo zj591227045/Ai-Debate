@@ -618,6 +618,7 @@ interface UIState {
   streamingSpeech: {
     playerId: string;
     content: string;
+    type: 'speech' | 'innerThoughts' | 'system';
   } | null;
   players: UnifiedPlayer[];
 }
@@ -779,19 +780,13 @@ export const DebateRoom: React.FC = () => {
       return;
     }
 
-    console.log('状态同步 - 当前状态:', {
-      debateStatus: debateState.status,
-      currentRound: debateState.currentRound,
-      currentSpeaker: debateState.currentSpeaker,
-      nextSpeaker: debateState.nextSpeaker
-    });
-
     setUiState((prev: UIState) => {
       const mappedStatus = mapToDebateStatus(debateState.status);
-      console.log('状态映射结果:', {
-        originalStatus: debateState.status,
-        mappedStatus: mappedStatus
-      });
+
+      // 检查是否有流式内容
+      const hasStreamingContent = 
+        debateState.currentSpeech?.status === 'streaming' &&
+        debateState.currentSpeech?.content;
 
       const newState: UIState = {
         ...prev,
@@ -822,16 +817,13 @@ export const DebateRoom: React.FC = () => {
           })),
           scores: prev.history.scores
         },
-        streamingSpeech: null,
+        streamingSpeech: hasStreamingContent && debateState.currentSpeech ? {
+          playerId: debateState.currentSpeaker?.id || '',
+          content: debateState.currentSpeech.content,
+          type: debateState.currentSpeech.type || 'innerThoughts'
+        } : null,
         players: prev.players
       };
-
-      console.log('状态同步 - 更新后的UI状态:', {
-        prevStatus: prev.status,
-        newStatus: newState.status,
-        currentRound: newState.currentRound,
-        currentSpeaker: newState.currentSpeaker
-      });
 
       return newState;
     });
@@ -1042,7 +1034,8 @@ export const DebateRoom: React.FC = () => {
       history: prev.history,
         streamingSpeech: {
           playerId: speech.playerId,
-          content: speech.content
+          content: speech.content,
+          type: speech.type
       },
       players: prev.players
     }));
@@ -1537,6 +1530,7 @@ export const DebateRoom: React.FC = () => {
                   s.references?.includes(speechId)
                 );
               }}
+              characterConfigs={characterConfigs}
             />
             
             {/* 实时评分展示(每轮结束) */}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RouterProvider } from 'react-router-dom';
+import { RouterProvider, Routes, Route } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import router from './routes';
@@ -9,6 +9,7 @@ import { StoreManager } from './modules/state/core/StoreManager';
 import { EventBus } from './modules/state/core/EventBus';
 import { ThemeProvider } from './styles/ThemeContext';
 import './App.css';
+import ScoringTest from './pages/ScoringTest';
 
 const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);

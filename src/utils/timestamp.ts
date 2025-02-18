@@ -10,10 +10,15 @@ export const createTimestamp = (): string => {
  * @param timestamp ISO格式的时间戳字符串
  */
 export const formatTimestamp = (timestamp: string): string => {
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
-  });
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(/\//g, '年').replace(/\//g, '月').replace(/ /, '日 ');
 };
 
 /**

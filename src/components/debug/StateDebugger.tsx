@@ -422,14 +422,14 @@ export const StateDebugger: React.FC<StateDebuggerProps> = ({ state, onToggleDeb
   // 使用 useMemo 缓存配置对象，并添加深度比较
   const debateConfig = useMemo(() => {
     if (!gameConfig?.debate) {
-      console.log('No debate config found');
+      //console.log('No debate config found');
       return undefined;
     }
     
     // 检查玩家配置的完整性
     const players = Object.values(gameConfig.players || {}).map(player => {
       // 检查并记录玩家信息
-      console.log('Processing player:', player);
+      //console.log('Processing player:', player);
       
       // 确保玩家角色正确分配
       let role: DebateRole = player.role || 'unassigned';
@@ -533,7 +533,7 @@ export const StateDebugger: React.FC<StateDebuggerProps> = ({ state, onToggleDeb
     };
 
     // 打印完整的配置对象以便调试
-    console.log('Debate config created:', JSON.stringify(config, null, 2));
+    //console.log('Debate config created:', JSON.stringify(config, null, 2));
 
     return config;
   }, [

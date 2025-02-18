@@ -19,6 +19,10 @@ export interface DebateFlowState {
     content: string;
     status: 'streaming' | 'completed' | 'failed';
   } | null;
+
+  // 内部状态控制
+  _forceUpdate?: number;
+  _timestamp?: number;
 }
 
 export interface SpeakingOrder {

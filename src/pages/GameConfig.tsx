@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { keyframes } from '@emotion/react';
 import RoleAssignmentPanel from '../components/debate/RoleAssignmentPanel';
 import { useRoleAssignment } from '../hooks/useRoleAssignment';
 import { Player, DebateRole } from '../types/player';
@@ -19,63 +20,164 @@ import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
 import { StateLogger } from '../modules/state/utils';
 import { StateDebugger } from '../components/debug/StateDebugger';
+import { ThemeProvider } from '@emotion/react';
+import theme from '../styles/theme';
 
 const logger = StateLogger.getInstance();
+
+const glowAnimation = keyframes`
+  0% {
+    box-shadow: 0 0 5px rgba(167,187,255,0.3), 0 0 10px rgba(167,187,255,0.2), 0 0 15px rgba(167,187,255,0.1);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(167,187,255,0.4), 0 0 20px rgba(167,187,255,0.3), 0 0 30px rgba(167,187,255,0.2);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(167,187,255,0.3), 0 0 10px rgba(167,187,255,0.2), 0 0 15px rgba(167,187,255,0.1);
+  }
+`;
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background-color: ${props => props.theme.colors.background.default};
-  padding: ${props => props.theme.spacing.lg};
+  min-height: 100vh;
+  background: ${({ theme }) => theme.colors.backgroundGradient};
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  color: ${({ theme }) => theme.colors.text.primary};
+
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+      linear-gradient(${({ theme }) => theme.colors.background.overlay} 1px, transparent 1px),
+      linear-gradient(90deg, ${({ theme }) => theme.colors.background.overlay} 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+  }
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${props => props.theme.spacing.lg};
+  margin-bottom: 2rem;
+  padding: 1rem 2rem;
+  ${({ theme }) => theme.mixins.glassmorphism}
+  border-radius: 15px;
 `;
 
 const HeaderRight = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 1rem;
 `;
 
 const Title = styled.h1`
-  color: ${props => props.theme.colors.text.primary};
-  font-size: ${props => props.theme.typography.fontSize.xl};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: 2.5rem;
+  font-weight: 700;
+  ${({ theme }) => theme.mixins.textGlow}
+  margin: 0;
 `;
 
 const Tabs = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: ${props => props.theme.spacing.md};
-  margin-bottom: ${props => props.theme.spacing.lg};
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  border: 1px solid rgba(167,187,255,0.2);
 `;
 
 const TabGroup = styled.div`
   display: flex;
-  gap: ${props => props.theme.spacing.md};
+  gap: 0.5rem;
 `;
 
 const Tab = styled.button<{ active: boolean }>`
-  padding: ${props => props.theme.spacing.md};
-  background-color: ${props => 
-    props.active ? props.theme.colors.primary : props.theme.colors.background.secondary
+  padding: 0.8rem 1.5rem;
+  background: ${({ active, theme }) => 
+    active 
+      ? theme.colors.backgroundGradient
+      : theme.colors.background.container
   };
-  color: ${props => 
-    props.active ? props.theme.colors.white : props.theme.colors.text.primary
-  };
-  border: none;
-  border-radius: ${props => props.theme.radius.md};
+  color: ${({ theme }) => theme.colors.text.primary};
+  border: 1px solid ${({ theme }) => theme.colors.border.primary};
+  border-radius: 8px;
   cursor: pointer;
-  transition: all ${props => props.theme.transitions.fast};
+  transition: all 0.3s ease;
+  font-size: 1rem;
+  font-weight: 500;
+  text-shadow: ${({ active, theme }) => 
+    active ? theme.shadows.text : 'none'
+  };
 
   &:hover {
-    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: ${({ theme }) => theme.shadows.primary};
+  }
+
+  animation: ${({ active, theme }) => active ? theme.animations.glow : 'none'} 2s ease-in-out infinite;
+`;
+
+const ContentWrapper = styled.div`
+  ${({ theme }) => theme.mixins.glassmorphism}
+  position: relative;
+  z-index: 1;
+  padding: 2rem;
+  border-radius: 20px;
+`;
+
+const StyledButton = styled(Button)`
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #E8F0FF;
+  background: ${props => 
+    props.variant === 'primary' 
+      ? 'linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9))'
+      : 'rgba(167,187,255,0.1)'
+  };
+  border: 1px solid rgba(167,187,255,0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(167,187,255,0.2);
+  }
+
+  &:before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      120deg,
+      transparent,
+      rgba(167,187,255,0.3),
+      transparent
+    );
+    transition: 0.5s;
+  }
+
+  &:hover:before {
+    left: 100%;
   }
 `;
 
@@ -504,90 +606,94 @@ const GameConfigContent: React.FC = () => {
   }, []);
 
   return (
-    <Container>
-      <Header>
-        <Title>游戏配置</Title>
-        <HeaderRight>
-          <Button variant="secondary" onClick={handleBack}>
-            返回
-          </Button>
-          <Button variant="primary" onClick={handleStartGame}>
-            开始游戏
-          </Button>
-        </HeaderRight>
-      </Header>
+    <ThemeProvider theme={theme}>
+      <Container>
+        <Header>
+          <Title>游戏配置</Title>
+          <HeaderRight>
+            <StyledButton variant="secondary" onClick={handleBack}>
+              返回
+            </StyledButton>
+            <StyledButton variant="primary" onClick={handleStartGame}>
+              开始游戏
+            </StyledButton>
+          </HeaderRight>
+        </Header>
 
-      <Tabs>
-        <TabGroup>
-          <Tab
-            active={activeTab === 'roles'}
-            onClick={() => setActiveTab('roles')}
-          >
-            开局配置
-          </Tab>
-          <Tab
-            active={activeTab === 'characters'}
-            onClick={() => setActiveTab('characters')}
-          >
-            AI角色配置
-          </Tab>
-          <Tab
-            active={activeTab === 'models'}
-            onClick={() => setActiveTab('models')}
-          >
-            模型管理
-          </Tab>
-        </TabGroup>
-        {activeTab === 'roles' && (
-          <TemplateManager
-            currentConfig={debateConfig}
-            onLoadTemplate={handleLoadTemplate}
-          />
-        )}
-      </Tabs>
+        <Tabs>
+          <TabGroup>
+            <Tab
+              active={activeTab === 'roles'}
+              onClick={() => setActiveTab('roles')}
+            >
+              开局配置
+            </Tab>
+            <Tab
+              active={activeTab === 'characters'}
+              onClick={() => setActiveTab('characters')}
+            >
+              AI角色配置
+            </Tab>
+            <Tab
+              active={activeTab === 'models'}
+              onClick={() => setActiveTab('models')}
+            >
+              模型管理
+            </Tab>
+          </TabGroup>
+          {activeTab === 'roles' && (
+            <TemplateManager
+              currentConfig={debateConfig}
+              onLoadTemplate={handleLoadTemplate}
+            />
+          )}
+        </Tabs>
 
-      <div className="game-config-content">
-        {renderContent()}
-      </div>
+        <ContentWrapper>
+          {renderContent()}
+        </ContentWrapper>
 
-      <StateDebugger
-        state={{
-          debate: {
-            topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 },
-            rules: gameConfig.debate?.rules || {
-              debateFormat: 'free',
-              description: '',
-              advancedRules: {
-                speechLengthLimit: { min: 100, max: 1000 },
-                allowQuoting: true,
-                requireResponse: true,
-                allowStanceChange: false,
-                requireEvidence: true
-              }
+        <StateDebugger
+          state={{
+            debate: {
+              topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 },
+              rules: gameConfig.debate?.rules || {
+                debateFormat: 'free',
+                description: '',
+                advancedRules: {
+                  speechLengthLimit: { min: 100, max: 1000 },
+                  allowQuoting: true,
+                  requireResponse: true,
+                  allowStanceChange: false,
+                  requireEvidence: true
+                }
+              },
+              judging: gameConfig.debate?.judging || {},
+              status: undefined,
+              currentRound: 0,
+              currentSpeaker: null,
+              speeches: [],
+              scores: [],
+              format: gameConfig.debate?.rules?.debateFormat as 'structured' | 'free'
             },
-            judging: gameConfig.debate?.judging || {},
-            status: undefined,
-            currentRound: 0,
-            currentSpeaker: null,
-            speeches: [],
-            scores: [],
-            format: gameConfig.debate?.rules?.debateFormat as 'structured' | 'free'
-          },
-          players: Object.values(gameConfig.players || {})
-        }}
-        onToggleDebugger={() => {}}
-      />
-    </Container>
+            players: Object.values(gameConfig.players || {})
+          }}
+          onToggleDebugger={() => {}}
+        />
+      </Container>
+    </ThemeProvider>
   );
 };
 
 export const GameConfig: React.FC = () => {
   return (
-    <CharacterProvider>
-      <ModelProvider>
-        <GameConfigContent />
-      </ModelProvider>
-    </CharacterProvider>
+    <ThemeProvider theme={theme}>
+      <CharacterProvider>
+        <ModelProvider>
+          <GameConfigContent />
+        </ModelProvider>
+      </CharacterProvider>
+    </ThemeProvider>
   );
 };
 

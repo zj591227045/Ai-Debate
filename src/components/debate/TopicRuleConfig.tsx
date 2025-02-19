@@ -349,13 +349,14 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
             </ButtonGroup>
           </CardHeader>
           <FormItem>
-            <div className="label">辩论模式</div>
+            <div className="label">游戏模式</div>
             <Radio.Group
               value={ruleConfig.format}
               onChange={e => handleRuleChange({ format: e.target.value as 'free' | 'structured' })}
             >
-              <Radio.Button value="free">自由辩论</Radio.Button>
-              <Radio.Button value="structured">正反方辩论</Radio.Button>
+              <Radio.Button value="free">自由模式</Radio.Button>
+              <Radio.Button value="structured">阵营模式</Radio.Button>
+              <Radio.Button value="elimination">淘汰模式</Radio.Button>
             </Radio.Group>
           </FormItem>
           <FormItem>

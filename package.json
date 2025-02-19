@@ -1,7 +1,7 @@
 {
   "name": "ai-debate",
   "version": "1.0.0",
-  "description": "AI辩论系统",
+  "description": "AI大乱斗",
   "main": "src/index.tsx",
   "scripts": {
     "start": "craco start",

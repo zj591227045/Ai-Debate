@@ -66,39 +66,38 @@ export interface DebateConfig {
   id?: string;
   // 主题配置
   topic: {
-    title: string;          
+    title: string;
     description: string;
-    rounds: number;    
+    rounds: number;
   };
   // 规则配置
   rules: {
-    debateFormat: 'structured' | 'free';  
-    description: string;                   
+    debateFormat: 'structured' | 'free' | 'tournament';
+    description: string;
     advancedRules: {
       speechLengthLimit: {
         min: number;
         max: number;
       };
-      allowQuoting: boolean;      
-      requireResponse: boolean;   
-      allowStanceChange: boolean; 
-      requireEvidence: boolean;   
+      allowQuoting: boolean;
+      requireResponse: boolean;
+      allowStanceChange: boolean;
+      requireEvidence: boolean;
     };
   };
   // 裁判配置
   judging: {
-    description: string;          
+    description: string;
     dimensions: Array<{
       id: string;
-      name: string;              
-      weight: number;            
-      description: string;       
-      criteria: string[];        
+      name: string;
+      weight: number;
+      description: string;
+      criteria: string[];
     }>;
-    totalScore: number;          
-    selectedJudge?: Judge & {
-      modelConfig?: any;
-    };
+    totalScore: number;
+    type?: 'ai' | 'human' | 'hybrid';
+    selectedJudge?: Judge & { modelConfig?: any };
     scoreRange?: {
       min: number;
       max: number;

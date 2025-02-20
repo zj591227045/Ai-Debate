@@ -3,33 +3,8 @@ import type { Player } from './player';
 import type { RuleConfig } from './rules';
 
 export interface GameConfigState {
-  debate: {
-    topic: {
-      title: string;
-      description: string;
-      rounds: number;
-    };
-    rules: {
-      debateFormat: string;
-      description: string;
-      advancedRules: {
-        speechLengthLimit: {
-          min: number;
-          max: number;
-        };
-        allowQuoting: boolean;
-        requireResponse: boolean;
-        allowStanceChange: boolean;
-        requireEvidence: boolean;
-      };
-    };
-    judging: {
-      description: string;
-      dimensions: any[];
-      totalScore: number;
-    };
-  };
-  players: any[];
+  debate?: DebateConfig;
+  players: Player[];
   isConfiguring: boolean;
 }
 

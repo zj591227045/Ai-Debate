@@ -10,7 +10,17 @@ export class SpeakingOrderManager {
     players: Array<PlayerConfig | SpeakerInfo>,
     format: 'free' | 'structured'
   ): SpeakingOrderInfo {
-    const speakers = players.map((player, index) => ({
+    let orderedPlayers: Array<PlayerConfig | SpeakerInfo>;
+    
+    if (format === 'structured') {
+      // 结构化辩论使用固定顺序
+      orderedPlayers = this.orderByTeam(players as PlayerConfig[]);
+    } else {
+      // 自由辩论使用随机顺序
+      orderedPlayers = this.shufflePlayers(players as PlayerConfig[]);
+    }
+    
+    const speakers = orderedPlayers.map((player, index) => ({
       player: this.convertToSpeakerInfo(player),
       status: 'waiting' as SpeakerStatus,
       sequence: index + 1

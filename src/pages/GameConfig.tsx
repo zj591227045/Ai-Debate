@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import styled from '@emotion/styled';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { keyframes } from '@emotion/react';
-import RoleAssignmentPanel from '../components/debate/RoleAssignmentPanel';
+import { RoleAssignmentPanel } from '../components/debate/RoleAssignmentPanel';
 import { useRoleAssignment } from '../hooks/useRoleAssignment';
 import { Player, DebateRole } from '../types/player';
 import { CharacterList, CharacterProvider, useCharacter } from '../modules/character';
@@ -19,9 +19,9 @@ import { useDebate } from '../contexts/DebateContext';
 import type { GameConfigState } from '../types/config';
 import { Button } from '../components/common/Button';
 import { StateLogger } from '../modules/state/utils';
-import { StateDebugger } from '../components/debug/StateDebugger';
 import { ThemeProvider } from '@emotion/react';
 import theme from '../styles/theme';
+import { TopicConfigPanel, RuleConfigPanel, ScoringConfigPanel } from '../components/debate/ConfigPanels';
 
 const logger = StateLogger.getInstance();
 
@@ -46,6 +46,7 @@ const Container = styled.div`
   position: relative;
   overflow: hidden;
   color: ${({ theme }) => theme.colors.text.primary};
+  will-change: transform;
 
   &:before {
     content: '';
@@ -59,6 +60,7 @@ const Container = styled.div`
       linear-gradient(90deg, ${({ theme }) => theme.colors.background.overlay} 1px, transparent 1px);
     background-size: 50px 50px;
     pointer-events: none;
+    opacity: 0.5;
   }
 `;
 
@@ -115,7 +117,7 @@ const Tab = styled.button<{ active: boolean }>`
   border: 1px solid ${({ theme }) => theme.colors.border.primary};
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease;
   font-size: 1rem;
   font-weight: 500;
   text-shadow: ${({ active, theme }) => 
@@ -124,10 +126,7 @@ const Tab = styled.button<{ active: boolean }>`
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: ${({ theme }) => theme.shadows.primary};
   }
-
-  animation: ${({ active, theme }) => active ? theme.animations.glow : 'none'} 2s ease-in-out infinite;
 `;
 
 const ContentWrapper = styled.div`
@@ -135,7 +134,70 @@ const ContentWrapper = styled.div`
   position: relative;
   z-index: 1;
   padding: 2rem;
-  border-radius: 20px;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.colors.background.container};
+  transition: transform 0.3s ease;
+  will-change: transform;
+  
+  // 优化滚动容器
+  & > div {
+    max-height: calc(100vh - 250px);
+    overflow-y: auto;
+    padding-right: 1rem;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: ${({ theme }) => theme.colors.background.secondary};
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: ${({ theme }) => theme.colors.border.primary};
+      border-radius: 3px;
+    }
+  }
+`;
+
+// 添加配置面板容器
+const ConfigPanelsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 2rem;
+
+  // 在大屏幕上横向排列
+  @media (min-width: ${({ theme }) => theme.breakpoints.desktop}) {
+    flex-direction: row;
+    justify-content: space-between;
+    
+    & > * {
+      flex: 1;
+      min-width: calc(33% - 1.5rem);
+      max-width: calc(33% - 1.5rem);
+    }
+  }
+
+  // 在平板上两列排列
+  @media (min-width: ${({ theme }) => theme.breakpoints.tablet}) and (max-width: ${({ theme }) => theme.breakpoints.desktop}) {
+    & > * {
+      flex: 1;
+      min-width: calc(50% - 1rem);
+      max-width: calc(50% - 1rem);
+    }
+  }
+
+  // 在移动端上单列排列
+  @media (max-width: ${({ theme }) => theme.breakpoints.tablet}) {
+    flex-direction: column;
+    & > * {
+      width: 100%;
+    }
+  }
 `;
 
 const StyledButton = styled(Button)`
@@ -197,9 +259,247 @@ const defaultConfig = {
   minPlayers: 4,
   maxPlayers: 6,
   autoAssign: false,
-  format: 'free' as 'structured' | 'free',  // 默认使用自由辩论模式
+  format: 'free' as 'structured' | 'free',
   defaultRole: 'free' as DebateRole
 };
+
+const defaultDebateConfig: DebateConfig = {
+  topic: {
+    title: '',
+    description: '',
+    rounds: 3, // 设置默认轮数
+  },
+  rules: {
+    debateFormat: 'structured',
+    description: '',
+    advancedRules: {
+      speechLengthLimit: {
+        min: 100,
+        max: 1000,
+      },
+      allowQuoting: true,
+      requireResponse: true,
+      allowStanceChange: false,
+      requireEvidence: true,
+    }
+  },
+  judging: {
+    description: '',
+    dimensions: [],
+    totalScore: 100,
+    type: 'ai',
+  }
+};
+
+interface PlayerCardProps {
+  player: Player;
+  onTakeoverPlayer: (id: string, name: string, isTakeover: boolean) => void;
+  onRemovePlayer: (id: string) => void;
+  onSelectCharacter: (id: string, characterId: string) => void;
+}
+
+const StyledPlayerCard = styled.div`
+  ${({ theme }) => theme.mixins.glassmorphism}
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.colors.background.container};
+  border: 1px solid ${({ theme }) => theme.colors.border.primary};
+  will-change: transform;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+`;
+
+const PlayerCard = React.memo<PlayerCardProps>(({ player, onTakeoverPlayer, onRemovePlayer, onSelectCharacter }) => {
+  const handleTakeover = useCallback(() => {
+    onTakeoverPlayer(player.id, player.name, !player.isAI);
+  }, [player.id, player.name, player.isAI, onTakeoverPlayer]);
+
+  const handleRemove = useCallback(() => {
+    onRemovePlayer(player.id);
+  }, [player.id, onRemovePlayer]);
+
+  return (
+    <StyledPlayerCard>
+      {/* ... existing PlayerCard JSX ... */}
+    </StyledPlayerCard>
+  );
+});
+
+const PlayerGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
+`;
+
+const PlayerHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`;
+
+const PlayerAvatar = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.background.accent};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  ${({ theme }) => theme.mixins.textGlow}
+  font-size: 1.5rem;
+  color: ${({ theme }) => theme.colors.text.primary};
+  position: relative;
+`;
+
+const AIBadge = styled.div`
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.text.primary};
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
+  ${({ theme }) => theme.mixins.textGlow}
+`;
+
+const PlayerInfo = styled.div`
+  flex: 1;
+`;
+
+const PlayerName = styled.h3`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
+  ${({ theme }) => theme.mixins.textGlow}
+`;
+
+const PlayerRole = styled.div`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  margin-top: 0.25rem;
+`;
+
+const PlayerActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+`;
+
+const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${({ theme, variant }) => 
+    variant === 'primary' 
+      ? theme.colors.primary 
+      : variant === 'danger'
+      ? theme.colors.error
+      : theme.colors.border.primary};
+  background: ${({ theme, variant }) => 
+    variant === 'primary'
+      ? `linear-gradient(45deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`
+      : variant === 'danger'
+      ? `linear-gradient(45deg, ${theme.colors.error}, ${theme.colors.error})`
+      : 'transparent'};
+  color: ${({ theme }) => theme.colors.text.primary};
+  border-radius: ${({ theme }) => theme.radius.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: ${({ theme }) => theme.shadows.sm};
+    background: ${({ theme, variant }) => 
+      variant === 'primary'
+        ? theme.colors.primary
+        : variant === 'danger'
+        ? theme.colors.error
+        : theme.colors.background.hover};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const AddPlayerButton = styled(ActionButton)`
+  width: 100%;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-style: dashed;
+  background: transparent;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.background.hover};
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const CharacterSelect = styled.select`
+  width: 100%;
+  padding: 0.5rem;
+  background: ${({ theme }) => theme.colors.background.secondary};
+  border: 1px solid ${({ theme }) => theme.colors.border.primary};
+  color: ${({ theme }) => theme.colors.text.primary};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  margin-top: 0.5rem;
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: ${({ theme }) => theme.shadows.sm};
+  }
+
+  option {
+    background: ${({ theme }) => theme.colors.background.primary};
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`;
+
+const PlayerConfigContainer = styled.div`
+  ${({ theme }) => theme.mixins.glassmorphism}
+  margin-top: 2rem;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  overflow: hidden;
+  background: ${({ theme }) => theme.colors.background.container};
+  transition: all ${({ theme }) => theme.transitions.normal};
+  
+  .css-1lgt6oa-Container {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .player-grid {
+    ${PlayerGrid} {
+      padding: 1.5rem;
+    }
+  }
+
+  .player-card {
+    > div {
+      height: 100%;
+    }
+  }
+`;
 
 const GameConfigContent: React.FC = () => {
   const navigate = useNavigate();
@@ -209,39 +509,52 @@ const GameConfigContent: React.FC = () => {
   const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
   const [ruleConfig, setRuleConfig] = useState<RuleConfig>(() => {
     if (location.state?.lastConfig?.ruleConfig) {
-      return location.state.lastConfig.ruleConfig;
+      return {
+        ...defaultRuleConfig,
+        ...location.state.lastConfig.ruleConfig,
+        description: location.state.lastConfig.ruleConfig.description || ''
+      };
+    }
+    if (location.state?.lastConfig?.debate?.rules) {
+      return {
+        ...defaultRuleConfig,
+        ...location.state.lastConfig.debate.rules,
+        description: location.state.lastConfig.debate.rules.description || ''
+      };
     }
     return defaultRuleConfig;
   });
   const [debateConfig, setDebateConfig] = useState<DebateConfig>(() => {
-    if (location.state?.lastConfig) {
-      return location.state.lastConfig;
-    }
-    return {
-      topic: {
-        title: '',
-        description: '',
-      },
-      rules: {
-        debateFormat: 'structured',
-        description: '',
-        advancedRules: {
-          speechLengthLimit: {
-            min: 100,
-            max: 1000,
-          },
-          allowQuoting: true,
-          requireResponse: true,
-          allowStanceChange: false,
-          requireEvidence: true,
+    // 如果有上一次的配置，使用它
+    if (location.state?.lastConfig?.debate) {
+      const lastConfig = location.state.lastConfig.debate;
+      return {
+        ...defaultDebateConfig,
+        ...lastConfig,
+        topic: {
+          title: lastConfig.topic?.title || '',
+          description: lastConfig.topic?.description || '',
+          rounds: lastConfig.topic?.rounds || 3
         },
-      },
-      judging: {
-        description: '',
-        dimensions: [],
-        totalScore: 100,
-      },
-    };
+        rules: {
+          debateFormat: lastConfig.rules?.debateFormat || 'structured',
+          description: lastConfig.rules?.description || '',
+          advancedRules: {
+            ...defaultDebateConfig.rules.advancedRules,
+            ...lastConfig.rules?.advancedRules
+          }
+        },
+        judging: {
+          description: lastConfig.judging?.description || '',
+          dimensions: lastConfig.judging?.dimensions || [],
+          totalScore: lastConfig.judging?.totalScore || 100,
+          type: lastConfig.judging?.type || 'ai',
+          selectedJudge: lastConfig.judging?.selectedJudge || undefined
+        }
+      };
+    }
+    // 否则使用默认配置
+    return defaultDebateConfig;
   });
 
   const { setGameConfig: setDebateContextGameConfig, validateConfig } = useDebate();
@@ -273,43 +586,25 @@ const GameConfigContent: React.FC = () => {
     getAssignedCount,
   } = useRoleAssignment(getInitialPlayers(), getInitialConfig());
 
+  // 使用 useMemo 缓存计算结果
+  const memoizedDebateConfig = useMemo(() => ({
+    ...debateConfig,
+    topic: {
+      ...debateConfig.topic,
+      rounds: debateConfig.topic.rounds || 3
+    }
+  }), [debateConfig]);
+
   // 更新规则配置
   const handleRuleConfigChange = (newRuleConfig: RuleConfig) => {
-    // 先更新本地的规则状态
     setRuleConfig(newRuleConfig);
     
-    // 确保有默认值
-    const currentDebate = gameConfig.debate || {
-      topic: {
-        title: '',
-        description: '',
-        rounds: 3
-      },
-      rules: {
-        debateFormat: 'free',  // 默认使用自由辩论模式
-        description: '',
-        advancedRules: {
-          speechLengthLimit: {
-            min: 100,
-            max: 1000
-          },
-          allowQuoting: true,
-          requireResponse: true,
-          allowStanceChange: false,
-          requireEvidence: true
-        }
-      },
-      judging: {
-        description: '',
-        dimensions: [],
-        totalScore: 100
-      }
-    };
+    const currentDebate = gameConfig.debate || defaultDebateConfig;
     
     // 根据辩论格式更新玩家角色
     const updatedPlayers = players.map(player => ({
       ...player,
-      role: newRuleConfig.format === 'structured' ? 'unassigned' : 'free'
+      role: newRuleConfig.debateFormat === 'structured' ? ('unassigned' as DebateRole) : ('free' as DebateRole)
     }));
     
     // 更新全局状态
@@ -318,8 +613,12 @@ const GameConfigContent: React.FC = () => {
       players: updatedPlayers,
       debate: {
         ...currentDebate,
+        topic: {
+          ...currentDebate.topic,
+          rounds: 3
+        },
         rules: {
-          debateFormat: newRuleConfig.format,
+          debateFormat: newRuleConfig.debateFormat,
           description: newRuleConfig.description,
           advancedRules: {
             ...newRuleConfig.advancedRules
@@ -333,13 +632,13 @@ const GameConfigContent: React.FC = () => {
 
   // 更新辩论配置
   const handleDebateConfigChange = (config: Partial<DebateConfig>) => {
-    const newConfig = {
+    const newConfig: DebateConfig = {
       ...debateConfig,
       ...config,
       topic: {
         ...debateConfig.topic,
         ...config.topic,
-        type: ruleConfig.format || 'structured'
+        rounds: 3
       }
     };
     setDebateConfig(newConfig);
@@ -349,37 +648,72 @@ const GameConfigContent: React.FC = () => {
     });
   };
 
+  // 修改状态更新函数
+  const handleTakeoverPlayer = useCallback((playerId: string, playerName: string, isTakeover: boolean) => {
+    const updatedPlayer = {
+      id: playerId,
+      name: playerName,
+      isAI: !isTakeover,
+      characterId: !isTakeover ? undefined : undefined,
+    };
+    
+    updatePlayer(playerId, updatedPlayer);
+    const updatedPlayers = players.map(p => 
+      p.id === playerId ? { ...p, ...updatedPlayer } : p
+    );
+    
+    setGameConfig({
+      ...gameConfig,
+      players: updatedPlayers
+    } as GameConfigState);
+  }, [players, updatePlayer, setGameConfig, gameConfig]);
+
+  const handleAddAIPlayer = useCallback(() => {
+    const playerNumber = players.length + 1;
+    const newPlayer = {
+      id: String(playerNumber),
+      name: `选手${playerNumber}`,
+      role: 'unassigned' as DebateRole,
+      isAI: true
+    };
+    
+    addPlayer(newPlayer.name, true);
+    setGameConfig({
+      ...gameConfig,
+      players: [...players, newPlayer]
+    } as GameConfigState);
+  }, [players, addPlayer, setGameConfig, gameConfig]);
+
   // 修改 handleStartGame 函数
   const handleStartGame = () => {
-    // 构建完整的配置对象
+    // 构建完整的配置对象，确保 rounds 有值
     const fullConfig: GameConfigState = {
       debate: {
         ...debateConfig,
         topic: {
-          title: debateConfig.topic.title,
-          description: debateConfig.topic.description,
-          rounds: debateConfig.topic.rounds || 3
+          ...debateConfig.topic,
+          rounds: 3
         },
         rules: {
-          debateFormat: ruleConfig.format || 'structured',
+          ...debateConfig.rules,
+          debateFormat: ruleConfig.debateFormat || 'structured',
           description: ruleConfig.description,
           advancedRules: {
-            ...ruleConfig.advancedRules,
-            speechLengthLimit: {
-              min: ruleConfig.advancedRules.speechLengthLimit.min,
-              max: ruleConfig.advancedRules.speechLengthLimit.max
-            }
+            ...ruleConfig.advancedRules
           }
         },
         judging: {
+          ...debateConfig.judging,
           description: debateConfig.judging?.description || '',
           dimensions: debateConfig.judging?.dimensions || [],
-          totalScore: debateConfig.judging?.totalScore || 100
+          totalScore: debateConfig.judging?.totalScore || 100,
+          type: debateConfig.judging?.type || 'ai'
         }
       },
       players: players.map(player => ({
         ...player,
-        characterId: player.characterId || undefined
+        characterId: player.characterId || undefined,
+        role: player.role as DebateRole
       })),
       isConfiguring: false
     };
@@ -389,16 +723,9 @@ const GameConfigContent: React.FC = () => {
       return;
     }
 
-    // 更新状态
-    setGameConfig({
-      ...gameConfig,
-      ...fullConfig
-    });
-    
-    // 更新 DebateContext
+    setGameConfig(fullConfig);
     setDebateContextGameConfig(fullConfig);
     
-    // 导航到辩论室
     navigate('/debate-room', { 
       state: { 
         config: fullConfig,
@@ -448,55 +775,48 @@ const GameConfigContent: React.FC = () => {
 
   // 修改 handleLoadTemplate 函数
   const handleLoadTemplate = (config: DebateConfig) => {
-    setDebateConfig(config);
+    const newConfig = {
+      ...defaultDebateConfig,
+      ...config,
+      topic: {
+        ...config.topic,
+        rounds: config.topic?.rounds || 3
+      },
+      rules: {
+        ...config.rules,
+        description: config.rules?.description || '',
+        advancedRules: {
+          ...defaultDebateConfig.rules.advancedRules,
+          ...config.rules?.advancedRules
+        }
+      },
+      judging: {
+        ...config.judging,
+        description: config.judging?.description || '',
+        dimensions: config.judging?.dimensions || [],
+        totalScore: config.judging?.totalScore || 100,
+        type: config.judging?.type || 'ai',
+        selectedJudge: config.judging?.selectedJudge || undefined
+      }
+    };
+    
+    setDebateConfig(newConfig);
     setRuleConfig({
-      ...ruleConfig,
-      format: config.rules.debateFormat,
-      description: config.rules.description
+      ...defaultRuleConfig,
+      debateFormat: config.rules?.debateFormat || 'structured',
+      description: config.rules?.description || '',
+      advancedRules: {
+        ...defaultRuleConfig.advancedRules,
+        ...config.rules?.advancedRules
+      }
     });
+    
     setGameConfig({
       ...gameConfig,
-      debate: config,
+      debate: newConfig,
     });
+    
     message.success('模板加载成功');
-  };
-
-  // 修改 handleTakeoverPlayer 函数
-  const handleTakeoverPlayer = (playerId: string, playerName: string, isTakeover: boolean) => {
-    const updatedPlayer = {
-      id: playerId,
-      name: playerName,
-      isAI: !isTakeover,
-      characterId: !isTakeover ? undefined : undefined,
-    };
-    
-    updatePlayer(playerId, updatedPlayer);
-    // 同步到 Redux store
-    const updatedPlayers = players.map(p => 
-      p.id === playerId ? { ...p, ...updatedPlayer } : p
-    );
-    setGameConfig({
-      ...gameConfig,
-      players: updatedPlayers
-    });
-  };
-
-  // 修改 handleAddAIPlayer 函数
-  const handleAddAIPlayer = () => {
-    const playerNumber = players.length + 1;
-    const newPlayer = {
-      id: String(playerNumber),
-      name: `选手${playerNumber}`,
-      role: 'unassigned' as DebateRole,
-      isAI: true
-    };
-    
-    addPlayer(newPlayer.name, true);
-    // 同步到 Redux store
-    setGameConfig({
-      ...gameConfig,
-      players: [...players, newPlayer]
-    });
   };
 
   const handleSaveTemplate = () => {
@@ -508,7 +828,7 @@ const GameConfigContent: React.FC = () => {
         rounds: debateConfig.topic.rounds,
       },
       rules: {
-        debateFormat: ruleConfig.format,
+        debateFormat: ruleConfig.debateFormat,
         description: ruleConfig.description,
         advancedRules: {
           speechLengthLimit: {
@@ -568,25 +888,35 @@ const GameConfigContent: React.FC = () => {
       case 'roles':
         return (
           <>
-            <TopicRuleConfig 
-              ruleConfig={ruleConfig}
-              onRuleConfigChange={handleRuleConfigChange}
-              debateConfig={debateConfig}
-              onDebateConfigChange={handleDebateConfigChange}
-            />
-            <RoleAssignmentPanel
-              players={players}
-              config={config}
-              debateFormat={ruleConfig.format}
-              onAssignRole={assignRole}
-              onAutoAssign={autoAssignRoles}
-              onReset={resetRoles}
-              onTakeoverPlayer={handleTakeoverPlayer}
-              onRemovePlayer={removePlayer}
-              onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
-              onStartDebate={handleStartGame}
-              onSelectCharacter={handleSelectCharacter}
-            />
+            <ConfigPanelsContainer>
+              <TopicConfigPanel 
+                debateConfig={debateConfig}
+                onDebateConfigChange={handleDebateConfigChange}
+              />
+              <RuleConfigPanel
+                ruleConfig={ruleConfig}
+                onRuleConfigChange={handleRuleConfigChange}
+              />
+              <ScoringConfigPanel
+                debateConfig={debateConfig}
+                onJudgeConfigChange={handleJudgeConfigChange}
+              />
+            </ConfigPanelsContainer>
+            <PlayerConfigContainer>
+              <RoleAssignmentPanel
+                players={players}
+                config={config}
+                debateFormat={ruleConfig.debateFormat}
+                onAssignRole={assignRole}
+                onAutoAssign={autoAssignRoles}
+                onReset={resetRoles}
+                onTakeoverPlayer={handleTakeoverPlayer}
+                onRemovePlayer={removePlayer}
+                onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
+                onStartDebate={handleStartGame}
+                onSelectCharacter={handleSelectCharacter}
+              />
+            </PlayerConfigContainer>
           </>
         );
       case 'characters':
@@ -597,6 +927,19 @@ const GameConfigContent: React.FC = () => {
         return null;
     }
   };
+
+  // 使用 useMemo 优化渲染内容
+  const content = useMemo(() => renderContent(), [
+    activeTab,
+    players,
+    config,
+    ruleConfig,
+    debateConfig,
+    handleTakeoverPlayer,
+    handleAddAIPlayer,
+    handleStartGame,
+    handleSelectCharacter
+  ]);
 
   useEffect(() => {
     logger.info('gameConfig', '组件已初始化', { initialState: gameConfig });
@@ -650,36 +993,8 @@ const GameConfigContent: React.FC = () => {
         </Tabs>
 
         <ContentWrapper>
-          {renderContent()}
+          {content}
         </ContentWrapper>
-
-        <StateDebugger
-          state={{
-            debate: {
-              topic: gameConfig.debate?.topic || { title: '', description: '', rounds: 3 },
-              rules: gameConfig.debate?.rules || {
-                debateFormat: 'free',
-                description: '',
-                advancedRules: {
-                  speechLengthLimit: { min: 100, max: 1000 },
-                  allowQuoting: true,
-                  requireResponse: true,
-                  allowStanceChange: false,
-                  requireEvidence: true
-                }
-              },
-              judging: gameConfig.debate?.judging || {},
-              status: undefined,
-              currentRound: 0,
-              currentSpeaker: null,
-              speeches: [],
-              scores: [],
-              format: gameConfig.debate?.rules?.debateFormat as 'structured' | 'free'
-            },
-            players: Object.values(gameConfig.players || {})
-          }}
-          onToggleDebugger={() => {}}
-        />
       </Container>
     </ThemeProvider>
   );

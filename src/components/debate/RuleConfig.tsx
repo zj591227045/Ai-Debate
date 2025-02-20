@@ -24,8 +24,8 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
         <div className="form-item">
           <label>辩论模式</label>
           <Radio.Group
-            value={config.format}
-            onChange={(e: RadioChangeEvent) => onChange({ ...config, format: e.target.value as 'free' | 'structured' })}
+            value={config.debateFormat}
+            onChange={(e: RadioChangeEvent) => onChange({ ...config, debateFormat: e.target.value as 'free' | 'structured' })}
           >
             <Radio.Button value="free">自由辩论</Radio.Button>
             <Radio.Button value="structured">正反方辩论</Radio.Button>
@@ -149,7 +149,7 @@ const RuleConfigComponent: React.FC<RuleConfigProps> = ({
 };
 
 export const defaultRuleConfig: RuleConfig = {
-  format: 'free',
+  debateFormat: 'free',
   description: '',
   advancedRules: {
     speechLengthLimit: {

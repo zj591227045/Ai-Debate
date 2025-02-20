@@ -1,5 +1,6 @@
 import { ProviderType } from '../../llm/types/providers';
 import type { ProviderConfig, ModelInfo } from './config';
+import { PROVIDERS } from './providers';
 
 /**
  * 模型参数接口
@@ -56,13 +57,42 @@ export interface ModelMetadata {
 export interface ModelConfig {
   id: string;
   name: string;
-  provider: ProviderType;
+  provider: PROVIDERS;
   model: string;
-  parameters: ModelParameters;
-  auth: AuthConfig;
-  capabilities: ModelCapabilities;
-  metadata: ModelMetadata;
-  isEnabled: boolean;
+  endpoint?: string;
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+  inUse?: boolean;
+  parameters?: {
+    temperature: number;
+    maxTokens: number;
+    topP: number;
+    presencePenalty?: number;
+    frequencyPenalty?: number;
+    stopSequences?: string[];
+  };
+  auth?: {
+    baseUrl: string;
+    apiKey?: string;
+    organizationId?: string;
+  };
+  capabilities?: {
+    streaming: boolean;
+    functionCalling: boolean;
+  };
+  metadata?: {
+    description: string;
+    contextWindow: number;
+    tokenizerName: string;
+    pricingInfo: {
+      inputPrice: number;
+      outputPrice: number;
+      unit: string;
+      currency: string;
+    };
+  };
+  isEnabled?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -175,4 +205,13 @@ export const DEFAULT_PARAMETER_RANGES: ModelParameterRange = {
   maxTokens: { min: 1, max: 4096, step: 1, default: 2000 },
   presencePenalty: { min: -2, max: 2, step: 0.1, default: 0 },
   frequencyPenalty: { min: -2, max: 2, step: 0.1, default: 0 },
-}; 
+};
+
+export interface ModelState {
+  models: ModelConfig[];
+}
+
+export type ModelAction = 
+  | { type: 'ADD_MODEL'; payload: ModelConfig }
+  | { type: 'UPDATE_MODEL'; payload: ModelConfig }
+  | { type: 'DELETE_MODEL'; payload: string }; 

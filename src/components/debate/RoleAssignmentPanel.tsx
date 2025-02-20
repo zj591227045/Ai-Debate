@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
-import type { Player } from '../../types/player';
+import type { Player, DebateRole } from '../../types/player';
 import type { UnifiedRole } from '../../types/roles';
 import type { RoleAssignmentConfig } from '../../hooks/useRoleAssignment';
 import { Avatar, Space, Button as AntButton, Tooltip, Select, Modal, Input } from 'antd';
-import { UserOutlined, RobotOutlined, SwapOutlined } from '@ant-design/icons';
+import { UserOutlined, RobotOutlined, SwapOutlined, PlusOutlined } from '@ant-design/icons';
 import { useCharacter } from '../../modules/character/context/CharacterContext';
 import { useModel } from '../../modules/model/context/ModelContext';
 import { useStore } from '../../modules/state';
@@ -12,254 +12,344 @@ import { StateLogger } from '../../modules/state/utils';
 import type { GameConfigState } from '../../types/config';
 import { UnifiedPlayer, DEFAULT_PLAYER } from '../../types/adapters';
 import type { ModelConfig } from '../../modules/model/types';
+import type { SelectProps } from 'antd/es/select';
 
 const logger = StateLogger.getInstance();
 
 const Container = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 24px;
+  ${({ theme }) => theme.mixins.glassmorphism}
+  border-radius: ${({ theme }) => theme.radius.lg};
+  overflow: hidden;
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  padding: 0.8rem 1.5rem;
+  background: ${({ theme }) => theme.colors.background.secondary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border.primary};
+  ${({ theme }) => theme.mixins.glassmorphism}
+  height: 3.5rem;
 `;
 
 const Title = styled.h2`
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSize.lg};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
   margin: 0;
-  font-size: 18px;
-  font-weight: 500;
+  ${({ theme }) => theme.mixins.textGlow}
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
+  align-items: center;
+  flex-shrink: 0;
 `;
 
-const PlayerList = styled.div`
+const HeaderButton = styled(AntButton)`
+  padding: 0.4rem 1rem;
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  white-space: nowrap;
+  height: 2rem;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+`;
+
+const PlayerGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-  margin-top: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 1.5rem;
 `;
 
-const PlayerCard = styled.div<{ $isAffirmative?: boolean; $isNegative?: boolean; $isHuman?: boolean }>`
-  background: white;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 12px;
-  transition: all 0.3s ease;
+const PlayerCard = styled.div`
+  ${({ theme }) => theme.mixins.glassmorphism}
   display: flex;
   flex-direction: column;
-  align-items: center;
-  
-  ${props => props.$isAffirmative && `
-    border-left: 4px solid #4157ff;
-    background: linear-gradient(to right, rgba(65, 87, 255, 0.05), transparent);
-  `}
-  
-  ${props => props.$isNegative && `
-    border-left: 4px solid #ff4157;
-    background: linear-gradient(to right, rgba(255, 65, 87, 0.05), transparent);
-  `}
-  
-  ${props => props.$isHuman && `
-    border-left: 4px solid #ff9041;
-    background: linear-gradient(to right, rgba(255, 144, 65, 0.05), transparent);
-  `}
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  transition: all ${({ theme }) => theme.transitions.normal};
+  background: ${({ theme }) => theme.colors.background.container};
+  border: 1px solid ${({ theme }) => theme.colors.border.primary};
+  text-align: center;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: ${({ theme }) => theme.shadows.lg};
+    border-color: ${({ theme }) => theme.colors.border.secondary};
   }
 `;
 
-const AvatarWrapper = styled.div`
-  position: relative;
+const PlayerHeader = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 8px;
-  width: 100%;
+  gap: 0.5rem;
 `;
 
-const StyledAvatar = styled(Avatar)`
-  width: 120px;
-  height: 120px;
-  margin-bottom: 4px;
-  
-  .ant-avatar-string {
-    font-size: 48px;
-    line-height: 120px;
+const PlayerAvatar = styled.div`
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.background.accent};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  ${({ theme }) => theme.mixins.textGlow}
+  font-size: 3rem;
+  color: ${({ theme }) => theme.colors.text.primary};
+  position: relative;
+  margin: 0 auto 1rem;
+  border: 2px solid ${({ theme }) => theme.colors.border.secondary};
+  box-shadow: ${({ theme }) => theme.shadows.lg};
+  transition: all ${({ theme }) => theme.transitions.normal};
+
+  img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
   }
-  
-  .anticon {
-    font-size: 64px;
+
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: ${({ theme }) => theme.shadows.xl};
   }
 `;
 
 const AIBadge = styled.div`
   position: absolute;
-  bottom: 0;
-  right: calc(50% - 70px);
-  background: #4157ff;
-  color: white;
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 12px;
-`;
-
-const CardHeader = styled.div`
-  text-align: center;
-  margin-bottom: 8px;
-`;
-
-const PlayerName = styled.h3`
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 500;
-  text-align: center;
-`;
-
-const CharacterInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 8px;
-
-  .character-description {
-    margin: 4px 0;
-    font-size: 14px;
-    color: rgba(0, 0, 0, 0.45);
-    text-align: center;
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
+  bottom: -5px;
+  right: -5px;
+  background: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.text.primary};
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
+  ${({ theme }) => theme.mixins.textGlow}
 `;
 
 const PlayerInfo = styled.div`
   flex: 1;
 `;
 
-const RoleSelector = styled.div`
-  display: flex;
-  gap: 8px;
-  margin: 4px 0;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
-  width: 100%;
+const PlayerName = styled.h3`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.typography.fontSize.md};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
+  ${({ theme }) => theme.mixins.textGlow}
 `;
 
-const RoleOption = styled.div<{ $active?: boolean; $type: 'affirmative' | 'negative' }>`
+const PlayerRole = styled.div`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  margin-top: 0.25rem;
+`;
+
+const PlayerActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+`;
+
+const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+  padding: 0.5rem 1rem;
+  border: 1px solid ${({ theme, variant }) => 
+    variant === 'primary' 
+      ? theme.colors.primary 
+      : variant === 'danger'
+      ? theme.colors.error
+      : theme.colors.border.primary};
+  background: ${({ theme, variant }) => 
+    variant === 'primary'
+      ? `linear-gradient(45deg, ${theme.colors.primary}, ${theme.colors.primaryDark})`
+      : variant === 'danger'
+      ? `linear-gradient(45deg, ${theme.colors.error}, ${theme.colors.error})`
+      : 'transparent'};
+  color: ${({ theme }) => theme.colors.text.primary};
+  border-radius: ${({ theme }) => theme.radius.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  ${props => props.$active && props.$type === 'affirmative' && `
-    background: rgba(65, 87, 255, 0.1);
-    color: #4157ff;
-  `}
-  
-  ${props => props.$active && props.$type === 'negative' && `
-    background: rgba(255, 65, 87, 0.1);
-    color: #ff4157;
-  `}
-  
+  justify-content: center;
+  gap: 0.5rem;
+
   &:hover {
-    background: ${props => props.$type === 'affirmative' 
-      ? 'rgba(65, 87, 255, 0.05)' 
-      : 'rgba(255, 65, 87, 0.05)'};
+    transform: translateY(-2px);
+    box-shadow: ${({ theme }) => theme.shadows.sm};
+    background: ${({ theme, variant }) => 
+      variant === 'primary'
+        ? theme.colors.primary
+        : variant === 'danger'
+        ? theme.colors.error
+        : theme.colors.background.hover};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
   }
 `;
 
-const DebateOrder = styled.span`
-  font-size: 12px;
-  opacity: 0.7;
+const AddPlayerButton = styled(ActionButton)`
+  width: 100%;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-style: dashed;
+  background: transparent;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.background.hover};
+    border-color: ${({ theme }) => theme.colors.primary};
+    color: ${({ theme }) => theme.colors.primary};
+  }
 `;
 
-const ActionButtons = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+const StyledSelect = styled(Select)`
   width: 100%;
-`;
 
-const CharacterSelect = styled.div`
-  margin: 4px 0;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
-  width: 100%;
+  .ant-select-selector {
+    background: rgba(255, 255, 255, 0.9) !important;
+    border: 1px solid ${({ theme }) => theme.colors.border.primary} !important;
+    border-radius: ${({ theme }) => theme.radius.md} !important;
+    height: auto !important;
+    padding: 0.5rem !important;
+    transition: all ${({ theme }) => theme.transitions.normal};
+
+    &:hover {
+      border-color: ${({ theme }) => theme.colors.border.secondary} !important;
+      box-shadow: ${({ theme }) => theme.shadows.sm} !important;
+    }
+  }
+
+  .ant-select-selection-placeholder {
+    color: rgba(0, 0, 0, 0.45) !important;
+  }
+
+  .ant-select-selection-item {
+    color: rgba(0, 0, 0, 0.85) !important;
+  }
+
+  &.ant-select-focused .ant-select-selector {
+    border-color: ${({ theme }) => theme.colors.primary} !important;
+    box-shadow: ${({ theme }) => theme.shadows.lg} !important;
+  }
+
+  // 下拉菜单样式
+  .ant-select-dropdown {
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid ${({ theme }) => theme.colors.border.primary};
+    border-radius: ${({ theme }) => theme.radius.md};
+    max-width: calc(100vw - 2rem);
+  }
+
+  // 下拉选项样式
+  .ant-select-item {
+    color: rgba(0, 0, 0, 0.85) !important;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    padding: 0.5rem 1rem;
+    transition: all ${({ theme }) => theme.transitions.fast};
+    background: transparent !important;
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.1) !important;
+    }
+
+    &.ant-select-item-option-selected {
+      background: ${({ theme }) => theme.colors.primary} !important;
+      color: #ffffff !important;
+    }
+  }
+
+  // 下拉选项容器
+  .ant-select-item-option-content {
+    color: rgba(0, 0, 0, 0.85) !important;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  // 选项激活状态
+  .ant-select-item-option-active {
+    background: rgba(0, 0, 0, 0.1) !important;
+  }
 `;
 
 const CharacterOption = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding: 0.5rem;
+  max-width: 100%;
 `;
 
 const CharacterName = styled.div`
-  font-weight: 500;
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  color: rgba(0, 0, 0, 0.85);
+  margin-bottom: 0.25rem;
 `;
 
 const CharacterDescription = styled.div`
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  color: rgba(0, 0, 0, 0.65);
+  line-height: 1.4;
+  word-break: break-word;
 `;
 
-const TakeoverMessage = styled.div`
-  margin: 4px 0;
-  padding: 8px;
-  background: rgba(255, 144, 65, 0.05);
-  border-radius: 6px;
-  color: #ff9041;
-  text-align: center;
-  font-size: 14px;
+const CharacterInfo = styled.div`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.typography.fontSize.sm};
+  margin: 0.5rem 0;
+  line-height: 1.4;
 `;
 
 const ModelInfo = styled.div`
-  margin: 4px 0;
   display: flex;
-  gap: 4px;
   flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
   justify-content: center;
 `;
 
 const ModelTag = styled.span`
-  padding: 2px 8px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 4px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  background: ${({ theme }) => theme.colors.background.accent};
+  color: ${({ theme }) => theme.colors.text.primary};
+  padding: 0.25rem 0.75rem;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: ${({ theme }) => theme.typography.fontSize.xs};
+  font-weight: ${({ theme }) => theme.typography.fontWeight.medium};
+  ${({ theme }) => theme.mixins.textGlow}
+  box-shadow: ${({ theme }) => theme.shadows.sm};
+  border: 1px solid ${({ theme }) => theme.colors.border.secondary};
 `;
 
 interface RoleAssignmentPanelProps {
   players: Player[];
-  config: RoleAssignmentConfig;
-  debateFormat: 'free' | 'structured';
-  onAssignRole: (playerId: string, role: UnifiedRole) => void;
+  config: {
+    maxPlayers: number;
+  };
+  debateFormat: string;
+  onAssignRole: (playerId: string, role: DebateRole) => void;
   onAutoAssign: () => void;
   onReset: () => void;
   onTakeoverPlayer: (playerId: string, playerName: string, isTakeover: boolean) => void;
   onRemovePlayer: (playerId: string) => void;
   onAddAIPlayer?: () => void;
-  onStartDebate?: () => void;
+  onStartDebate: () => void;
   onSelectCharacter: (playerId: string, characterId: string) => void;
 }
 
-export default function RoleAssignmentPanel({
+export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   players,
   config,
   debateFormat,
@@ -271,12 +361,13 @@ export default function RoleAssignmentPanel({
   onAddAIPlayer,
   onStartDebate,
   onSelectCharacter,
-}: RoleAssignmentPanelProps) {
+}) => {
   const { state: characterState } = useCharacter();
   const { models } = useModel();
   const [takeoverModalVisible, setTakeoverModalVisible] = useState(false);
   const [takeoverPlayerId, setTakeoverPlayerId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
+  const [characters, setCharacters] = useState<any[]>([]);
   const { state: gameConfig, setState: setGameConfig } = useStore('gameConfig');
 
   useEffect(() => {
@@ -284,6 +375,18 @@ export default function RoleAssignmentPanel({
     return () => {
       logger.info('roleAssignment', '组件已卸载');
     };
+  }, []);
+
+  useEffect(() => {
+    // 从 LocalStorage 加载角色配置，只获取非模板角色
+    try {
+      const characterConfigs = JSON.parse(localStorage.getItem('character_configs') || '[]');
+      const nonTemplateCharacters = characterConfigs.filter((char: any) => !char.isTemplate);
+      setCharacters(nonTemplateCharacters);
+    } catch (error) {
+      console.error('Failed to load character configs:', error);
+      setCharacters([]);
+    }
   }, []);
 
   // 获取已被选择的角色ID列表
@@ -324,7 +427,7 @@ export default function RoleAssignmentPanel({
   };
 
   const handleAssignRole = (playerId: string, role: UnifiedRole) => {
-    onAssignRole(playerId, role);
+    onAssignRole(playerId, role as DebateRole);
     const updatedPlayers = players.map(p => 
       p.id === playerId ? { ...DEFAULT_PLAYER, ...p, role } : p
     );
@@ -397,172 +500,112 @@ export default function RoleAssignmentPanel({
         <ButtonGroup>
           {debateFormat === 'structured' && (
             <>
-              <AntButton onClick={handleAutoAssign}>自动分配角色</AntButton>
-              <AntButton onClick={handleReset}>重置角色</AntButton>
+              <HeaderButton onClick={onAutoAssign}>自动分配</HeaderButton>
+              <HeaderButton onClick={onReset}>重置</HeaderButton>
             </>
           )}
-        {onAddAIPlayer && (
-            <AntButton type="primary" onClick={onAddAIPlayer}>
-            添加AI选手
-            </AntButton>
-        )}
+          {onAddAIPlayer && (
+            <HeaderButton onClick={onAddAIPlayer}>
+              添加AI选手
+            </HeaderButton>
+          )}
         </ButtonGroup>
       </Header>
-
-      <PlayerList>
+      
+      <PlayerGrid>
         {players.map((player) => {
-          const isAffirmative = player.role.startsWith('affirmative');
-          const isNegative = player.role.startsWith('negative');
           const selectedCharacter = player.characterId 
-            ? characterState.characters.find(c => c.id === player.characterId)
+            ? characters.find(c => c.id === player.characterId)
             : undefined;
           
-          // 获取角色关联的模型信息
           const modelId = selectedCharacter?.callConfig?.type === 'direct' 
             ? selectedCharacter.callConfig.direct?.modelId 
             : undefined;
           const characterModel = modelId
-            ? models.find((model: ModelConfig) => model.id === modelId)
+            ? models.find((model: any) => model.id === modelId)
             : undefined;
 
-          // 过滤掉已被其他玩家选择的角色
-          const availableCharacters = characterState.characters.filter(
+          const availableCharacters = characters.filter(
             character => !selectedCharacterIds.includes(character.id) || character.id === player.characterId
           );
 
           return (
-            <PlayerCard 
-              key={player.id}
-              $isAffirmative={debateFormat === 'structured' && isAffirmative}
-              $isNegative={debateFormat === 'structured' && isNegative}
-              $isHuman={!player.isAI}
-            >
-              <AvatarWrapper>
-                <StyledAvatar 
-                  src={selectedCharacter?.avatar}
-                  icon={player.isAI ? <RobotOutlined /> : <UserOutlined />}
-                />
-                {player.isAI && <AIBadge>AI</AIBadge>}
-              </AvatarWrapper>
-              
-              <CardHeader>
-                <PlayerName>{player.name}</PlayerName>
+            <PlayerCard key={player.id}>
+              <PlayerHeader>
+                <PlayerAvatar>
+                  {selectedCharacter?.avatar ? (
+                    <img src={selectedCharacter.avatar} alt={selectedCharacter.name} />
+                  ) : (
+                    player.isAI ? <RobotOutlined /> : <UserOutlined />
+                  )}
+                  {player.isAI && <AIBadge>AI</AIBadge>}
+                </PlayerAvatar>
+                <PlayerInfo>
+                  <PlayerName>{player.name}</PlayerName>
+                  <PlayerRole>
+                    {player.role === 'unassigned' ? '未分配' : player.role}
+                  </PlayerRole>
+                </PlayerInfo>
+              </PlayerHeader>
+
+              {player.isAI && (
+                <StyledSelect
+                  value={player.characterId || undefined}
+                  onChange={(value) => {
+                    if (typeof value === 'string') {
+                      handleSelectCharacter(player.id, value);
+                    }
+                  }}
+                  placeholder="选择AI角色"
+                  optionLabelProp="label"
+                >
+                  {availableCharacters.map(character => (
+                    <Select.Option 
+                      key={character.id} 
+                      value={character.id}
+                      label={character.name}
+                    >
+                      <CharacterOption>
+                        <CharacterName>{character.name}</CharacterName>
+                        <CharacterDescription>
+                          {character.description}
+                        </CharacterDescription>
+                      </CharacterOption>
+                    </Select.Option>
+                  ))}
+                </StyledSelect>
+              )}
+
+              {selectedCharacter && (
                 <CharacterInfo>
-                  {selectedCharacter && (
-                    <>
-                      <div className="character-description">
-                        {selectedCharacter.description}
-                      </div>
-                      {characterModel && (
-                        <ModelInfo>
-                          <ModelTag>{characterModel.provider}</ModelTag>
-                          <ModelTag>{characterModel.model}</ModelTag>
-                        </ModelInfo>
-                      )}
-                    </>
+                  <div>{selectedCharacter.description}</div>
+                  {characterModel && (
+                    <ModelInfo>
+                      <ModelTag>{characterModel.provider}</ModelTag>
+                      <ModelTag>{characterModel.model}</ModelTag>
+                    </ModelInfo>
                   )}
                 </CharacterInfo>
-              </CardHeader>
-
-              {player.isAI ? (
-                <CharacterSelect>
-                  <Select
-                    style={{ width: '100%' }}
-                    placeholder="选择AI角色"
-                    value={player.characterId}
-                    onChange={(value) => handleSelectCharacter(player.id, value || '')}
-                    optionLabelProp="label"
-                    allowClear
-                  >
-                    {availableCharacters.map(character => (
-                      <Select.Option 
-                        key={character.id} 
-                        value={character.id}
-                        label={character.name}
-                      >
-                        <CharacterOption>
-                          <CharacterName>{character.name}</CharacterName>
-                          {character.description && (
-                            <CharacterDescription>
-                              {character.description}
-                            </CharacterDescription>
-                          )}
-                        </CharacterOption>
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </CharacterSelect>
-              ) : (
-                <TakeoverMessage>
-                  该角色已被人类接管
-                </TakeoverMessage>
               )}
 
-              {debateFormat === 'structured' && (
-                <RoleSelector>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Space>
-                      <RoleOption 
-                        $active={isAffirmative}
-                        $type="affirmative"
-                        onClick={() => handleRoleChange(player.id, 'affirmative', player.role)}
-                      >
-                        正方
-                        {isAffirmative && (
-                          <DebateOrder>
-                            {player.role.replace('affirmative', '')}号
-                          </DebateOrder>
-                        )}
-                      </RoleOption>
-                      <RoleOption 
-                        $active={isNegative}
-                        $type="negative"
-                        onClick={() => handleRoleChange(player.id, 'negative', player.role)}
-                      >
-                        反方
-                        {isNegative && (
-                          <DebateOrder>
-                            {player.role.replace('negative', '')}号
-                          </DebateOrder>
-                        )}
-                      </RoleOption>
-                    </Space>
-                  </Space>
-                </RoleSelector>
-              )}
-
-              <ActionButtons>
-                {player.isAI ? (
-                  <Tooltip title="接管为人类玩家">
-                    <AntButton 
-                      icon={<SwapOutlined />}
-                      onClick={() => handleTakeoverClick(player.id)}
-                      disabled={hasHumanPlayer && player.isAI}
-                    >
-                      接管
-                    </AntButton>
-                  </Tooltip>
-                ) : (
-                  <Tooltip title="取消接管">
-                    <AntButton 
-                      icon={<SwapOutlined />}
-                      onClick={() => handleCancelTakeover(player.id)}
-                    >
-                      取消接管
-                    </AntButton>
-                  </Tooltip>
-                )}
-                <AntButton 
-                  danger
+              <PlayerActions>
+                <ActionButton
+                  variant="primary"
+                  onClick={() => onTakeoverPlayer(player.id, player.name, !player.isAI)}
+                >
+                  {player.isAI ? '接管' : '移交AI'}
+                </ActionButton>
+                <ActionButton
+                  variant="danger"
                   onClick={() => onRemovePlayer(player.id)}
                 >
                   移除
-                </AntButton>
-              </ActionButtons>
-          </PlayerCard>
+                </ActionButton>
+              </PlayerActions>
+            </PlayerCard>
           );
         })}
-      </PlayerList>
+      </PlayerGrid>
 
       <Modal
         title="接管AI选手"
@@ -573,7 +616,7 @@ export default function RoleAssignmentPanel({
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>请输入您的名字：</div>
-            <Input
+          <Input
             placeholder="请输入玩家名称"
             value={playerName}
             onChange={e => setPlayerName(e.target.value)}
@@ -583,4 +626,4 @@ export default function RoleAssignmentPanel({
       </Modal>
     </Container>
   );
-} 
+}; 

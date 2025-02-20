@@ -1,11 +1,173 @@
 import React from 'react';
 import { Table, Button, Modal, message, Tooltip, Upload } from 'antd';
-import { EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined, UploadOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons';
 import { useCharacter } from '../../context/CharacterContext';
 import { CharacterTemplate, characterTemplateSchema } from '../../types/template';
 import type { UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import './styles.css';
+import type { ColumnsType } from 'antd/es/table';
+import styled from '@emotion/styled';
+
+const TemplateContainer = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(167,187,255,0.2);
+  padding: 2rem;
+  box-shadow: 
+    0 8px 32px 0 rgba(31, 38, 135, 0.37),
+    inset 0 0 30px rgba(167,187,255,0.1);
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+`;
+
+const Title = styled.h2`
+  color: #E8F0FF;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  text-shadow: 
+    0 0 10px rgba(167,187,255,0.5),
+    0 0 20px rgba(167,187,255,0.3);
+`;
+
+const ActionGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`;
+
+const StyledButton = styled(Button)`
+  background: linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9));
+  border: 1px solid rgba(167,187,255,0.3);
+  color: #E8F0FF;
+  height: 40px;
+  padding: 0 1.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(31, 38, 135, 0.3);
+    border-color: rgba(167,187,255,0.4);
+    color: #E8F0FF;
+  }
+
+  &.ant-btn-dangerous {
+    background: linear-gradient(45deg, rgba(255,65,87,0.9), rgba(255,87,65,0.9));
+  }
+`;
+
+const TemplateStats = styled.div`
+  color: rgba(232,240,255,0.7);
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  background: rgba(167,187,255,0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const StyledTable = styled(Table<CharacterTemplate>)`
+  .ant-table {
+    background: transparent;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .ant-table-thead > tr > th {
+    background: rgba(167,187,255,0.1);
+    color: #E8F0FF;
+    border-bottom: 1px solid rgba(167,187,255,0.2);
+    
+    &::before {
+      display: none;
+    }
+  }
+
+  .ant-table-tbody > tr > td {
+    border-bottom: 1px solid rgba(167,187,255,0.1);
+    color: rgba(232,240,255,0.9);
+    transition: all 0.3s ease;
+  }
+
+  .ant-table-tbody > tr:hover > td {
+    background: rgba(167,187,255,0.05) !important;
+  }
+
+  .ant-table-row {
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(31, 38, 135, 0.2);
+    }
+  }
+
+  .ant-pagination {
+    .ant-pagination-item {
+      background: rgba(167,187,255,0.1);
+      border-color: rgba(167,187,255,0.2);
+      
+      a {
+        color: rgba(232,240,255,0.9);
+      }
+
+      &:hover {
+        border-color: rgba(167,187,255,0.4);
+        
+        a {
+          color: #E8F0FF;
+        }
+      }
+
+      &-active {
+        background: linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9));
+        border-color: rgba(167,187,255,0.3);
+        
+        a {
+          color: #E8F0FF;
+        }
+      }
+    }
+
+    .ant-pagination-prev,
+    .ant-pagination-next {
+      button {
+        background: rgba(167,187,255,0.1);
+        border-color: rgba(167,187,255,0.2);
+        color: rgba(232,240,255,0.9);
+
+        &:hover {
+          border-color: rgba(167,187,255,0.4);
+          color: #E8F0FF;
+        }
+      }
+    }
+  }
+`;
+
+const TemplateCell = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const TemplateName = styled.span`
+  font-weight: 500;
+  color: #E8F0FF;
+`;
+
+const TemplateDescription = styled.span`
+  color: rgba(232,240,255,0.7);
+  font-size: 0.9rem;
+`;
 
 export const TemplateManager: React.FC = () => {
   const { state, dispatch } = useCharacter();
@@ -20,6 +182,21 @@ export const TemplateManager: React.FC = () => {
         dispatch({ type: 'DELETE_TEMPLATE', payload: id });
         message.success('模板已删除');
       },
+      wrapClassName: 'custom-modal',
+      centered: true,
+      okButtonProps: { 
+        danger: true,
+        style: {
+          background: 'linear-gradient(45deg, rgba(255,65,87,0.9), rgba(255,87,65,0.9))'
+        }
+      },
+      cancelButtonProps: {
+        style: {
+          background: 'rgba(167,187,255,0.1)',
+          borderColor: 'rgba(167,187,255,0.2)',
+          color: 'rgba(232,240,255,0.9)'
+        }
+      }
     });
   };
 
@@ -43,7 +220,6 @@ export const TemplateManager: React.FC = () => {
         const content = e.target?.result as string;
         const templateData = JSON.parse(content);
         
-        // 使用 Zod 验证导入的数据
         const validationResult = characterTemplateSchema.safeParse(templateData);
         
         if (!validationResult.success) {
@@ -51,7 +227,6 @@ export const TemplateManager: React.FC = () => {
           return false;
         }
 
-        // 生成新的ID和时间戳
         const template: CharacterTemplate = {
           ...validationResult.data,
           id: `template_${Date.now()}`,
@@ -67,14 +242,19 @@ export const TemplateManager: React.FC = () => {
     };
 
     reader.readAsText(file);
-    return false; // 阻止自动上传
+    return false;
   };
 
-  const columns = [
+  const columns: ColumnsType<CharacterTemplate> = [
     {
       title: '模板名称',
       dataIndex: 'name',
       key: 'name',
+      render: (name: string) => (
+        <TemplateCell>
+          <TemplateName>{name}</TemplateName>
+        </TemplateCell>
+      ),
     },
     {
       title: '描述',
@@ -85,7 +265,7 @@ export const TemplateManager: React.FC = () => {
       },
       render: (description: string) => (
         <Tooltip placement="topLeft" title={description}>
-          {description}
+          <TemplateDescription>{description}</TemplateDescription>
         </Tooltip>
       ),
     },
@@ -93,58 +273,74 @@ export const TemplateManager: React.FC = () => {
       title: '专业背景',
       dataIndex: ['persona', 'background'],
       key: 'background',
+      render: (background: string) => (
+        <TemplateDescription>{background}</TemplateDescription>
+      ),
     },
     {
       title: '说话风格',
       dataIndex: ['persona', 'speakingStyle'],
       key: 'speakingStyle',
+      render: (style: string) => (
+        <TemplateDescription>{style}</TemplateDescription>
+      ),
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (timestamp: number) => new Date(timestamp).toLocaleString(),
+      render: (timestamp: number) => (
+        <TemplateDescription>
+          {new Date(timestamp).toLocaleString()}
+        </TemplateDescription>
+      ),
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: CharacterTemplate) => (
-        <div className="template-actions">
-          <Button
+      render: (_: unknown, record: CharacterTemplate) => (
+        <ActionGroup>
+          <StyledButton
             icon={<ExportOutlined />}
             onClick={() => handleExportTemplate(record)}
             title="导出模板"
-          />
-          <Button
+          >
+            导出
+          </StyledButton>
+          <StyledButton
             danger
             icon={<DeleteOutlined />}
             onClick={() => handleDeleteTemplate(record.id)}
             title="删除模板"
-          />
-        </div>
+          >
+            删除
+          </StyledButton>
+        </ActionGroup>
       ),
     },
   ];
 
   return (
-    <div className="template-manager">
-      <div className="template-manager-header">
-        <h2>模板管理</h2>
-        <div className="template-actions-group">
+    <TemplateContainer>
+      <Header>
+        <Title>模板管理</Title>
+        <ActionGroup>
           <Upload
             accept=".json"
             showUploadList={false}
             beforeUpload={handleImportTemplate}
           >
-            <Button icon={<ImportOutlined />}>导入模板</Button>
+            <StyledButton icon={<ImportOutlined />}>
+              导入模板
+            </StyledButton>
           </Upload>
-          <div className="template-stats">
+          <TemplateStats>
             共 {state.templates.length} 个模板
-          </div>
-        </div>
-      </div>
+          </TemplateStats>
+        </ActionGroup>
+      </Header>
       
-      <Table
+      <StyledTable
         dataSource={state.templates}
         columns={columns}
         rowKey="id"
@@ -154,6 +350,6 @@ export const TemplateManager: React.FC = () => {
           showTotal: (total) => `共 ${total} 条`,
         }}
       />
-    </div>
+    </TemplateContainer>
   );
 }; 

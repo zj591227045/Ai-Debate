@@ -50,18 +50,27 @@ export interface ScoringRules {
  * 规则配置
  */
 export interface RuleConfig {
-  format: 'structured' | 'free';
+  debateFormat: 'structured' | 'free' | 'tournament';
   description: string;
-  advancedRules: AdvancedRules;
-  roundRules: RoundRules[];
-  scoringRules: ScoringRules[];
+  advancedRules: {
+    speechLengthLimit: {
+      min: number;
+      max: number;
+    };
+    allowQuoting: boolean;
+    requireResponse: boolean;
+    allowStanceChange: boolean;
+    requireEvidence: boolean;
+  };
+  roundRules: any[];
+  scoringRules: any[];
 }
 
 /**
  * 默认规则配置
  */
 export const DEFAULT_RULE_CONFIG: RuleConfig = {
-  format: 'free',
+  debateFormat: 'free',
   description: '',
   advancedRules: {
     allowQuoting: true,

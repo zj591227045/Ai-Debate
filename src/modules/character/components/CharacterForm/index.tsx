@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tabs, Steps, message } from 'antd';
+import { Steps, message, Modal } from 'antd';
 import { UserOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons';
 import type { CharacterConfig } from '../../types/character';
 import BasicInfo from './BasicInfo';
@@ -8,10 +8,8 @@ import CallModeConfig from './CallModeConfig';
 import { useCharacter } from '../../context/CharacterContext';
 import { ModelProvider } from '../../../model/context/ModelContext';
 import { v4 as uuidv4 } from 'uuid';
-import './styles.css';
 import { PROVIDERS } from '../../../llm/types/providers';
-
-const { TabPane } = Tabs;
+import styled from '@emotion/styled';
 
 interface CharacterFormProps {
   character?: CharacterConfig;
@@ -74,6 +72,207 @@ const createDefaultCharacter = (now: number): CharacterConfig => ({
   createdAt: now,
   updatedAt: now
 });
+
+// 基础容器样式
+const FormContainer = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  border: 1px solid rgba(167,187,255,0.2);
+  padding: 2rem;
+  box-shadow: 
+    0 8px 32px 0 rgba(31, 38, 135, 0.37),
+    inset 0 0 30px rgba(167,187,255,0.1);
+  width: 100%;
+  min-height: calc(100vh - 4rem);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+`;
+
+const FormHeader = styled.div`
+  text-align: center;
+  margin-bottom: 1rem;
+`;
+
+const FormTitle = styled.h2`
+  color: #E8F0FF;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  text-shadow: 
+    0 0 10px rgba(167,187,255,0.5),
+    0 0 20px rgba(167,187,255,0.3);
+`;
+
+const FormSubtitle = styled.p`
+  color: rgba(232,240,255,0.7);
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+  text-shadow: 0 0 10px rgba(167,187,255,0.3);
+`;
+
+const StyledSteps = styled(Steps)`
+  .ant-steps-item-icon {
+    background: rgba(167,187,255,0.1);
+    border-color: rgba(167,187,255,0.3);
+    
+    .ant-steps-icon {
+      color: rgba(232,240,255,0.9);
+    }
+  }
+
+  .ant-steps-item-title {
+    color: rgba(232,240,255,0.7) !important;
+  }
+
+  .ant-steps-item-description {
+    color: rgba(232,240,255,0.5) !important;
+  }
+
+  .ant-steps-item-finish {
+    .ant-steps-item-icon {
+      background: linear-gradient(45deg, #4157ff, #0057ff);
+      border-color: rgba(167,187,255,0.4);
+    }
+
+    .ant-steps-item-title {
+      color: #E8F0FF !important;
+    }
+
+    .ant-steps-finish-icon {
+      color: #E8F0FF;
+    }
+  }
+
+  .ant-steps-item-process {
+    .ant-steps-item-icon {
+      background: linear-gradient(45deg, #4157ff, #0057ff);
+      border-color: rgba(167,187,255,0.4);
+    }
+
+    .ant-steps-item-title {
+      color: #E8F0FF !important;
+      text-shadow: 0 0 10px rgba(167,187,255,0.5);
+    }
+  }
+
+  .ant-steps-item-wait {
+    .ant-steps-item-icon {
+      background: rgba(167,187,255,0.05);
+      border-color: rgba(167,187,255,0.2);
+    }
+  }
+`;
+
+const FormContent = styled.div`
+  flex: 1;
+  background: rgba(167,187,255,0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(167,187,255,0.1);
+  padding: 2rem;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(167,187,255,0.05);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(167,187,255,0.2);
+    border-radius: 4px;
+    
+    &:hover {
+      background: rgba(167,187,255,0.3);
+    }
+  }
+`;
+
+const FormActions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+`;
+
+const ActionButton = styled.button<{ $primary?: boolean }>`
+  flex: 1;
+  height: 40px;
+  border: 1px solid rgba(167,187,255,0.3);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  
+  ${props => props.$primary ? `
+    background: linear-gradient(45deg, #4157ff, #0057ff);
+    color: #E8F0FF;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(31, 38, 135, 0.3);
+      border-color: rgba(167,187,255,0.4);
+    }
+  ` : `
+    background: rgba(167,187,255,0.1);
+    color: rgba(232,240,255,0.9);
+    
+    &:hover {
+      background: rgba(167,187,255,0.2);
+      border-color: rgba(167,187,255,0.3);
+      color: #E8F0FF;
+    }
+  `}
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+// 添加Modal样式
+const StyledModal = styled(Modal)`
+  .ant-modal-content {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(167,187,255,0.2);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+
+  .ant-modal-header {
+    background: transparent;
+    border-bottom: 1px solid rgba(167,187,255,0.1);
+  }
+
+  .ant-modal-title {
+    color: #E8F0FF;
+  }
+
+  .ant-modal-close {
+    color: rgba(232,240,255,0.7);
+    
+    &:hover {
+      color: #E8F0FF;
+    }
+  }
+
+  .ant-modal-body {
+    padding: 0;
+  }
+`;
 
 export default function CharacterForm({ 
   character, 
@@ -218,17 +417,17 @@ export default function CharacterForm({
 
   return (
     <ModelProvider>
-      <div className="character-form">
-        <div className="character-form-header">
-          <h2 className="character-form-title">
+      <FormContainer>
+        <FormHeader>
+          <FormTitle>
             {character ? '编辑角色' : '创建新角色'}
-          </h2>
-          <p className="character-form-subtitle">
+          </FormTitle>
+          <FormSubtitle>
             配置AI角色的基本信息、人设和调用方式
-          </p>
-        </div>
+          </FormSubtitle>
+        </FormHeader>
 
-        <Steps 
+        <StyledSteps 
           current={currentStep}
           onChange={handleStepChange}
           items={steps.map((step, index) => ({
@@ -238,43 +437,43 @@ export default function CharacterForm({
           }))}
         />
 
-        <div className="character-form-content">
+        <FormContent>
           <CurrentStepComponent
             data={formData}
             onChange={handleFormDataChange}
           />
-        </div>
+        </FormContent>
 
-        <div className="character-form-actions">
+        <FormActions>
           {currentStep > 0 && (
-            <button
+            <ActionButton
               onClick={() => handleStepChange(currentStep - 1)}
-              className="ant-btn ant-btn-default"
             >
               上一步
-            </button>
+            </ActionButton>
           )}
-
           {currentStep < steps.length - 1 ? (
-            <button
+            <ActionButton
+              $primary
               onClick={() => handleStepChange(currentStep + 1)}
-              className="ant-btn ant-btn-primary"
             >
               下一步
-            </button>
+            </ActionButton>
           ) : (
-            <button onClick={handleSubmit} className="ant-btn ant-btn-primary">
-              保存
-            </button>
+            <ActionButton
+              $primary
+              onClick={handleSubmit}
+            >
+              完成
+            </ActionButton>
           )}
-
-          {onCancel && (
-            <button onClick={onCancel} className="ant-btn ant-btn-default">
-              取消
-            </button>
-          )}
-        </div>
-      </div>
+          <ActionButton
+            onClick={onCancel}
+          >
+            取消
+          </ActionButton>
+        </FormActions>
+      </FormContainer>
     </ModelProvider>
   );
 }

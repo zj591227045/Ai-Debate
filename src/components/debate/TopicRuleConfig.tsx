@@ -351,8 +351,8 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
           <FormItem>
             <div className="label">游戏模式</div>
             <Radio.Group
-              value={ruleConfig.format}
-              onChange={e => handleRuleChange({ format: e.target.value as 'free' | 'structured' })}
+              value={ruleConfig.debateFormat}
+              onChange={e => handleRuleChange({ debateFormat: e.target.value as 'free' | 'structured' })}
             >
               <Radio.Button value="free">自由模式</Radio.Button>
               <Radio.Button value="structured">阵营模式</Radio.Button>

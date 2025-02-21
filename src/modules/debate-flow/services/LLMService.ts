@@ -9,12 +9,12 @@ import {
   DebateContext,
   DebateSceneType 
 } from '../types/interfaces';
-import type { ModelConfig } from '../../model/types/config';
+
 import { StoreManager } from '../../state/core/StoreManager';
 import { LLMError, LLMErrorCode } from '../../llm/types/error';
-import type { CharacterConfig } from '../../character/types/character';
+
 import { CharacterConfigService } from '../../storage/services/CharacterConfigService';
-import type { ChatRequest, ChatResponse } from '../../llm/api/types';
+
 
 interface ExtendedGenerateStreamOptions {
   characterId: string;
@@ -88,33 +88,54 @@ export class LLMService implements ILLMService {
     return foundPlayer.characterId;
   }
 
-  private async initialize(characterId?: string): Promise<void> {
+  // 公共初始化方法
+  async initialize(characterId?: string): Promise<void> {
     const currentTime = Date.now();
-    // 如果没有指定角色ID，且距离上次更新时间不足 MODEL_UPDATE_INTERVAL，且已经初始化过，则跳过
-    if (!characterId && this.initialized && currentTime - this.lastModelUpdateTime < this.MODEL_UPDATE_INTERVAL) {
-      return;
-    }
-
+    
     try {
+      console.log('开始初始化LLM服务:', { characterId, currentTime, lastUpdateTime: this.lastModelUpdateTime });
+      
+      // 如果没有指定角色ID，且距离上次更新时间不足 MODEL_UPDATE_INTERVAL，且已经初始化过，则跳过
+      if (!characterId && this.initialized && currentTime - this.lastModelUpdateTime < this.MODEL_UPDATE_INTERVAL) {
+        console.log('跳过初始化：已初始化且在更新间隔内');
+        return;
+      }
+
       // 获取角色配置
       const characters = await this.characterService.getActiveCharacters();
+      console.log('获取到活跃角色列表:', characters.map(c => ({ id: c.id, name: c.name })));
       
       // 根据角色ID获取对应的角色配置
-      const currentCharacter = characterId 
-        ? characters.find((c: CharacterConfig) => c.id === characterId)
-        : null;
+      let currentCharacter = null;
+      if (characterId) {
+        currentCharacter = characters.find((c) => c.id === characterId);
+        console.log('查找指定角色:', { characterId, found: !!currentCharacter });
+      } else {
+        // 如果没有指定角色ID，尝试使用第一个可用的角色
+        currentCharacter = characters[0];
+        console.log('使用默认角色:', { found: !!currentCharacter });
+      }
 
-      if (!currentCharacter || !currentCharacter.callConfig?.direct?.modelId) {
+      if (!currentCharacter) {
         throw new LLMError(
           LLMErrorCode.MODEL_NOT_FOUND,
-          'No model selected',
-          new Error(`未找到角色 ${characterId || '默认'} 的模型配置`)
+          'Character not found',
+          new Error(`未找到${characterId ? `指定角色 ${characterId}` : '任何可用角色'}`)
+        );
+      }
+
+      if (!currentCharacter.callConfig?.direct?.modelId) {
+        throw new LLMError(
+          LLMErrorCode.MODEL_NOT_FOUND,
+          'No model configured',
+          new Error(`角色 ${currentCharacter.name} (${currentCharacter.id}) 未配置模型`)
         );
       }
 
       const modelId = currentCharacter.callConfig.direct.modelId;
       const modelStore = this.storeManager.getModelStore();
       const modelConfig = await modelStore.getConfigById(modelId);
+      console.log('获取模型配置:', { modelId, found: !!modelConfig });
 
       if (!modelConfig || !modelConfig.model) {
         throw new LLMError(
@@ -125,7 +146,7 @@ export class LLMService implements ILLMService {
       }
 
       // 设置当前模型配置
-      const config: ModelConfig = {
+      const config = {
         ...modelConfig,
         parameters: {
           temperature: modelConfig.parameters?.temperature ?? 0.7,
@@ -143,10 +164,40 @@ export class LLMService implements ILLMService {
       this.initialized = true;
       this.lastModelUpdateTime = currentTime;
       
-      console.log('LLM服务初始化/更新完成，当前模型:', config.name, '模型ID:', config.id, '来自角色:', currentCharacter.name);
+      console.log('LLM服务初始化/更新完成:', {
+        characterName: currentCharacter.name,
+        characterId: currentCharacter.id,
+        modelName: config.name,
+        modelId: config.id
+      });
     } catch (error) {
       console.error('LLM服务初始化/更新失败:', error);
+      this.initialized = false;
       throw error;
+    }
+  }
+
+  // 私有初始化检查方法
+  private async ensureInitialized(): Promise<void> {
+    try {
+      if (!this.initialized) {
+        console.log('LLM服务未初始化，开始初始化...');
+        await this.initialize();
+      } else {
+        console.log('LLM服务已初始化');
+      }
+    } catch (error) {
+      console.error('LLM服务初始化检查失败:', error);
+      this.initialized = false;
+      throw error;
+    }
+  }
+
+  // 私有更新模型方法
+  private async updateModelIfNeeded(characterId: string): Promise<void> {
+    const currentTime = Date.now();
+    if (currentTime - this.lastModelUpdateTime >= this.MODEL_UPDATE_INTERVAL) {
+      await this.initialize(characterId);
     }
   }
 
@@ -154,7 +205,7 @@ export class LLMService implements ILLMService {
     options: ExtendedGenerateStreamOptions
   ): AsyncGenerator<string> {
     // 确保服务已初始化
-    await this.initialize();
+    await this.ensureInitialized();
     
     const retryCount = options.retryCount || 0;
     
@@ -263,102 +314,55 @@ export class LLMService implements ILLMService {
     options?: Partial<GenerateStreamOptions>
   ): AsyncGenerator<string> {
     console.log('生成内心独白的玩家信息:', {
-      playerId: player.id,
-      characterId: player.characterId,
-      name: player.name
-    });
-    
-    // 从玩家对象或玩家列表中获取角色ID
-    const characterId = this.getCharacterIdByPlayerId(player.id, player);
-    
-    // 确保使用当前角色的模型配置
-    await this.initialize(characterId);
-    
-    console.group('=== 生成内心OS ===');
-    console.log('玩家信息:', {
-      id: player.id,
-      name: player.name,
-      team: player.team,
-      characterId,
-      personality: player.personality,
-      speakingStyle: player.speakingStyle,
-      background: player.background,
-      values: player.values,
-      argumentationStyle: player.argumentationStyle
-    });
-    console.log('辩论上下文:', {
-      topic: context.topic,
-      currentRound: context.currentRound,
-      totalRounds: context.totalRounds,
-      sceneType: context.sceneType,
-      stance: context.stance,
-      previousSpeechesCount: context.previousSpeeches.length
+      player,
+      context,
+      options
     });
 
-    if (!context.sceneType) {
-      context.sceneType = this.getSceneType(context);
-      console.log('设置场景类型:', context.sceneType);
-    }
-    if (!context.stance) {
-      context.stance = this.getStance(player);
-      console.log('设置立场:', context.stance);
-    }
+    await this.ensureInitialized();
+    const characterId = player.characterId || '';
+    await this.updateModelIfNeeded(characterId);
 
-    const systemPrompt = `你是一位专业的辩论选手，现在需要你以思考者的身份，分析当前辩论局势并思考策略。
-
-你的角色信息：
-- 姓名：${player.name}
-- 性格：${player.personality || '理性客观'}
-- 说话风格：${player.speakingStyle || '严谨专业'}
-- 专业背景：${player.background || '专业辩手'}
-- 价值观：${player.values || '逻辑、真理'}
-- 论证风格：${player.argumentationStyle || '循证论证'}
-- 立场：${context.stance === 'positive' ? '正方' : '反方'}`;
-
-    const humanPrompt = `当前辩论信息：
-- 主题：${context.topic.title}
-${context.topic.background ? `- 背景：${context.topic.background}` : ''}
-- 当前轮次：${context.currentRound}/${context.totalRounds}
-${context.previousSpeeches.length > 0 ? `\n已有发言：\n${context.previousSpeeches.map(speech => 
-  `[${speech.playerId}]: ${speech.content}`
-).join('\n')}` : ''}
-
-请以内心独白的方式，分析当前局势并思考下一步策略。注意：
-1. 保持你的性格特征和价值观
-2. 分析其他选手的论点优劣
-3. 思考可能的反驳方向
-4. 规划下一步的论证策略`;
+    const systemPrompt = this.promptService.generateInnerThoughtsSystemPrompt(player);
+    const humanPrompt = this.promptService.generateInnerThoughtsHumanPrompt(context);
 
     console.log('生成的提示词:', {
       systemPrompt,
       humanPrompt
     });
 
-    const fallbackPrompts = {
-      systemPrompt: `你是一位辩论选手，需要思考当前的辩论形势。
-角色信息：${player.name}
-性格：${player.personality || '理性客观'}
-说话风格：${player.speakingStyle || '严谨专业'}
-立场：${context.stance === 'positive' ? '正方' : '反方'}`,
-      humanPrompt: `请以第一人称的方式，简要分析当前局势，并思考下一步策略。
-辩题：${context.topic.title}
-${context.topic.background ? `背景：${context.topic.background}` : ''}`
-    };
-
     try {
-      yield* this.retryableStreamGeneration({
+      yield* this.generateStream({
         characterId,
         type: 'innerThoughts',
         systemPrompt,
         humanPrompt,
-        ...options,
-        fallbackPrompts
+        signal: options?.signal
       });
     } catch (error) {
-      console.error('生成内心OS失败:', error);
-      yield '让我仔细思考一下当前的局势...';
-    } finally {
-      console.groupEnd();
+      console.error('生成内心独白失败:', error);
+      // 使用备用提示词重试
+      const fallbackSystemPrompt = `你是一位辩论选手，需要思考当前的辩论形势。
+角色信息：${player.name}
+性格：${player.personality || '理性客观'}
+说话风格：${player.speakingStyle || '严谨专业'}
+立场：${context.stance === 'positive' ? '正方' : '反方'}`;
+      const fallbackHumanPrompt = `请以第一人称的方式，简要分析当前局势，并思考下一步策略。
+辩题：${context.topic.title}
+${context.topic.background ? `背景：${context.topic.background}` : ''}`;
+
+      try {
+        yield* this.generateStream({
+          characterId,
+          type: 'innerThoughts',
+          systemPrompt: fallbackSystemPrompt,
+          humanPrompt: fallbackHumanPrompt,
+          signal: options?.signal
+        });
+      } catch (retryError) {
+        console.error('使用备用提示词生成内心独白也失败:', retryError);
+        throw retryError;
+      }
     }
   }
 
@@ -369,141 +373,58 @@ ${context.topic.background ? `背景：${context.topic.background}` : ''}`
     options?: Partial<GenerateStreamOptions>
   ): AsyncGenerator<string> {
     console.log('生成正式发言的玩家信息:', {
-      playerId: player.id,
-      characterId: player.characterId,
-      name: player.name
+      player,
+      context,
+      innerThoughts,
+      options
     });
-    
-    // 从玩家对象或玩家列表中获取角色ID
-    const characterId = this.getCharacterIdByPlayerId(player.id, player);
-    
-    // 确保使用当前角色的模型配置
-    await this.initialize(characterId);
-    
-    console.group('=== 生成正式发言 ===');
-    console.log('玩家信息:', {
-      id: player.id,
-      name: player.name,
-      team: player.team,
-      characterId,
-      personality: player.personality,
-      speakingStyle: player.speakingStyle,
-      background: player.background,
-      values: player.values,
-      argumentationStyle: player.argumentationStyle
-    });
-    console.log('辩论上下文:', {
-      topic: context.topic,
-      currentRound: context.currentRound,
-      totalRounds: context.totalRounds,
-      sceneType: context.sceneType,
-      stance: context.stance,
-      previousSpeechesCount: context.previousSpeeches.length
-    });
-    console.log('内心OS:', innerThoughts);
 
-    if (!context.sceneType) {
-      context.sceneType = this.getSceneType(context);
-      console.log('设置场景类型:', context.sceneType);
-    }
-    if (!context.stance) {
-      context.stance = this.getStance(player);
-      console.log('设置立场:', context.stance);
-    }
+    await this.ensureInitialized();
+    const characterId = player.characterId || '';
+    await this.updateModelIfNeeded(characterId);
 
-    const systemPrompt = `你是一位专业的辩论选手，现在需要你基于之前的思考，生成正式的辩论发言。
-
-你的角色信息：
-- 姓名：${player.name}
-- 性格：${player.personality || '理性客观'}
-- 说话风格：${player.speakingStyle || '严谨专业'}
-- 专业背景：${player.background || '专业辩手'}
-- 价值观：${player.values || '逻辑、真理'}
-- 论证风格：${player.argumentationStyle || '循证论证'}
-- 立场：${context.stance === 'positive' ? '正方' : '反方'}`;
-
-    const humanPrompt = `当前辩论信息：
-- 主题：${context.topic.title}
-${context.topic.background ? `- 背景：${context.topic.background}` : ''}
-- 当前轮次：${context.currentRound}/${context.totalRounds}
-${context.previousSpeeches.length > 0 ? `\n已有发言：\n${context.previousSpeeches.map(speech => 
-  `[${speech.playerId}]: ${speech.content}`
-).join('\n')}` : ''}
-
-你的内心思考：
-${innerThoughts}
-
-请基于以上信息，生成正式的辩论发言。要求：
-1. 保持你的性格特征和价值观
-2. 使用你的说话风格和论证风格
-3. 适当回应其他选手的观点
-4. 展现你的专业背景和知识`;
+    const systemPrompt = this.promptService.generateSpeechSystemPrompt(player);
+    const humanPrompt = this.promptService.generateSpeechHumanPrompt(context, innerThoughts);
 
     console.log('生成的提示词:', {
       systemPrompt,
       humanPrompt
     });
 
-    const fallbackPrompts = {
-      systemPrompt: `你是一位辩论选手，需要进行正式发言。
-角色信息：${player.name}
-性格：${player.personality || '理性客观'}
-说话风格：${player.speakingStyle || '严谨专业'}
-立场：${context.stance === 'positive' ? '正方' : '反方'}`,
-      humanPrompt: `请基于以下信息进行简短有力的论述：
-辩题：${context.topic.title}
-${context.topic.background ? `背景：${context.topic.background}` : ''}
-我的思考：${innerThoughts}`
-    };
-
     try {
-      yield* this.retryableStreamGeneration({
+      yield* this.generateStream({
         characterId,
         type: 'speech',
         systemPrompt,
         humanPrompt,
-        ...options,
-        fallbackPrompts
+        signal: options?.signal
       });
     } catch (error) {
-      console.error('生成发言失败:', error);
-      yield '基于当前的讨论，我认为...';
-    } finally {
-      console.groupEnd();
+      console.error('生成正式发言失败:', error);
+      // 使用备用提示词重试
+      const fallbackSystemPrompt = `你是一位辩论选手，需要进行正式发言。
+角色信息：${player.name}
+性格：${player.personality || '理性客观'}
+说话风格：${player.speakingStyle || '严谨专业'}
+立场：${context.stance === 'positive' ? '正方' : '反方'}`;
+      const fallbackHumanPrompt = `请基于以下信息进行简短有力的论述：
+辩题：${context.topic.title}
+${context.topic.background ? `背景：${context.topic.background}` : ''}
+我的思考：${innerThoughts}`;
+
+      try {
+        yield* this.generateStream({
+          characterId,
+          type: 'speech',
+          systemPrompt: fallbackSystemPrompt,
+          humanPrompt: fallbackHumanPrompt,
+          signal: options?.signal
+        });
+      } catch (retryError) {
+        console.error('使用备用提示词生成正式发言也失败:', retryError);
+        throw retryError;
+      }
     }
-  }
-
-  private getDefaultSystemPrompt(): string {
-    return `你是一位专业的辩论评委。请根据以下标准对辩手的发言进行评分：
-1. 逻辑性（30分）：论证的完整性、连贯性和说服力
-2. 论据支持（30分）：论据的相关性、可靠性和充分性
-3. 表达能力（20分）：语言的清晰度、流畅度和感染力
-4. 反驳能力（20分）：对对方论点的理解和有效反驳
-
-请以JSON格式输出评分结果，包含以下字段：
-{
-  "dimensions": {
-    "logic": number, // 0-100分
-    "evidence": number,
-    "delivery": number,
-    "rebuttal": number
-  },
-  "feedback": {
-    "strengths": string[],
-    "weaknesses": string[],
-    "suggestions": string[]
-  },
-  "comment": string
-}`;
-  }
-
-  private getDefaultHumanPrompt(speech: ProcessedSpeech): string {
-    return `请评分以下辩论发言：
-
-发言内容：
-${speech.content}
-
-请根据评分标准进行评分，并提供详细的评语和建议。`;
   }
 
   async *generateScore(speech: ProcessedSpeech, context: ScoringContext): AsyncGenerator<string> {

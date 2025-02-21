@@ -182,4 +182,18 @@ export class ScoringSystem {
 
     return mockScore;
   }
+
+  calculateTotalScore(scores: { [key: string]: number }, weights: { [key: string]: number }): number {
+    let totalScore = 0;
+    let totalWeight = 0;
+
+    for (const dimension in weights) {
+      if (scores[dimension] !== undefined) {
+        totalScore += scores[dimension] * weights[dimension];
+        totalWeight += weights[dimension];
+      }
+    }
+
+    return totalWeight > 0 ? totalScore / totalWeight : 0;
+  }
 } 

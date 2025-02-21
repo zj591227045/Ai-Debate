@@ -7,9 +7,10 @@ interface PlayerListProps {
   players: Player[];
   currentSpeaker?: string;
   onPlayerClick?: (playerId: string) => void;
+  isDarkMode?: boolean;
 }
 
-const Container = styled.div`
+const Container = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: ${props => props.theme.spacing.md};
@@ -17,14 +18,28 @@ const Container = styled.div`
   height: 100%;
   padding: ${props => props.theme.spacing.md};
   overflow-y: auto;
-  background-color: ${props => props.theme.colors.background.default};
+  background-color: ${props => props.isDarkMode ? '#2d2d2d' : '#f5f5f5'};
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: ${props => props.isDarkMode ? '#4d4d4d' : '#e8e8e8'};
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 `;
 
-const PlayerCard = styled.div<{ isActive: boolean; role: Player['role'] }>`
-  background-color: ${props => props.theme.colors.white};
+const PlayerCard = styled.div<{ isActive: boolean; role: Player['role']; isDarkMode?: boolean }>`
+  background-color: ${props => props.isDarkMode ? '#1f1f1f' : '#ffffff'};
   border-radius: ${props => props.theme.radius.lg};
   padding: ${props => props.theme.spacing.md};
-  border: 2px solid ${props => props.isActive ? props.theme.colors.primary : props.theme.colors.border};
+  border: 2px solid ${props => props.isActive ? props.theme.colors.primary : (props.isDarkMode ? '#3d3d3d' : '#e8e8e8')};
   box-shadow: ${props => props.isActive ? props.theme.shadows.md : props.theme.shadows.sm};
   cursor: pointer;
   transition: all ${props => props.theme.transitions.fast};
@@ -34,11 +49,13 @@ const PlayerCard = styled.div<{ isActive: boolean; role: Player['role'] }>`
   min-height: 180px;
   display: flex;
   flex-direction: column;
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
 
   &:hover {
     border-color: ${props => props.theme.colors.primary};
     box-shadow: ${props => props.theme.shadows.md};
     transform: translateY(-2px);
+    background-color: ${props => props.isDarkMode ? '#2d2d2d' : '#fafafa'};
   }
 
   &::before {
@@ -50,21 +67,22 @@ const PlayerCard = styled.div<{ isActive: boolean; role: Player['role'] }>`
     height: 100%;
     background-color: ${props => {
       const roleColors = {
-        for: props.theme.colors.success,
-        against: props.theme.colors.error,
-        neutral: props.theme.colors.secondary
+        for: props.isDarkMode ? '#52c41a' : '#389e0d',
+        against: props.isDarkMode ? '#ff4d4f' : '#cf1322',
+        neutral: props.isDarkMode ? '#1890ff' : '#096dd9'
       };
       return roleColors[props.role];
     }};
   }
 `;
 
-const PlayerInfo = styled.div`
+const PlayerInfo = styled.div<{ isDarkMode?: boolean }>`
   display: grid;
   grid-template-columns: 80px 1fr;
   gap: ${props => props.theme.spacing.md};
   width: 100%;
   height: 100%;
+  background-color: transparent;
 `;
 
 const AvatarContainer = styled.div`
@@ -88,14 +106,14 @@ const Avatar = styled.img`
   }
 `;
 
-const PlayerDetails = styled.div`
+const PlayerDetails = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: ${props => props.theme.spacing.sm};
   flex: 1;
 `;
 
-const PlayerHeader = styled.div`
+const PlayerHeader = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,40 +121,50 @@ const PlayerHeader = styled.div`
   margin-bottom: ${props => props.theme.spacing.sm};
 `;
 
-const PlayerNameRole = styled.div`
+const PlayerNameRole = styled.div<{ isDarkMode?: boolean }>`
   flex: 1;
   text-align: left;
 `;
 
-const PlayerName = styled.div`
+const PlayerName = styled.div<{ isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.xl};
   font-weight: ${props => props.theme.typography.fontWeight.bold};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
   margin-bottom: ${props => props.theme.spacing.xs};
 `;
 
-const PlayerRole = styled.div<{ role: Player['role'] }>`
+const PlayerRole = styled.div<{ role: Player['role']; isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.md};
   color: ${props => {
     const roleColors = {
-      for: props.theme.colors.success,
-      against: props.theme.colors.error,
-      neutral: props.theme.colors.secondary
+      for: props.isDarkMode ? '#52c41a' : '#389e0d',
+      against: props.isDarkMode ? '#ff4d4f' : '#cf1322',
+      neutral: props.isDarkMode ? '#1890ff' : '#096dd9'
     };
     return roleColors[props.role];
   }};
   font-weight: ${props => props.theme.typography.fontWeight.medium};
 `;
 
-const PlayerStatus = styled.div<{ isActive: boolean }>`
+const PlayerStatus = styled.div<{ isActive: boolean; isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: ${props => props.theme.spacing.xs};
   padding: ${props => `${props.theme.spacing.xs} ${props.theme.spacing.sm}`};
-  background-color: ${props => props.isActive ? props.theme.colors.success + '20' : props.theme.colors.background.secondary};
+  background-color: ${props => {
+    if (props.isDarkMode) {
+      return props.isActive ? 'rgba(82, 196, 26, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+    }
+    return props.isActive ? 'rgba(82, 196, 26, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+  }};
   border-radius: ${props => props.theme.radius.sm};
   font-size: ${props => props.theme.typography.fontSize.sm};
-  color: ${props => props.isActive ? props.theme.colors.success : props.theme.colors.text.secondary};
+  color: ${props => {
+    if (props.isDarkMode) {
+      return props.isActive ? '#52c41a' : '#a6a6a6';
+    }
+    return props.isActive ? '#389e0d' : '#666666';
+  }};
 
   &::before {
     content: '${props => props.isActive ? '🟢' : '⚪'}';
@@ -144,53 +172,53 @@ const PlayerStatus = styled.div<{ isActive: boolean }>`
   }
 `;
 
-const ScoreSection = styled.div`
+const ScoreSection = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: ${props => props.theme.colors.background.secondary};
+  background-color: ${props => props.isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)'};
   padding: ${props => `${props.theme.spacing.sm} ${props.theme.spacing.md}`};
   border-radius: ${props => props.theme.radius.md};
   gap: ${props => props.theme.spacing.sm};
   margin-bottom: ${props => props.theme.spacing.sm};
 `;
 
-const ScoreLabel = styled.span`
+const ScoreLabel = styled.span<{ isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.md};
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666666'};
 `;
 
-const Score = styled.span`
+const Score = styled.span<{ isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.xl};
   font-weight: ${props => props.theme.typography.fontWeight.bold};
-  color: ${props => props.theme.colors.primary};
+  color: ${props => props.isDarkMode ? '#1890ff' : '#1890ff'};
 `;
 
-const PlayerStats = styled.div`
+const PlayerStats = styled.div<{ isDarkMode?: boolean }>`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: ${props => props.theme.spacing.sm};
 `;
 
-const StatItem = styled.div`
+const StatItem = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: ${props => props.theme.spacing.sm};
-  background-color: ${props => props.theme.colors.background.secondary};
+  background-color: ${props => props.isDarkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)'};
   border-radius: ${props => props.theme.radius.sm};
 `;
 
-const StatLabel = styled.span`
+const StatLabel = styled.span<{ isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.sm};
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666666'};
   margin-bottom: ${props => props.theme.spacing.xs};
 `;
 
-const StatValue = styled.span`
+const StatValue = styled.span<{ isDarkMode?: boolean }>`
   font-size: ${props => props.theme.typography.fontSize.md};
   font-weight: ${props => props.theme.typography.fontWeight.bold};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
 `;
 
 const getRoleText = (role: Player['role']): string => {
@@ -209,10 +237,11 @@ const getRoleText = (role: Player['role']): string => {
 export const PlayerList: React.FC<PlayerListProps> = ({ 
   players,
   currentSpeaker,
-  onPlayerClick
+  onPlayerClick,
+  isDarkMode = false
 }) => {
   return (
-    <Container>
+    <Container isDarkMode={isDarkMode}>
       {players.map(player => {
         const isActive = player.id === currentSpeaker;
         return (
@@ -220,36 +249,37 @@ export const PlayerList: React.FC<PlayerListProps> = ({
             key={player.id} 
             isActive={isActive} 
             role={player.role}
+            isDarkMode={isDarkMode}
             onClick={() => onPlayerClick?.(player.id)}
           >
-            <PlayerInfo>
+            <PlayerInfo isDarkMode={isDarkMode}>
               <AvatarContainer>
                 <Avatar src={player.avatar} alt={player.name} />
               </AvatarContainer>
-              <PlayerDetails>
-                <PlayerHeader>
-                  <PlayerNameRole>
-                    <PlayerName>{player.name}</PlayerName>
-                    <PlayerRole role={player.role}>{getRoleText(player.role)}</PlayerRole>
+              <PlayerDetails isDarkMode={isDarkMode}>
+                <PlayerHeader isDarkMode={isDarkMode}>
+                  <PlayerNameRole isDarkMode={isDarkMode}>
+                    <PlayerName isDarkMode={isDarkMode}>{player.name}</PlayerName>
+                    <PlayerRole role={player.role} isDarkMode={isDarkMode}>{getRoleText(player.role)}</PlayerRole>
                   </PlayerNameRole>
-                  <PlayerStatus isActive={isActive}>
+                  <PlayerStatus isActive={isActive} isDarkMode={isDarkMode}>
                     {isActive ? '当前发言' : '等待中'}
                   </PlayerStatus>
                 </PlayerHeader>
                 
-                <ScoreSection>
-                  <ScoreLabel>得分</ScoreLabel>
-                  <Score>{player.score}</Score>
+                <ScoreSection isDarkMode={isDarkMode}>
+                  <ScoreLabel isDarkMode={isDarkMode}>得分</ScoreLabel>
+                  <Score isDarkMode={isDarkMode}>{player.score}</Score>
                 </ScoreSection>
 
-                <PlayerStats>
-                  <StatItem>
-                    <StatLabel>发言顺序</StatLabel>
-                    <StatValue>{player.id}</StatValue>
+                <PlayerStats isDarkMode={isDarkMode}>
+                  <StatItem isDarkMode={isDarkMode}>
+                    <StatLabel isDarkMode={isDarkMode}>发言顺序</StatLabel>
+                    <StatValue isDarkMode={isDarkMode}>{player.id}</StatValue>
                   </StatItem>
-                  <StatItem>
-                    <StatLabel>身份</StatLabel>
-                    <StatValue>{player.role === 'for' ? '正方' : '反方'}</StatValue>
+                  <StatItem isDarkMode={isDarkMode}>
+                    <StatLabel isDarkMode={isDarkMode}>身份</StatLabel>
+                    <StatValue isDarkMode={isDarkMode}>{player.role === 'for' ? '正方' : '反方'}</StatValue>
                   </StatItem>
                 </PlayerStats>
               </PlayerDetails>

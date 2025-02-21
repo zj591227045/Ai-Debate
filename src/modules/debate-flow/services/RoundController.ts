@@ -5,20 +5,24 @@ import { DebateFlowError, DebateFlowException } from '../types/errors';
 import { DebateFlowEvent, EventEmitter } from '../types/events';
 import { PromptService } from './PromptService';
 import { DebateContext, DebateSceneType } from '../types/interfaces';
+import { LLMService } from './LLMService';
 
 export class RoundController {
   private currentStream: ReadableStream<Uint8Array> | null = null;
   private streamController: AbortController | null = null;
   private readonly promptService: PromptService;
+  private readonly llmService: LLMService;
   private currentContext: DebateContext;
   private retryCount: number = 0;
   private readonly maxRetries: number = 3;
   private readonly retryDelay: number = 1000; // 1秒
+  private isInitialized: boolean = false;
 
   constructor(
     private readonly eventEmitter: EventEmitter
   ) {
     this.promptService = new PromptService();
+    this.llmService = new LLMService();
     this.currentContext = {
       topic: {
         title: '',
@@ -30,6 +34,27 @@ export class RoundController {
       sceneType: DebateSceneType.OPENING,
       stance: 'positive'
     };
+  }
+
+  async initialize(): Promise<void> {
+    try {
+      // 初始化 LLMService
+      await this.llmService.initialize();
+      this.isInitialized = true;
+    } catch (error) {
+      console.error('RoundController 初始化失败:', error);
+      throw new DebateFlowException(
+        DebateFlowError.INITIALIZATION_FAILED,
+        '控制器初始化失败',
+        error instanceof Error ? error : undefined
+      );
+    }
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
   }
 
   setContext(context: DebateContext): void {
@@ -124,6 +149,12 @@ export class RoundController {
   }
 
   async startInnerThoughts(player: Player): Promise<StreamResponse> {
+    console.log('开始生成内心独白:', { 
+      playerId: player.id,
+      characterId: player.characterId,
+      isAI: player.isAI
+    });
+
     if (!player.isAI) {
       throw new DebateFlowException(
         DebateFlowError.INVALID_SPEAKING_ORDER,
@@ -131,18 +162,53 @@ export class RoundController {
       );
     }
 
-    const { systemPrompt, humanPrompt } = this.promptService.generatePrompt(
-      player,
-      this.currentContext
-    );
+    if (!player.characterId) {
+      console.error('角色ID未设置:', player);
+      throw new DebateFlowException(
+        DebateFlowError.INVALID_CHARACTER,
+        '角色ID未设置，无法生成内心独白'
+      );
+    }
 
-    return this.handleStreamGeneration(player, 'innerThoughts', {
-      systemPrompt,
-      humanPrompt
-    });
+    try {
+      console.log('初始化LLM服务，角色ID:', player.characterId);
+      await this.llmService.initialize(player.characterId);
+      
+      const systemPrompt = this.promptService.generateInnerThoughtsSystemPrompt(player);
+      const humanPrompt = this.promptService.generateInnerThoughtsHumanPrompt(this.currentContext);
+      
+      console.log('生成提示词:', {
+        systemPrompt,
+        humanPrompt
+      });
+
+      return this.handleStreamGeneration(player, 'innerThoughts', {
+        systemPrompt,
+        humanPrompt
+      });
+    } catch (error) {
+      console.error('生成内心独白失败:', error);
+      
+      if (error instanceof DebateFlowException) {
+        throw error;
+      }
+      
+      throw new DebateFlowException(
+        DebateFlowError.AI_GENERATION_FAILED,
+        `生成内心独白失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        error instanceof Error ? error : undefined
+      );
+    }
   }
 
   async startSpeech(player: Player, innerThoughts?: string): Promise<StreamResponse> {
+    console.log('开始生成正式发言:', {
+      playerId: player.id,
+      characterId: player.characterId,
+      isAI: player.isAI,
+      hasInnerThoughts: !!innerThoughts
+    });
+
     if (!player.isAI) {
       // 人类选手不需要生成内容，返回一个空的流
       const metadata = {
@@ -164,17 +230,45 @@ export class RoundController {
       };
     }
 
-    const { systemPrompt, humanPrompt } = this.promptService.generatePrompt(
-      player,
-      this.currentContext,
-      innerThoughts
-    );
+    if (!player.characterId) {
+      console.error('角色ID未设置:', player);
+      throw new DebateFlowException(
+        DebateFlowError.INVALID_CHARACTER,
+        '角色ID未设置，无法生成正式发言'
+      );
+    }
 
-    return this.handleStreamGeneration(player, 'speech', {
-      systemPrompt,
-      humanPrompt,
-      previousContent: innerThoughts
-    });
+    try {
+      console.log('初始化LLM服务，角色ID:', player.characterId);
+      await this.llmService.initialize(player.characterId);
+      
+      const systemPrompt = this.promptService.generateSpeechSystemPrompt(player);
+      const humanPrompt = this.promptService.generateSpeechHumanPrompt(this.currentContext, innerThoughts || '');
+      
+      console.log('生成提示词:', {
+        systemPrompt,
+        humanPrompt,
+        innerThoughts: innerThoughts || '无内心独白'
+      });
+
+      return this.handleStreamGeneration(player, 'speech', {
+        systemPrompt,
+        humanPrompt,
+        previousContent: innerThoughts
+      });
+    } catch (error) {
+      console.error('生成正式发言失败:', error);
+      
+      if (error instanceof DebateFlowException) {
+        throw error;
+      }
+      
+      throw new DebateFlowException(
+        DebateFlowError.AI_GENERATION_FAILED,
+        `生成正式发言失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        error instanceof Error ? error : undefined
+      );
+    }
   }
 
   pauseSpeech(): void {
@@ -216,5 +310,72 @@ export class RoundController {
       DebateFlowError.AI_GENERATION_FAILED,
       `生成失败 (已重试${this.retryCount}次): ${error.message}`
     );
+  }
+
+  private async generateInnerThoughts(player: Player): Promise<string> {
+    if (!this.llmService) {
+      throw new Error('LLM服务未初始化');
+    }
+
+    const content: string[] = [];
+    try {
+      for await (const chunk of this.llmService.generateInnerThoughts(
+        player,
+        this.currentContext
+      )) {
+        content.push(chunk);
+      }
+      return content.join('');
+    } catch (error) {
+      console.error('生成内心独白失败:', error);
+      throw error;
+    }
+  }
+
+  private async generateSpeech(player: Player, innerThoughts: string): Promise<string> {
+    if (!this.llmService) {
+      throw new Error('LLM服务未初始化');
+    }
+
+    const content: string[] = [];
+    try {
+      for await (const chunk of this.llmService.generateSpeech(
+        player,
+        this.currentContext,
+        innerThoughts
+      )) {
+        content.push(chunk);
+      }
+      return content.join('');
+    } catch (error) {
+      console.error('生成正式发言失败:', error);
+      throw error;
+    }
+  }
+
+  async generateInnerThoughtsForPlayer(player: Player): Promise<string> {
+    if (!this.isInitialized) {
+      throw new Error('控制器未初始化');
+    }
+
+    try {
+      return await this.generateInnerThoughts(player);
+    } catch (error) {
+      console.error('生成内心独白失败:', error);
+      throw error;
+    }
+  }
+
+  async generateSpeechForPlayer(player: Player, innerThoughts: string): Promise<string> {
+    if (!this.isInitialized) {
+      throw new Error('控制器未初始化');
+    }
+
+    try {
+      return await this.generateSpeech(player, innerThoughts);
+    } catch (error) {
+      console.error('生成正式发言失败:', error);
+      throw error;
+    }
   }
 } 

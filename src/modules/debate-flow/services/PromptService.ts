@@ -111,207 +111,315 @@ export class DialogueHistoryManager {
 }
 
 export class PromptService {
-  private readonly templates: Map<DebateSceneType, PromptTemplate>;
   private readonly historyManager: DialogueHistoryManager;
   
   constructor(maxHistoryTokens?: number) {
-    this.templates = new Map();
     this.historyManager = new DialogueHistoryManager(maxHistoryTokens);
-    this.initializeTemplates();
   }
 
-  private initializeTemplates() {
-    // 开篇立论模板
-    this.templates.set(DebateSceneType.OPENING, {
-      systemPrompt: `作为一位专业辩手，你需要进行开篇立论。要求：
-1. 明确表达立场
-2. 提出核心论点
-3. 展开论证框架
-4. 预设可能的质疑`,
-      humanPrompt: `基于以下信息进行开篇立论：
-- 辩题：{topic}
-- 立场：{stance}
-- 背景：{background}
+  private getCharacterPersona(characterId: string) {
+    try {
+      const characterConfigsStr = localStorage.getItem('character_configs');
+      if (!characterConfigsStr) return null;
 
-请从以下几个方面展开论述：
-1. 立场表明和核心观点
-2. 论证框架的搭建
-3. 关键论据的展示
-4. 可能争议的预设`,
-      examples: [
-        "示例开篇立论...",
-        "示例论证框架..."
-      ]
+      const characterConfigs = JSON.parse(characterConfigsStr);
+      const character = characterConfigs.find((c: any) => c.id === characterId);
+      return character?.persona || null;
+    } catch (error) {
+      console.error('获取角色配置失败:', error);
+      return null;
+    }
+  }
+
+  private formatPersonalityOrStyle(value: string | string[]): string {
+    if (Array.isArray(value)) {
+      return value.join('、');
+    }
+    return value;
+  }
+
+  private getCharacterConfig(characterId: string): { id: string; name: string; characterName: string; persona?: { 
+    personality?: string;
+    speakingStyle?: string;
+    background?: string;
+    values?: string[];
+    argumentationStyle?: string;
+    customDescription?: string;
+  } } | null {
+    try {
+      if (!characterId) {
+        console.warn('传入的 characterId 为空');
+        return null;
+      }
+
+      console.log('开始获取角色配置，characterId:', characterId);
+      const characterConfigsStr = localStorage.getItem('character_configs');
+      console.log('从localStorage获取的character_configs:', characterConfigsStr);
+      
+      if (!characterConfigsStr) {
+        console.warn('未找到character_configs配置');
+        return null;
+      }
+
+      let characterConfigs;
+      try {
+        characterConfigs = JSON.parse(characterConfigsStr);
+        console.log('解析后的characterConfigs:', characterConfigs);
+        
+        if (!Array.isArray(characterConfigs)) {
+          console.error('character_configs 不是数组格式');
+          return null;
+        }
+      } catch (e) {
+        console.error('解析character_configs失败:', e);
+        return null;
+      }
+      
+      console.log('开始查找角色配置...');
+      const character = characterConfigs.find((c: any) => {
+        console.log('正在比较:', { 
+          currentId: c.id, 
+          targetId: characterId,
+          currentName: c.name,
+          match: c.id === characterId 
+        });
+        return c.id === characterId;
+      });
+      
+      if (!character) {
+        console.warn('未找到匹配的角色配置');
+        return null;
+      }
+      
+      console.log('找到的character配置:', character);
+
+      // 确保必要的字段存在
+      if (!character.name) {
+        console.warn('角色配置中缺少name字段');
+        return null;
+      }
+
+      const result = {
+        id: character.id,
+        name: character.name,
+        characterName: character.name,
+        persona: character.persona
+      };
+      
+      console.log('返回的角色配置:', result);
+      return result;
+    } catch (error) {
+      console.error('获取角色配置失败:', error);
+      return null;
+    }
+  }
+
+  // 生成内心独白的系统提示词
+  generateInnerThoughtsSystemPrompt(player: Player): string {
+    console.log('生成内心独白系统提示词 - 输入参数:', {
+      player,
+      characterId: player.characterId,
+      playerName: player.name
     });
-
-    // 驳论模板
-    this.templates.set(DebateSceneType.REBUTTAL, {
-      systemPrompt: `作为一位专业辩手，你需要对对方观点进行有力驳斥。要求：
-1. 准确抓住对方论点
-2. 找出逻辑漏洞
-3. 提供反例证据
-4. 建立新的论证`,
-      humanPrompt: `基于以下信息进行驳论：
-- 对方观点：{opponentArgument}
-- 我方立场：{stance}
-- 已有论据：{previousArguments}
-
-请从以下几个方面展开驳论：
-1. 对方论点的问题所在
-2. 反驳的具体论据
-3. 我方观点的强化
-4. 新的论证方向`,
-      examples: [
-        "示例驳论...",
-        "示例反驳策略..."
-      ]
-    });
-
-    // 其他场景模板...
-  }
-
-  // 生成角色化的提示词
-  private generateCharacterPrompt(traits: CharacterTraits): string {
-    return `你的角色特征：
-- 性格特点：${traits.personality}
-- 说话风格：${traits.speakingStyle}
-- 专业背景：${traits.background}
-- 核心价值观：${traits.values.join('、')}
-- 论证风格：${traits.argumentationStyle}
-
-请在发言中始终保持以上特征的一致性。`;
-  }
-
-  // 获取场景提示词模板
-  getSceneTemplate(sceneType: DebateSceneType): PromptTemplate {
-    const template = this.templates.get(sceneType);
-    if (!template) {
-      throw new Error(`未找到场景类型 ${sceneType} 的提示词模板`);
-    }
-    return template;
-  }
-
-  // 生成完整的提示词
-  generatePrompt(
-    player: Player,
-    context: DebateContext,
-    previousContent?: string
-  ): { systemPrompt: string; humanPrompt: string } {
-    // 确保必要的场景信息存在
-    if (!context.sceneType) {
-      context.sceneType = DebateSceneType.OPENING;
-    }
-    if (!context.stance) {
-      context.stance = 'positive';
+    
+    // 首先尝试获取角色配置
+    const characterConfig = this.getCharacterConfig(player.characterId || '');
+    console.log('获取到的characterConfig:', characterConfig);
+    
+    // 然后获取persona
+    const persona = characterConfig?.persona;
+    console.log('获取到的persona:', persona);
+    
+    if (!characterConfig) {
+      console.warn('未找到角色配置，使用默认值');
     }
 
-    const template = this.getSceneTemplate(context.sceneType);
-    const characterTraits: CharacterTraits = {
-      personality: player.personality || '理性客观',
-      speakingStyle: player.speakingStyle || '严谨专业',
-      background: player.background || '专业辩手',
-      values: player.values?.split(',') || ['逻辑', '真理'],
-      argumentationStyle: player.argumentationStyle || '循证论证'
+    // 使用角色配置中的name，如果没有则使用player.name
+    const characterName = characterConfig?.name || player.name;
+    console.log('最终使用的characterName:', characterName);
+
+    // 安全地处理values数组
+    const formatValues = (values: string[] | string | undefined): string => {
+      if (Array.isArray(values)) {
+        return values.join('、');
+      }
+      if (typeof values === 'string') {
+        return values;
+      }
+      return '逻辑、真理';
     };
 
-    // 生成角色提示词
-    const characterPrompt = this.generateCharacterPrompt(characterTraits);
-    const systemPrompt = `${template.systemPrompt}\n\n${characterPrompt}`;
-    
-    // 处理对话历史
-    const relevantHistory = this.historyManager.selectRelevantHistory(
-      {
-        speeches: context.previousSpeeches,
-        currentRound: context.currentRound,
-        totalRounds: context.totalRounds
-      },
-      context
-    );
-    
-    // 生成基础人类提示词
-    let humanPrompt = template.humanPrompt
-      .replace('{topic}', context.topic.title)
-      .replace('{stance}', context.stance)
-      .replace('{background}', context.topic.background || '');
+    const prompt = `你现在扮演的角色是：
+- 姓名：${characterName}
+- 性格：${this.formatPersonalityOrStyle(persona?.personality || '理性客观')}
+- 说话风格：${persona?.speakingStyle || '严谨专业'}
+- 专业背景：${persona?.background || '丰富的思辨经验'}
+- 价值观：${formatValues(persona?.values)}
+- 思维方式：${this.formatPersonalityOrStyle(persona?.argumentationStyle || '善于分析和推理')}
+- 自我认知：${persona?.customDescription || ''}
 
-    // 添加历史上下文
-    if (relevantHistory.length > 0) {
-      humanPrompt += '\n\n' + this.historyManager.generateHistorySummary(relevantHistory);
-    }
+请始终保持这个角色的特征，以第一人称的视角思考和表达。`;
 
-    // 添加之前的思考（如果有）
-    if (previousContent) {
-      humanPrompt += `\n\n你之前的思考：\n${previousContent}`;
-    }
-
-    return { systemPrompt, humanPrompt };
+    console.log('生成的系统提示词:', prompt);
+    return prompt;
   }
 
-  // 生成内心OS的系统提示词
-  generateInnerThoughtsSystemPrompt(player: Player): string {
-    return `你是一位专业的辩论选手，现在需要你以思考者的身份，分析当前辩论局势并思考策略。
-
-你的角色信息：
-- 姓名：${player.name}
-- 性格：${player.personality || '未指定'}
-- 说话风格：${player.speakingStyle || '未指定'}
-- 专业背景：${player.background || '未指定'}
-- 价值观：${player.values || '未指定'}
-- 论证风格：${player.argumentationStyle || '未指定'}`;
-  }
-
-  // 生成内心OS的人类提示词
+  // 生成内心独白的人类提示词
   generateInnerThoughtsHumanPrompt(context: DebateContext): string {
     const { topic, currentRound, totalRounds, previousSpeeches } = context;
     
-    return `当前辩论信息：
+    // 格式化发言记录
+    let speechRecords = '';
+    if (previousSpeeches.length > 0) {
+      // 按轮次分组
+      const speechesByRound = previousSpeeches.reduce((acc: any, speech) => {
+        if (speech.type !== 'speech') return acc; // 只记录正式发言
+        
+        if (!acc[speech.round]) {
+          acc[speech.round] = [];
+        }
+        
+        // 获取角色配置
+        const characterConfig = this.getCharacterConfig(speech.characterId || '');
+        
+        console.log('【发言记录调试】PromptService - speech对象:', {
+          speechId: speech.id,
+          characterId: speech.characterId,
+          playerId: speech.playerId,
+          round: speech.round
+        });
+        
+        acc[speech.round].push({
+          name: characterConfig?.name || speech.characterName || '未知角色',
+          id: speech.characterId || speech.playerId,
+          sequence: speech.sequence || acc[speech.round].length + 1,
+          content: speech.content
+        });
+        return acc;
+      }, {});
+
+      // 转换为JSON字符串格式
+      speechRecords = Object.entries(speechesByRound)
+        .map(([round, speeches]) => {
+          return `第${round}轮：${JSON.stringify(speeches, null, 2)}`;
+        })
+        .join('\n\n');
+    }
+    
+    return `当前场景信息：
 - 主题：${topic.title}
 ${topic.background ? `- 背景：${topic.background}` : ''}
 - 当前轮次：${currentRound}/${totalRounds}
-${previousSpeeches.length > 0 ? `- 已有发言：\n${previousSpeeches.map(speech => 
-  `[${speech.playerId}]: ${speech.content}`
-).join('\n')}` : ''}
 
-请以内心独白的方式，分析当前局势并思考下一步策略。注意：
-1. 保持角色特征的一致性
-2. 分析其他选手的论点优劣
-3. 思考可能的反驳方向
-4. 规划下一步的论证策略`;
+发言记录：${speechRecords || '暂无'}
+
+请基于你的角色设定，以内心思考的方式分析当前局势并思考下一步策略。注意：
+1. 保持你的性格特征和价值观
+2. 分析其他参与者的观点优劣（存在已有发言就分析，不存在就直接跳过，不要分析不存在的发言）
+3. 思考可能的回应方向
+4. 规划下一步的表达策略`;
   }
 
   // 生成正式发言的系统提示词
   generateSpeechSystemPrompt(player: Player): string {
-    return `你是一位专业的辩论选手，现在需要你基于之前的思考，生成正式的辩论发言。
+    console.log('生成正式发言系统提示词 - 输入参数:', {
+      player,
+      characterId: player.characterId,
+      playerName: player.name
+    });
+    
+    // 首先尝试获取角色配置
+    const characterConfig = this.getCharacterConfig(player.characterId || '');
+    console.log('获取到的characterConfig:', characterConfig);
+    
+    // 然后获取persona
+    const persona = characterConfig?.persona;
+    console.log('获取到的persona:', persona);
+    
+    if (!characterConfig) {
+      console.warn('未找到角色配置，使用默认值');
+    }
 
-你的角色信息：
-- 姓名：${player.name}
-- 性格：${player.personality || '未指定'}
-- 说话风格：${player.speakingStyle || '未指定'}
-- 专业背景：${player.background || '未指定'}
-- 价值观：${player.values || '未指定'}
-- 论证风格：${player.argumentationStyle || '未指定'}`;
+    // 使用角色配置中的name，如果没有则使用player.name
+    const characterName = characterConfig?.name || player.name;
+    console.log('最终使用的characterName:', characterName);
+
+    // 安全地处理values数组
+    const formatValues = (values: string[] | string | undefined): string => {
+      if (Array.isArray(values)) {
+        return values.join('、');
+      }
+      if (typeof values === 'string') {
+        return values;
+      }
+      return '逻辑、真理';
+    };
+
+    const prompt = `你现在扮演的角色是：
+- 姓名：${characterName}
+- 性格：${this.formatPersonalityOrStyle(persona?.personality || '理性客观')}
+- 说话风格：${persona?.speakingStyle || '严谨专业'}
+- 专业背景：${persona?.background || '丰富的思辨经验'}
+- 价值观：${formatValues(persona?.values)}
+- 思维方式：${this.formatPersonalityOrStyle(persona?.argumentationStyle || '善于分析和推理')}
+- 自我认知：${persona?.customDescription || ''}
+
+请始终保持这个角色的特征，以第一人称的视角进行表达。`;
+
+    console.log('生成的系统提示词:', prompt);
+    return prompt;
   }
 
   // 生成正式发言的人类提示词
   generateSpeechHumanPrompt(context: DebateContext, innerThoughts: string): string {
     const { topic, currentRound, totalRounds, previousSpeeches } = context;
     
-    return `当前辩论信息：
+    // 格式化发言记录
+    let speechRecords = '';
+    if (previousSpeeches.length > 0) {
+      // 按轮次分组
+      const speechesByRound = previousSpeeches.reduce((acc: any, speech) => {
+        if (speech.type !== 'speech') return acc; // 只记录正式发言
+        
+        if (!acc[speech.round]) {
+          acc[speech.round] = [];
+        }
+        
+        // 获取角色配置
+        const characterConfig = this.getCharacterConfig(speech.characterId || '');
+        
+        acc[speech.round].push({
+          name: characterConfig?.name || speech.characterName || '未知角色',
+          id: speech.characterId || speech.playerId,
+          sequence: speech.sequence || acc[speech.round].length + 1,
+          content: speech.content
+        });
+        return acc;
+      }, {});
+
+      // 转换为JSON字符串格式
+      speechRecords = Object.entries(speechesByRound)
+        .map(([round, speeches]) => {
+          return `第${round}轮：${JSON.stringify(speeches, null, 2)}`;
+        })
+        .join('\n\n');
+    }
+    
+    return `当前场景信息：
 - 主题：${topic.title}
 ${topic.background ? `- 背景：${topic.background}` : ''}
 - 当前轮次：${currentRound}/${totalRounds}
-${previousSpeeches.length > 0 ? `- 已有发言：\n${previousSpeeches.map(speech => 
-  `[${speech.playerId}]: ${speech.content}`
-).join('\n')}` : ''}
+
+发言记录：${speechRecords || '暂无'}
 
 你的内心思考：
 ${innerThoughts}
 
-请基于以上信息，生成正式的辩论发言。要求：
-1. 保持角色特征的一致性
-2. 论述要有理有据
-3. 适当回应其他选手的观点
-4. 展现个人特色和风格`;
+请基于以上信息，进行你的表达。要求：
+1. 保持你的性格特征和价值观
+2. 使用你的说话风格和思维方式
+3. 适当回应其他参与者的观点（已有发言有信息就分析，没有就直接跳过，不要回应不存在的发言）
+4. 展现你的专业背景和知识`;
   }
 
   // 生成评分的系统提示词
@@ -320,34 +428,41 @@ ${innerThoughts}
       .map((d: ScoringDimension) => `- ${d.name}（权重：${d.weight}）：${d.description}\n  评分标准：${d.criteria.join('、')}`)
       .join('\n');
 
-    return `你是一位专业的辩论赛评委，需要以特定的评委身份对辩手的发言进行评分和点评，要使用第一人称角度发言。
+    const characterConfig = this.getCharacterConfig(judge.id || '');
+    const judgeName = characterConfig?.characterName || judge.name;
+    const judgePersona = characterConfig?.persona;
 
-你的身份信息：
-姓名：${judge.name}
+    return `你是一位专业的评审，身份信息如下：
+
+姓名：${judgeName}
 ${judge.characterConfig ? `
 性格特征：${judge.characterConfig.personality || ''}
 说话风格：${judge.characterConfig.speakingStyle || ''}
 专业背景：${judge.characterConfig.background || ''}
 价值观：${judge.characterConfig.values?.join('、') || ''}
-论证风格：${judge.characterConfig.argumentationStyle || ''}
+评判风格：${judge.characterConfig.argumentationStyle || ''}
+${judgePersona?.customDescription ? `\n${judgePersona.customDescription}` : ''}
 ` : ''}
 
 评分维度：
 ${dimensionsText}
 
-请严格按照以下格式和顺序输出评分结果：
+请严格按照以下 Markdown 格式输出评分结果：
 
-第一部分：总体评价
-总评：<此处输入你的总体评价，不超过500字>
+## 总体评价
 
-第二部分：详细评语
-<此处按维度分点输出详细评语，每个维度的评语需要具体分析优缺点>
+${judgeName}：<此处输入你的总体评价，不超过500字>
 
-第三部分：维度评分（注意：分数必须是0-100之间的整数）
-${rules.dimensions.map((d: ScoringDimension) => `${d.name}：<分数>`).join('\n')}
+## 详细评语
+
+${rules.dimensions.map(d => `### ${d.name}评价\n<此处输入关于${d.name}维度的详细评语，需要具体分析优缺点>`).join('\n\n')}
+
+## 维度评分
+
+${rules.dimensions.map(d => `- ${d.name}：<0-100之间的整数>`).join('\n')}
 
 注意事项：
-1. 必须严格按照上述顺序输出：先输出总评，再输出详细评语，最后输出分数
+1. 必须严格按照上述 Markdown 格式输出
 2. 分数必须是0-100之间的整数
 3. 必须包含所有评分维度
 4. 评语要体现你的个性特征和价值观
@@ -364,19 +479,5 @@ ${rules.dimensions.map((d: ScoringDimension) => `${d.name}：<分数>`).join('\n
 ${speech.content}
 
 请严格按照系统提示的格式输出评分结果。评语要体现你的个性特征和价值观，并对每个维度的表现进行具体分析。`;
-  }
-
-  // 生成内心独白的系统提示词
-  generateInnerThoughtsPrompt(characterId: string): string {
-    return `你是一位专业的辩论选手，现在需要生成内心独白，分析当前局势和策略。
-请以第一人称的方式，表达你对当前辩论形势的思考和下一步的策略规划。
-要体现出你的个性特征和思维方式。`;
-  }
-
-  // 生成正式发言的系统提示词
-  generateSpeechPrompt(characterId: string): string {
-    return `你是一位专业的辩论选手，现在需要生成正式的辩论发言。
-请保持逻辑严密，论据充分，语言精炼有力。
-要体现出你的辩论风格和价值观。`;
   }
 } 

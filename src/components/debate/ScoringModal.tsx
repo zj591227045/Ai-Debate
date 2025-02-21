@@ -504,7 +504,7 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
       title: '总分',
       dataIndex: 'totalScore',
       key: 'totalScore',
-      render: (score: number) => ((score || 0) * 100).toFixed(1),
+      render: (score: number) => ((score || 0) ).toFixed(1),
       sorter: (a: any, b: any) => (a.totalScore || 0) - (b.totalScore || 0),
     },
     ...scoringRules.map(rule => ({
@@ -646,7 +646,7 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
                           </span>
                         </h3>
                         <div style={{ fontSize: '24px', color: '#1890ff' }}>
-                          {((score.totalScore || 0) * 100).toFixed(1)}分
+                          {((score.totalScore || 0) ).toFixed(1)}分
                         </div>
                       </ScoreHeader>
                       
@@ -883,7 +883,7 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
           <h4>评分规则</h4>
           {scoringRules.map(rule => (
             <div key={rule.id}>
-              {rule.name}（权重：{(rule.weight * 100).toFixed(0)}%）- {rule.description}
+              {rule.name}（权重：{(rule.weight).toFixed(0)}%）- {rule.description}
             </div>
           ))}
         </RuleSection>

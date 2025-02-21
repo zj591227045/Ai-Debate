@@ -3,11 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { ThemeProvider } from '@emotion/react';
 import theme from '../styles/theme';
-import { Tooltip, Divider, message, Spin, Result, Button, Card, Space, Typography, Modal } from 'antd';
+import { Tooltip, Divider, message, Spin, Result, Button, Card, Space, Typography, Modal, Dropdown } from 'antd';
 import { 
   BulbOutlined,
   BulbFilled,
-  RollbackOutlined
+  RollbackOutlined,
+  DownloadOutlined,
+  FileOutlined,
+  PictureOutlined
 } from '@ant-design/icons';
 import { Resizable } from 're-resizable';
 import { useCharacter } from '../modules/character/context/CharacterContext';
@@ -41,24 +44,29 @@ import type {
   DebateFlowState
 } from '../modules/debate-flow/types/interfaces';
 import { DebateStatus } from '../modules/debate-flow/types/interfaces';
+import type { GameConfigState } from '../modules/state/types/gameConfig';
+import type { ScoringDimension } from '../modules/debate-flow/types/interfaces';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { ExportService } from '../modules/debate/services/ExportService';
 
 // 主容器
-const Container = styled.div`
+const Container = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: rgb(244, 245, 245);
-  color: rgb(31, 31, 31);
+  background-color: ${props => props.isDarkMode ? '#1f1f1f' : 'rgb(244, 245, 245)'};
+  color: ${props => props.isDarkMode ? '#ffffff' : 'rgb(31, 31, 31)'};
 `;
 
 // 顶部工具栏
-const TopBar = styled.div`
+const TopBar = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  background-color: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  background-color: ${props => props.isDarkMode ? '#2d2d2d' : '#ffffff'};
+  border-bottom: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#f0f0f0'};
   position: sticky;
   top: 0;
   z-index: 100;
@@ -78,21 +86,21 @@ const TopBar = styled.div`
   }
 `;
 
-const ToolButton = styled.button`
+const ToolButton = styled.button<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   padding: 6px 12px;
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: #666;
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666'};
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
 
   &:hover {
-    background: #f5f5f5;
-    color: #1890ff;
+    background: ${props => props.isDarkMode ? '#3d3d3d' : '#f5f5f5'};
+    color: ${props => props.isDarkMode ? '#1890ff' : '#1890ff'};
   }
 
   .anticon {
@@ -101,7 +109,7 @@ const ToolButton = styled.button`
 `;
 
 // 在TopBar的styled-components定义后添加
-const BackButton = styled(ToolButton)`
+const BackButton = styled(ToolButton)<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -109,25 +117,25 @@ const BackButton = styled(ToolButton)`
 `;
 
 // 主题信息区域
-const TopicBar = styled.div`
+const TopicBar = styled.div<{ isDarkMode?: boolean }>`
   padding: 16px;
-  background: white;
-  border-bottom: 1px solid #e8e8e8;
+  background: ${props => props.isDarkMode ? '#2d2d2d' : 'white'};
+  border-bottom: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#e8e8e8'};
   display: flex;
   justify-content: space-between;
   align-items: center;
 `;
 
-const TopicSection = styled.div`
+const TopicSection = styled.div<{ isDarkMode?: boolean }>`
   flex: 1;
 `;
 
-const JudgeSection = styled.div`
+const JudgeSection = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 12px;
   padding-left: 24px;
-  border-left: 1px solid #e8e8e8;
+  border-left: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#e8e8e8'};
 `;
 
 const JudgeAvatar = styled.div`
@@ -149,16 +157,16 @@ const JudgeAvatar = styled.div`
   }
 `;
 
-const JudgeTooltip = styled.div`
+const JudgeTooltip = styled.div<{ isDarkMode?: boolean }>`
   opacity: 0;
   visibility: hidden;
   position: fixed;
   top: 80px;
   right: 20px;
   width: 320px;
-  background: white;
+  background: ${props => props.isDarkMode ? '#2d2d2d' : 'white'};
   border-radius: 8px;
-  box-shadow: 0 3px 6px -4px rgba(0,0,0,0.12), 0 6px 16px 0 rgba(0,0,0,0.08);
+  box-shadow: 0 3px 6px -4px rgba(0,0,0,0.24), 0 6px 16px 0 rgba(0,0,0,0.16);
   padding: 16px;
   z-index: 1000;
   transition: all 0.2s ease-in-out;
@@ -177,7 +185,7 @@ const JudgeTooltip = styled.div`
     gap: 12px;
     margin-bottom: 12px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#f0f0f0'};
 
     img {
       width: 48px;
@@ -195,7 +203,7 @@ const JudgeTooltip = styled.div`
   .judge-name {
     font-size: 16px;
     font-weight: 500;
-    color: #1f1f1f;
+    color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
     margin-bottom: 4px;
     white-space: nowrap;
     overflow: hidden;
@@ -204,7 +212,7 @@ const JudgeTooltip = styled.div`
 
   .judge-description {
     font-size: 13px;
-    color: #666;
+    color: ${props => props.isDarkMode ? '#a6a6a6' : '#666'};
     line-height: 1.5;
   }
 
@@ -256,14 +264,14 @@ const JudgeTooltip = styled.div`
 
   .section-title {
     font-weight: 500;
-    color: #1f1f1f;
+    color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
     margin-bottom: 8px;
     font-size: 14px;
   }
 
   .section-content {
     font-size: 13px;
-    color: #666;
+    color: ${props => props.isDarkMode ? '#a6a6a6' : '#666'};
     line-height: 1.5;
     max-height: 200px;
     overflow-y: auto;
@@ -301,46 +309,49 @@ const JudgeRole = styled.div`
   color: #666;
 `;
 
-const TopicTitle = styled.h2`
+const TopicTitle = styled.h2<{ isDarkMode?: boolean }>`
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 500;
+  color: ${props => props.isDarkMode ? '#ffffff' : 'inherit'};
 `;
 
-const TopicInfo = styled.div`
+const TopicInfo = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #666;
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666'};
   font-size: 14px;
 `;
 
 // 主内容区域
-const MainContent = styled.div`
+const MainContent = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex: 1;
   overflow: hidden;
+  background: ${props => props.isDarkMode ? '#1f1f1f' : 'white'};
 `;
 
 // 左侧选手列表
-const PlayerListSection = styled.div`
-  background: white;
-  border-right: 1px solid #e8e8e8;
+const PlayerListSection = styled.div<{ isDarkMode?: boolean }>`
+  background: ${props => props.isDarkMode ? '#2d2d2d' : '#f5f5f5'};
+  border-right: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#e8e8e8'};
   height: 100%;
   display: flex;
   flex-direction: column;
 `;
 
-const PlayerListContainer = styled.div`
+const PlayerListContainer = styled.div<{ isDarkMode?: boolean }>`
   flex: 1;
   overflow-y: auto;
+  background: ${props => props.isDarkMode ? '#2d2d2d' : '#f5f5f5'};
   
   &::-webkit-scrollbar {
     width: 6px;
   }
   
   &::-webkit-scrollbar-thumb {
-    background: #e8e8e8;
+    background: ${props => props.isDarkMode ? '#4d4d4d' : '#e8e8e8'};
     border-radius: 3px;
   }
   
@@ -357,68 +368,75 @@ const DebugInfo = styled.div`
   flex-shrink: 0;
 `;
 
-const PlayerCard = styled.div<{ active?: boolean }>`
+const PlayerCard = styled.div<{ active?: boolean; isDarkMode?: boolean }>`
   padding: 12px;
-  border-bottom: 1px solid ${props => props.theme.colors.border};
-  background-color: ${props => props.active ? props.theme.colors.primary + '1A' : 'transparent'};
+  border-bottom: 1px solid ${props => props.isDarkMode ? '#3d3d3d' : '#e8e8e8'};
+  background-color: ${props => {
+    if (props.isDarkMode) {
+      return props.active ? 'rgba(65, 87, 255, 0.2)' : '#2d2d2d';
+    }
+    return props.active ? 'rgba(65, 87, 255, 0.1)' : '#ffffff';
+  }};
   cursor: pointer;
-  transition: all ${props => props.theme.transitions.fast};
+  transition: all 0.2s ease;
 
   &:hover {
-    background-color: ${props => props.theme.colors.background.hover};
+    background-color: ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.15)' : 'rgba(65, 87, 255, 0.05)'};
   }
 `;
 
-const PlayerHeader = styled.div`
+const PlayerHeader = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: flex-start;
   gap: 20px;
   padding: 20px;
+  background: ${props => props.isDarkMode ? '#2d2d2d' : '#ffffff'};
 `;
 
-const PlayerAvatar = styled.img`
+const PlayerAvatar = styled.img<{ isDarkMode: boolean }>`
   width: 80px;
   height: 80px;
   border-radius: 12px;
   object-fit: cover;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 2px solid #fff;
-  background: #f5f5f5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, ${props => props.isDarkMode ? '0.2' : '0.08'});
+  border: 2px solid ${props => props.isDarkMode ? '#3d3d3d' : '#ffffff'};
+  background: ${props => props.isDarkMode ? '#2d2d2d' : '#f5f5f5'};
 `;
 
-const PlayerInfo = styled.div`
+const PlayerInfo = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
 `;
 
-const PlayerName = styled.div`
+const PlayerName = styled.div<{ isDarkMode?: boolean }>`
   font-size: 16px;
   font-weight: 600;
-  color: #1f1f1f;
+  color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
   display: flex;
   align-items: center;
   gap: 8px;
 `;
 
-const PlayerRole = styled.div`
+const PlayerRole = styled.div<{ isDarkMode?: boolean }>`
   font-size: 13px;
-  color: #666;
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666666'};
   line-height: 1.6;
 `;
 
-const CharacterInfo = styled.div`
+const CharacterInfo = styled.div<{ isDarkMode?: boolean }>`
   margin-top: 4px;
   padding: 12px;
-  background: rgba(0, 0, 0, 0.01);
+  background: ${props => props.isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.01)'};
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  border: 1px solid ${props => props.isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)'};
 `;
 
-const CharacterName = styled.div`
-  color: #1890ff;
+const CharacterName = styled.div<{ isDarkMode?: boolean }>`
+  color: ${props => props.isDarkMode ? '#87a9ff' : '#1890ff'};
   font-weight: 500;
   font-size: 16px;
   margin-bottom: 8px;
@@ -431,22 +449,22 @@ const CharacterName = styled.div`
     display: inline-block;
     width: 4px;
     height: 18px;
-    background: #1890ff;
+    background: ${props => props.isDarkMode ? '#87a9ff' : '#1890ff'};
     border-radius: 2px;
   }
 `;
 
-const CharacterDescription = styled.div`
-  color: #666;
+const CharacterDescription = styled.div<{ isDarkMode?: boolean }>`
+  color: ${props => props.isDarkMode ? '#a6a6a6' : '#666666'};
   font-size: 13px;
   line-height: 1.6;
   margin: 8px 0;
   padding-left: 12px;
-  border-left: 2px solid rgba(24, 144, 255, 0.15);
+  border-left: 2px solid ${props => props.isDarkMode ? 'rgba(135, 169, 255, 0.3)' : 'rgba(24, 144, 255, 0.15)'};
 `;
 
-const CharacterPersona = styled.div`
-  color: #8c8c8c;
+const CharacterPersona = styled.div<{ isDarkMode?: boolean }>`
+  color: ${props => props.isDarkMode ? '#8c8c8c' : '#8c8c8c'};
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -458,18 +476,18 @@ const CharacterPersona = styled.div`
     display: inline-block;
     width: 4px;
     height: 4px;
-    background: #d9d9d9;
+    background: ${props => props.isDarkMode ? '#4d4d4d' : '#d9d9d9'};
     border-radius: 50%;
   }
 `;
 
-const CharacterModel = styled.div`
+const CharacterModel = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.06);
+  border-top: 1px dashed ${props => props.isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)'};
 `;
 
 const ModelBadge = styled.span<{ provider: string }>`
@@ -539,45 +557,37 @@ const DebateContent = styled.div`
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 `;
 
-const ContentArea = styled.div`
+const ContentArea = styled.div<{ isDarkMode?: boolean }>`
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-bg-container);
+  background: ${props => props.isDarkMode ? '#1f1f1f' : 'var(--color-bg-container)'};
 `;
 
-const PlayerListHeader = styled.div`
+const PlayerListHeader = styled.div<{ isDarkMode?: boolean }>`
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(65, 87, 255, 0.1), rgba(65, 87, 255, 0.05));
-  border-bottom: 1px solid rgba(65, 87, 255, 0.1);
+  background: ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.15)' : 'linear-gradient(135deg, rgba(65, 87, 255, 0.1), rgba(65, 87, 255, 0.05))'};
+  border-bottom: 1px solid ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.2)' : 'rgba(65, 87, 255, 0.1)'};
   
   .title {
     font-size: 16px;
     font-weight: 500;
-    color: #1f1f1f;
+    color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
     display: flex;
     align-items: center;
     gap: 8px;
     
-    &:before {
-      content: '';
-      display: block;
-      width: 4px;
-      height: 16px;
-      background: linear-gradient(to bottom, #4157ff, #87a9ff);
-      border-radius: 2px;
-    }
   }
   
   .count {
     padding: 4px 12px;
-    background: rgba(65, 87, 255, 0.1);
+    background: ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.2)' : 'rgba(65, 87, 255, 0.1)'};
     border-radius: 12px;
-    color: #4157ff;
+    color: ${props => props.isDarkMode ? '#87a9ff' : '#4157ff'};
     font-size: 14px;
     font-weight: 500;
   }
@@ -588,6 +598,25 @@ const RoomTitle = styled.h1`
   font-size: 18px;
   font-weight: bold;
   color: var(--color-text-primary, #1f1f1f);
+`;
+
+const RoomInfo = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`;
+
+const DebateControls = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  margin: 0 24px;
+`;
+
+const ThemeControls = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
 `;
 
 // 状态映射函数
@@ -614,38 +643,6 @@ const mapToDebateStatus = (status: string): DebateStatus => {
   }
 };
 
-// 添加默认评分维度
-const defaultDimensions = [
-  {
-    id: 'logic',
-    name: '逻辑性',
-    weight: 0.3,
-    description: '论证的逻辑性和严谨性',
-    criteria: ['论证清晰', '结构完整', '推理严谨']
-  },
-  {
-    id: 'evidence',
-    name: '论据支持',
-    weight: 0.3,
-    description: '论据的充分性和相关性',
-    criteria: ['证据充分', '例证恰当', '数据准确']
-  },
-  {
-    id: 'delivery',
-    name: '表达能力',
-    weight: 0.2,
-    description: '表达的清晰性和感染力',
-    criteria: ['语言流畅', '表达清晰', '感染力强']
-  },
-  {
-    id: 'rebuttal',
-    name: '反驳质量',
-    weight: 0.2,
-    description: '反驳的针对性和有效性',
-    criteria: ['针对性强', '反驳有力', '立场一致']
-  }
-];
-
 // 修改 UI 状态类型定义
 interface UIState {
   isLoading: boolean;
@@ -665,6 +662,10 @@ interface UIState {
     type: 'speech' | 'innerThoughts' | 'system';
   } | null;
   players: UnifiedPlayer[];
+  judgeConfig?: {
+    scores: any[];
+    currentRoundScores: any[];
+  };
 }
 
 // 初始 UI 状态
@@ -681,7 +682,11 @@ const initialUIState: UIState = {
     scores: []
   },
   streamingSpeech: null,
-  players: []
+  players: [],
+  judgeConfig: {
+    scores: [],
+    currentRoundScores: []
+  }
 };
 
 // 在文件顶部添加类型定义
@@ -702,7 +707,12 @@ interface JudgeConfig {
 
 interface GameJudging {
   description: string;
-  dimensions: any[];
+  dimensions: {
+    name: string;
+    weight: number;
+    description: string;
+    criteria: string[];
+  }[];
   totalScore: number;
   selectedJudge?: {
     id: string;
@@ -710,6 +720,63 @@ interface GameJudging {
     avatar?: string;
   };
 }
+
+// 添加导出按钮样式
+const ExportButton = styled(Button)`
+  margin-left: 8px;
+`;
+
+const PlayerAvatarWrapper = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: ${props => props.isDarkMode ? '#2d2d2d' : '#ffffff'};
+`;
+
+const PlayerInfoWrapper = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const StyledDiv = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const StyledDivRow = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const CharacterContent = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const CharacterPersonaContent = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const ModelWrapper = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const AIBadge = styled.span<{ isDarkMode?: boolean }>`
+  font-size: 12px;
+  padding: 2px 8px;
+  background: ${props => props.isDarkMode ? 'rgba(24, 144, 255, 0.2)' : 'rgba(24, 144, 255, 0.1)'};
+  color: ${props => props.isDarkMode ? '#87a9ff' : '#1890ff'};
+  border-radius: 4px;
+`;
 
 export const DebateRoom: React.FC = () => {
   const navigate = useNavigate();
@@ -1074,56 +1141,44 @@ export const DebateRoom: React.FC = () => {
 
   // 渲染评分展示
   const renderScores = () => {
-    if (!uiState.history.scores.length) return null;
+    if (!gameConfig?.debate?.judging?.dimensions) {
+      console.warn('评分维度未配置');
+      return null;
+    }
 
     return (
-      <div style={{ margin: '20px 0' }}>
-        <ScoreStatisticsDisplay
-          statistics={scoringSystem.calculateStatistics(uiState.history.scores)}
-          rankings={scoringSystem.calculateRankings(uiState.history.scores, uiState.players)}
-          getPlayerName={(playerId) => 
-            uiState.players.find(p => p.id === playerId)?.name || playerId
-          }
-        />
+      <div className="scores-panel">
+        <h3>评分维度</h3>
+        <div className="dimensions-list">
+          {gameConfig.debate.judging.dimensions.map((dimension: ScoringDimension) => (
+            <div key={dimension.name} className="dimension-item">
+              <div className="dimension-header">
+                <span className="dimension-name">{dimension.name}</span>
+                <span className="dimension-weight">权重: {dimension.weight}</span>
+              </div>
+              <p className="dimension-desc">{dimension.description}</p>
+              <div className="dimension-criteria">
+                {dimension.criteria.map((criterion: string, index: number) => (
+                  <span key={index} className="criterion-tag">{criterion}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
 
   // 渲染评分统计
   const renderScoreStatistics = () => {
-    if (uiState.status !== DebateStatus.COMPLETED || !uiState.history.scores.length) return null;
+    if (!gameConfig?.debate?.judging?.dimensions || !uiState.judgeConfig?.scores) {
+      return null;
+    }
 
-    return (
-      <ScoreStatisticsDisplay
-        statistics={{
-          dimensions: {
-            logic: {
-              average: 85,
-              highest: 95,
-              lowest: 75,
-              distribution: { '80-89': 3, '90-100': 1 }
-            }
-          },
-          overall: {
-            average: 85,
-            highest: 95,
-            lowest: 75,
-            distribution: { '80-89': 3, '90-100': 1 }
-          }
-        }}
-        rankings={uiState.players
-          .filter(p => p.role !== 'judge')
-          .map((player, index) => ({
-            playerId: player.id,
-            totalScore: 85,
-            averageScore: 85,
-            dimensionScores: { logic: 85 },
-            speechCount: 2,
-            rank: index + 1
-          }))}
-        getPlayerName={id => uiState.players.find(p => p.id === id)?.name || id}
-      />
-    );
+    const dimensions = gameConfig.debate.judging.dimensions;
+    const scores = uiState.judgeConfig.scores;
+
+    // ... rest of the renderScoreStatistics function ...
   };
 
   // 处理发言提交
@@ -1298,6 +1353,37 @@ export const DebateRoom: React.FC = () => {
     });
   };
 
+  // 替换原有的exportToPDF函数
+  const exportService = useMemo(() => new ExportService(), []);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleExport = async (type: 'pdf' | 'image') => {
+    try {
+      message.loading('正在生成导出文件...', 0);
+
+      if (type === 'pdf') {
+        await exportService.exportToPDF({
+          title: gameConfig?.debate?.topic?.title || '辩论记录',
+          description: gameConfig?.debate?.topic?.description,
+          speeches: uiState.history.speeches,
+          scores: uiState.history.scores,
+          dimensions: gameConfig?.debate?.judging?.dimensions || []
+        });
+      } else {
+        if (!contentRef.current) {
+          throw new Error('内容区域未找到');
+        }
+        await exportService.exportToImage(contentRef.current);
+      }
+
+      message.destroy();
+    } catch (error) {
+      message.destroy();
+      message.error('导出失败：' + (error instanceof Error ? error.message : '未知错误'));
+      console.error('导出错误:', error);
+    }
+  };
+
   // 如果 uiState 未定义，显示加载状态
   if (!uiState) {
     return (
@@ -1346,16 +1432,16 @@ export const DebateRoom: React.FC = () => {
   return (
     <DebateErrorBoundary>
       <ThemeProvider theme={theme}>
-        <Container>
-          <TopBar>
-            <div className="room-info">
-              <BackButton onClick={handleBackToConfig}>
+        <Container isDarkMode={uiState.isDarkMode}>
+          <TopBar isDarkMode={uiState.isDarkMode}>
+            <RoomInfo isDarkMode={uiState.isDarkMode}>
+              <BackButton isDarkMode={uiState.isDarkMode} onClick={handleBackToConfig}>
                 <RollbackOutlined />
                 返回配置
               </BackButton>
               <RoomTitle>{gameConfig?.debate?.topic?.title || '辩论室'}</RoomTitle>
-            </div>
-            <div className="debate-controls">
+            </RoomInfo>
+            <DebateControls isDarkMode={uiState.isDarkMode}>
               <DebateControl
                 status={uiState.status}
                 currentRound={uiState.currentRound}
@@ -1372,34 +1458,36 @@ export const DebateRoom: React.FC = () => {
                 onScoringComplete={handleSpeechComplete}
                 onNextRound={handleNextRound}
                 onNextSpeaker={handleNextSpeaker}
-                scoringRules={defaultDimensions}
+                scoringRules={gameConfig.debate.judging?.dimensions}
                 judge={judgeInfo}
                 speeches={uiState.history.speeches}
               />
-            </div>
-            <ToolButton onClick={handleThemeChange}>
-              {uiState.isDarkMode ? <BulbFilled /> : <BulbOutlined />}
-              {uiState.isDarkMode ? '浅色模式' : '深色模式'}
-            </ToolButton>
+            </DebateControls>
+            <ThemeControls isDarkMode={uiState.isDarkMode}>
+              <ToolButton isDarkMode={uiState.isDarkMode} onClick={handleThemeChange}>
+                {uiState.isDarkMode ? <BulbFilled /> : <BulbOutlined />}
+                {uiState.isDarkMode ? '浅色模式' : '深色模式'}
+              </ToolButton>
+            </ThemeControls>
           </TopBar>
 
           {/* 主题信息区域 */}
-          <TopicBar>
-            <TopicSection>
-              <TopicTitle>{gameConfig?.debate?.topic?.title || '未设置辩题'}</TopicTitle>
-              <TopicInfo>
+          <TopicBar isDarkMode={uiState.isDarkMode}>
+            <TopicSection isDarkMode={uiState.isDarkMode}>
+              <TopicTitle isDarkMode={uiState.isDarkMode}>{gameConfig?.debate?.topic?.title || '未设置辩题'}</TopicTitle>
+              <TopicInfo isDarkMode={uiState.isDarkMode}>
                 <div>{gameConfig?.debate?.topic?.description || '暂无描述'}</div>
               </TopicInfo>
             </TopicSection>
 
             {judgeInfo && (
-              <JudgeSection>
+              <JudgeSection isDarkMode={uiState.isDarkMode}>
                 <JudgeAvatar>
                   <img 
                     src={judgeInfo.avatar} 
                     alt={judgeInfo.name}
                   />
-                  <JudgeTooltip className="judge-tooltip">
+                  <JudgeTooltip isDarkMode={uiState.isDarkMode} className="judge-tooltip">
                     <div className="judge-header">
                       <img src={judgeInfo.avatar} alt={judgeInfo.name} />
                       <div className="judge-basic-info">
@@ -1441,20 +1529,7 @@ export const DebateRoom: React.FC = () => {
                       }}>
                         <div className="section-title">评分标准</div>
                         <div className="section-content">
-                          {gameConfig.debate.judging.dimensions.map((dimension: {
-                            name: string;
-                            weight: number;
-                            description: string;
-                            criteria: string[];
-                          }, index: number) => (
-                            <div key={index} className="dimension-item">
-                              <span className="dimension-name">{dimension.name}</span>
-                              <div className="dimension-content">
-                                <span style={{ color: '#1890ff', marginRight: '8px' }}>{dimension.weight}分</span>
-                                <span style={{ color: '#8c8c8c' }}>{dimension.description}</span>
-                              </div>
-                            </div>
-                          ))}
+                          {renderScores()}
                         </div>
                       </div>
                     )}
@@ -1469,7 +1544,7 @@ export const DebateRoom: React.FC = () => {
           </TopicBar>
 
           {/* 主内容区域 */}
-          <MainContent>
+          <MainContent isDarkMode={uiState.isDarkMode}>
             <Resizable
               size={{ width: uiState.playerListWidth || 350, height: '100%' }}
               onResizeStop={handleResizeStop}
@@ -1477,35 +1552,34 @@ export const DebateRoom: React.FC = () => {
               minWidth={250}
               maxWidth={450}
             >
-              <PlayerListSection>
-                <PlayerListHeader>
-                  <div className="title">参赛选手</div>
-                  <div className="count">
-                    {uiState.players.length}/4
-                  </div>
+              <PlayerListSection isDarkMode={uiState.isDarkMode}>
+                <PlayerListHeader isDarkMode={uiState.isDarkMode}>
+                  <StyledDiv className="title">参赛选手</StyledDiv>
+                  <StyledDiv className="count">{uiState.players.length}/4</StyledDiv>
                 </PlayerListHeader>
-                <PlayerListContainer>
+                <PlayerListContainer isDarkMode={uiState.isDarkMode}>
                   {uiState.players.map((player: UnifiedPlayer) => {
                     const character = player.characterId ? characterConfigs[player.characterId] : undefined;
-                    
                     return (
                       <PlayerCard 
                         key={player.id}
                         active={player.id === uiState.currentSpeaker?.id}
+                        isDarkMode={uiState.isDarkMode}
                       >
-                        <PlayerHeader>
-                          <div>
+                        <PlayerHeader isDarkMode={uiState.isDarkMode}>
+                          <PlayerAvatarWrapper isDarkMode={uiState.isDarkMode}>
                             <PlayerAvatar 
                               src={character?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${player.id}`}
                               alt={player.name}
+                              isDarkMode={uiState.isDarkMode}
                             />
-                            <PlayerInfo>
-                              <PlayerName>
+                            <PlayerInfoWrapper isDarkMode={uiState.isDarkMode}>
+                              <PlayerName isDarkMode={uiState.isDarkMode}>
                                 {player.name}
                               </PlayerName>
-                              <PlayerRole>
+                              <PlayerRole isDarkMode={uiState.isDarkMode}>
                                 {gameConfig?.debate?.rules?.debateFormat === 'structured' ? (
-                                  <>
+                                  <StyledDiv>
                                     {player.role.includes('affirmative') ? '正方' : 
                                      player.role.includes('negative') ? '反方' : 
                                      player.role === 'judge' ? '裁判' : 
@@ -1514,47 +1588,43 @@ export const DebateRoom: React.FC = () => {
                                     {player.role.includes('2') && ' - 二辩'}
                                     {player.role.includes('3') && ' - 三辩'}
                                     {player.role.includes('4') && ' - 四辩'}
-                                  </>
+                                  </StyledDiv>
                                 ) : (
-                                  <>
+                                  <StyledDiv>
                                     {player.role === 'free' ? '自由辩手' : 
                                      player.role === 'judge' ? '裁判' : 
                                      player.role === 'timekeeper' ? '计时员' : 
                                      player.role === 'unassigned' ? '未分配' : '观众'}
-                                  </>
+                                  </StyledDiv>
                                 )}
                               </PlayerRole>
-                            </PlayerInfo>
-                          </div>
+                            </PlayerInfoWrapper>
+                          </PlayerAvatarWrapper>
                           {character && (
-                            <CharacterInfo>
-                              <CharacterName>
-                                {character.name}
-                                {player.isAI && (
-                                  <span style={{ 
-                                    fontSize: '12px',
-                                    padding: '2px 8px',
-                                    background: 'rgba(24, 144, 255, 0.1)',
-                                    color: '#1890ff',
-                                    borderRadius: '4px'
-                                  }}>
-                                    AI
-                                  </span>
+                            <CharacterInfo isDarkMode={uiState.isDarkMode}>
+                              <CharacterContent isDarkMode={uiState.isDarkMode}>
+                                <CharacterName isDarkMode={uiState.isDarkMode}>
+                                  {character.name}
+                                  {player.isAI && (
+                                    <AIBadge isDarkMode={uiState.isDarkMode}>
+                                      AI
+                                    </AIBadge>
+                                  )}
+                                </CharacterName>
+                                {character.description && (
+                                  <CharacterDescription isDarkMode={uiState.isDarkMode}>
+                                    {character.description}
+                                  </CharacterDescription>
                                 )}
-                              </CharacterName>
-                              {character.description && (
-                                <CharacterDescription>
-                                  {character.description}
-                                </CharacterDescription>
-                              )}
-                              {character?.persona && (
-                                <CharacterPersona>
-                                  {character.persona.background} · {character.persona.speakingStyle}
-                                </CharacterPersona>
-                              )}
-                              <CharacterModel>
-                                {getModelInfo(character.id)}
-                              </CharacterModel>
+                                {character?.persona && (
+                                  <CharacterPersonaContent>
+                                    {character.persona.background} · {character.persona.speakingStyle}
+                                  </CharacterPersonaContent>
+                                )}
+                                <ModelWrapper>
+                                  {getModelInfo(character.id)}
+                                </ModelWrapper>
+                              </CharacterContent>
                             </CharacterInfo>
                           )}
                         </PlayerHeader>
@@ -1565,7 +1635,7 @@ export const DebateRoom: React.FC = () => {
               </PlayerListSection>
             </Resizable>
 
-            <ContentArea>
+            <ContentArea isDarkMode={uiState.isDarkMode} ref={contentRef}>
               <SpeechList
                 players={uiState.players}
                 currentSpeakerId={uiState.currentSpeaker?.id}

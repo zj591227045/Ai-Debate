@@ -251,10 +251,11 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   async submitSpeech(speech: SpeechInput): Promise<void> {
-    console.log('提交发言:', {
+    console.log('【发言记录调试】submitSpeech - 输入参数:', {
       playerId: speech.playerId,
       type: speech.type,
-      currentSpeaker: this.state.currentSpeaker?.id
+      currentSpeakerId: this.state.currentSpeaker?.id,
+      currentSpeakerCharacterId: this.state.currentSpeaker?.characterId
     });
 
     // 处理系统消息
@@ -268,7 +269,9 @@ export class DebateFlowService implements IDebateFlow {
         type: 'system',
         timestamp: Date.now(),
         round: this.state.currentRound,
-        role: 'system'
+        role: 'system',
+        characterId: 'system',
+        characterName: 'System'
       });
       
       this.emitStateChange();
@@ -304,7 +307,16 @@ export class DebateFlowService implements IDebateFlow {
       type: speech.type,
       timestamp: Date.now(),
       round: this.state.currentRound,
-      role: speech.type === 'innerThoughts' ? 'assistant' : 'user'
+      role: speech.type === 'innerThoughts' ? 'assistant' : 'user',
+      characterId: this.state.currentSpeaker?.characterId,
+      characterName: this.state.currentSpeaker?.name
+    });
+    
+    console.log('【发言记录调试】submitSpeech - 保存的speech对象:', {
+      playerId: speech.playerId,
+      characterId: this.state.currentSpeaker?.characterId,
+      characterName: this.state.currentSpeaker?.name,
+      type: speech.type
     });
     
     this.emitStateChange();
@@ -325,7 +337,12 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private async moveToNextSpeaker(): Promise<void> {
-    console.log('开始切换下一个发言者');
+    console.log('【发言记录调试】moveToNextSpeaker - 开始切换下一个发言者:', {
+      currentSpeakerId: this.state.currentSpeaker?.id,
+      currentSpeakerCharacterId: this.state.currentSpeaker?.characterId,
+      nextSpeakerId: this.state.nextSpeaker?.id,
+      nextSpeakerCharacterId: this.state.nextSpeaker?.characterId
+    });
     
     // 如果没有下一个发言者，检查是否需要进入下一轮
     if (!this.state.nextSpeaker) {
@@ -350,6 +367,13 @@ export class DebateFlowService implements IDebateFlow {
     const currentSpeakerInfo = this.state.speakingOrder.speakers.find(
       s => s.player.id === this.state.nextSpeaker?.id
     );
+    
+    console.log('【发言记录调试】moveToNextSpeaker - 找到的currentSpeakerInfo:', {
+      found: !!currentSpeakerInfo,
+      speakerId: currentSpeakerInfo?.player.id,
+      characterId: currentSpeakerInfo?.player.characterId,
+      name: currentSpeakerInfo?.player.name
+    });
     
     if (!currentSpeakerInfo) {
       throw new Error(`找不到发言者信息: ${this.state.nextSpeaker?.id}`);
@@ -393,6 +417,12 @@ export class DebateFlowService implements IDebateFlow {
 
   private async handleAISpeech(speaker: SpeakerInfo): Promise<void> {
     try {
+      console.log('【发言记录调试】handleAISpeech - speaker信息:', {
+        speakerId: speaker.id,
+        characterId: speaker.characterId,
+        name: speaker.name
+      });
+      
       this.updateDebateContext(speaker);
       
       // 初始化状态
@@ -469,7 +499,9 @@ export class DebateFlowService implements IDebateFlow {
           type: 'innerThoughts',
           timestamp: Date.now(),
           round: this.state.currentRound,
-          role: 'assistant'
+          role: 'assistant',
+          characterId: speaker.characterId,
+          characterName: speaker.name
         });
 
         // 生成正式发言
@@ -555,7 +587,9 @@ export class DebateFlowService implements IDebateFlow {
             type: 'speech',
             timestamp: Date.now(),
             round: this.state.currentRound,
-            role: 'assistant'
+            role: 'assistant',
+            characterId: speaker.characterId,
+            characterName: speaker.name
           });
         }
       }

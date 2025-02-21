@@ -141,6 +141,9 @@ export interface Speech {
   timestamp: number;
   round: number;
   role: SpeechRole;
+  characterId?: string;
+  characterName?: string;
+  sequence?: number;
 }
 
 export interface SpeechInfo {

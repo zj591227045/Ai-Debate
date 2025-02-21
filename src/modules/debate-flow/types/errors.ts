@@ -35,15 +35,22 @@ export enum DebateFlowError {
   INVALID_STATE = 'INVALID_STATE',
   
   // 语音生成错误
-  SPEECH_GENERATION_FAILED = 'SPEECH_GENERATION_FAILED'
+  SPEECH_GENERATION_FAILED = 'SPEECH_GENERATION_FAILED',
+  
+  // 初始化错误
+  INITIALIZATION_FAILED = 'INITIALIZATION_FAILED',
+  
+  // 字符错误
+  INVALID_CHARACTER = 'INVALID_CHARACTER'
 }
 
 export class DebateFlowException extends Error {
   constructor(
     public readonly code: DebateFlowError,
-    public readonly details?: any
+    message: string,
+    public readonly cause?: Error
   ) {
-    super(`DebateFlow Error: ${code}`);
+    super(message);
     this.name = 'DebateFlowException';
   }
 }

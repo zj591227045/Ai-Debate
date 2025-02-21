@@ -614,8 +614,7 @@ const GameConfigContent: React.FC = () => {
       debate: {
         ...currentDebate,
         topic: {
-          ...currentDebate.topic,
-          rounds: 3
+          ...currentDebate.topic
         },
         rules: {
           debateFormat: newRuleConfig.debateFormat,
@@ -637,8 +636,7 @@ const GameConfigContent: React.FC = () => {
       ...config,
       topic: {
         ...debateConfig.topic,
-        ...config.topic,
-        rounds: 3
+        ...config.topic
       }
     };
     setDebateConfig(newConfig);
@@ -686,13 +684,12 @@ const GameConfigContent: React.FC = () => {
 
   // 修改 handleStartGame 函数
   const handleStartGame = () => {
-    // 构建完整的配置对象，确保 rounds 有值
+    // 构建完整的配置对象，使用用户设置的轮次数
     const fullConfig: GameConfigState = {
       debate: {
         ...debateConfig,
         topic: {
-          ...debateConfig.topic,
-          rounds: 3
+          ...debateConfig.topic
         },
         rules: {
           ...debateConfig.rules,

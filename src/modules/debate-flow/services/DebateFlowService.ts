@@ -127,12 +127,12 @@ export class DebateFlowService implements IDebateFlow {
     this.state = {
       status: DebateStatus.PREPARING,
       currentRound: 1,
-      totalRounds: config.rules.rounds,
+      totalRounds: config.topic.rounds,
       currentSpeaker: null,
       nextSpeaker: speakingOrder.speakers[0] ? { ...speakingOrder.speakers[0].player } : null,
       speakingOrder: {
         ...speakingOrder,
-        totalRounds: config.rules.rounds,
+        totalRounds: config.topic.rounds,
         // 确保每个发言者对象都完整复制
         speakers: speakingOrder.speakers.map(s => ({
           ...s,
@@ -151,7 +151,7 @@ export class DebateFlowService implements IDebateFlow {
         background: config.topic.background
       },
       currentRound: 1,
-      totalRounds: config.rules.rounds,
+      totalRounds: config.topic.rounds,
       previousSpeeches: [],
       sceneType: DebateSceneType.OPENING,
       stance: 'positive'

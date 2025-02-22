@@ -42,18 +42,11 @@ export class OpenAIProvider extends LLMProvider {
     // 移除末尾的斜杠
     const normalizedBase = baseUrl.replace(/\/*$/, '');
     
-    // 检查是否已经包含 v1 路径
-    const hasV1 = normalizedBase.includes('/v1/');
+    // 移除 endpoint 开头可能的斜杠
+    const cleanEndpoint = endpoint.replace(/^\/+/, '');
     
-    // 如果已经包含 v1，直接拼接 endpoint
-    if (hasV1) {
-      // 移除 endpoint 开头可能的 v1
-      const cleanEndpoint = endpoint.replace(/^\/?(v1\/)?/, '');
-      return `${normalizedBase}/${cleanEndpoint}`;
-    }
-    
-    // 如果不包含 v1，添加 v1 路径
-    return `${normalizedBase}/v1/${endpoint}`;
+    // 直接拼接 endpoint，不添加 v1 路径
+    return `${normalizedBase}/${cleanEndpoint}`;
   }
 
   async listModels(): Promise<string[]> {

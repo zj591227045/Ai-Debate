@@ -26,7 +26,7 @@ export class RoundController {
     this.currentContext = {
       topic: {
         title: '',
-        background: ''
+        description: ''
       },
       currentRound: 1,
       totalRounds: 1,

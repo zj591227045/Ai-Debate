@@ -1,0 +1,109 @@
+{
+  "id": "role_playing_template",
+  "name": "角色扮演模板",
+  "topic": {
+    "title": "{{角色扮演主题}}",
+    "description": "这是一个角色扮演模板，用于深度体验和展现特定角色。\n\n角色背景：{{详细描述每个角色的背景故事、性格特征和行为模式}}\n\n世界观设定：{{描述角色所处的世界背景和基本设定}}\n\n角色关系：{{说明各个角色之间的关系和互动基础}}\n\n情境设定：{{描述角色扮演发生的具体场景和情境}}\n\n剧情走向：{{规划角色扮演的主要剧情发展方向}}\n\n互动目标：{{设定角色之间需要达成的互动目标}}",
+    "type": "roleplay",
+    "rounds": 4
+  },
+  "rules": {
+    "debateFormat": "roleplay",
+    "description": "角色扮演规则指南：\n1. 完全代入角色身份\n2. 保持角色行为一致性\n3. 展现角色独特性格\n4. 与其他角色自然互动\n\n特殊规则：\n{{添加针对该角色扮演的特殊规则，例如：\n- 角色行为的限制条件\n- 特定的互动方式要求\n- 情感表达的规范\n- 剧情发展的框架}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 100,
+        "max": 800
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": true,
+      "allowStanceChange": false,
+      "requireEvidence": false,
+      "roleplayElements": {
+        "maintainCharacterConsistency": true,
+        "developRelationships": true,
+        "allowEmotionalExpression": true,
+        "respectBackstory": true
+      }
+    }
+  },
+  "judging": {
+    "description": "角色扮演评判标准",
+    "dimensions": [
+      {
+        "name": "角色还原度",
+        "weight": 35,
+        "description": "对角色的准确理解和表现",
+        "criteria": [
+          "性格准确",
+          "行为合理",
+          "特征鲜明"
+        ]
+      },
+      {
+        "name": "互动质量",
+        "weight": 25,
+        "description": "与其他角色的互动效果",
+        "criteria": [
+          "反应自然",
+          "互动流畅",
+          "关系发展"
+        ]
+      },
+      {
+        "name": "情感表现",
+        "weight": 25,
+        "description": "角色情感的真实性和丰富度",
+        "criteria": [
+          "情感真实",
+          "表现丰富",
+          "变化合理"
+        ]
+      },
+      {
+        "name": "创造性",
+        "weight": 15,
+        "description": "在角色框架内的创新表现",
+        "criteria": [
+          "细节创新",
+          "表现独特",
+          "发展有趣"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "角色扮演导师",
+      "role": "mentor",
+      "characterId": "roleplay_mentor"
+    },
+    {
+      "id": "2",
+      "name": "主要角色A",
+      "role": "main_character",
+      "characterId": "character_a"
+    },
+    {
+      "id": "3",
+      "name": "主要角色B",
+      "role": "main_character",
+      "characterId": "character_b"
+    },
+    {
+      "id": "4",
+      "name": "互动观察员",
+      "role": "observer",
+      "characterId": "interaction_observer"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

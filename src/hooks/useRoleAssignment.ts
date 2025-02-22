@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Player, DebateRole } from '../types/player';
 import { shuffleArray } from '../utils/array';
+import { message } from 'antd';
 
 export interface RoleAssignmentConfig {
   affirmativeCount: number;
@@ -78,7 +79,8 @@ export const useRoleAssignment = (initialPlayers: Player[], initialConfig: RoleA
   const removePlayer = useCallback((playerId: string) => {
     setState(prev => {
       const remainingPlayers = prev.players.filter(p => p.id !== playerId);
-      if (remainingPlayers.length < prev.config.minPlayers) {
+      if (remainingPlayers.length < 2) {
+        message.warning('至少需要保留2名选手');
         return prev;
       }
 

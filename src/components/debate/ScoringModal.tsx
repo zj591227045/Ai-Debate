@@ -358,6 +358,12 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
       }
 
       const scoringContext: ScoringContext = {
+        topic: {
+          title: '',
+          description: ''
+        },
+        currentRound: currentRound,
+        totalRounds: players.length,
         judge: {
           id: judge?.characterConfig?.id || judge?.id || 'system',
           name: judge?.name || '系统评委',

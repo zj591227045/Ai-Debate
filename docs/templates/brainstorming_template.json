@@ -1,0 +1,109 @@
+{
+  "id": "brainstorming_template",
+  "name": "头脑风暴模板",
+  "topic": {
+    "title": "{{头脑风暴主题}}",
+    "description": "这是一个头脑风暴模板，用于集体产生创意和解决方案。\n\n问题描述：{{详细描述需要解决的问题或需要探讨的主题}}\n\n现状分析：{{描述当前面临的困境或挑战}}\n\n目标期望：{{明确头脑风暴需要达到的具体目标}}\n\n限制条件：{{列出在解决方案中需要考虑的现实限制，如技术条件、资源限制等}}\n\n期望产出：{{说明期望获得的具体成果形式，如解决方案、创新点子等}}",
+    "type": "brainstorm",
+    "rounds": 3
+  },
+  "rules": {
+    "debateFormat": "brainstorm",
+    "description": "头脑风暴规则指南：\n1. 数量优先，不预设限制\n2. 不评判他人想法\n3. 鼓励天马行空\n4. 允许并鼓励结合他人想法\n\n特殊规则：\n{{添加针对该主题的特殊规则，例如：\n- 特定思维方法的运用要求\n- 创意提出的方式规定\n- 互动和反馈的机制\n- 成果整合的方式}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 50,
+        "max": 500
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": false,
+      "allowStanceChange": true,
+      "requireEvidence": false,
+      "brainstormElements": {
+        "encourageWildIdeas": true,
+        "buildOnOthersIdeas": true,
+        "noJudgment": true,
+        "quantityOverQuality": true
+      }
+    }
+  },
+  "judging": {
+    "description": "头脑风暴评估标准",
+    "dimensions": [
+      {
+        "name": "创新度",
+        "weight": 35,
+        "description": "想法的新颖性和独特性",
+        "criteria": [
+          "想法独特",
+          "视角新颖",
+          "突破常规"
+        ]
+      },
+      {
+        "name": "可行性",
+        "weight": 25,
+        "description": "想法的实际可行程度",
+        "criteria": [
+          "技术可行",
+          "资源合理",
+          "实施可能"
+        ]
+      },
+      {
+        "name": "发展性",
+        "weight": 25,
+        "description": "想法的延展性和启发性",
+        "criteria": [
+          "可扩展性",
+          "启发价值",
+          "组合潜力"
+        ]
+      },
+      {
+        "name": "参与度",
+        "weight": 15,
+        "description": "参与互动的积极程度",
+        "criteria": [
+          "贡献数量",
+          "互动程度",
+          "建设性"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "引导者",
+      "role": "facilitator",
+      "characterId": "brainstorm_facilitator"
+    },
+    {
+      "id": "2",
+      "name": "创意者A",
+      "role": "ideator",
+      "characterId": "ideator_a"
+    },
+    {
+      "id": "3",
+      "name": "创意者B",
+      "role": "ideator",
+      "characterId": "ideator_b"
+    },
+    {
+      "id": "4",
+      "name": "记录者",
+      "role": "recorder",
+      "characterId": "idea_recorder"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

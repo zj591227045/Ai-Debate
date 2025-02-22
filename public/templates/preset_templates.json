@@ -1,0 +1,469 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2024-02-22T02:40:48.932Z",
+  "presetTemplates": [
+    {
+      "id": "preset_story_creation",
+      "name": "故事创作模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1000,
+      "topic": {
+        "title": "{{故事标题}}",
+        "description": "这是一个故事创作模板，用于集体创作一个完整的故事。\n\n故事背景：{{设定故事发生的时代、地点和基本背景}}\n\n故事主题：{{故事想要表达的核心主题或情感}}\n\n创作目标：{{故事需要达到的具体目标，例如：展现人性的复杂性、探讨科技发展带来的影响等}}\n\n关键元素：{{需要包含的关键情节点或必要元素}}",
+        "rounds": 5
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "故事创作规则指南：\n1. 每位参与者需要在前一个情节的基础上继续发展故事\n2. 保持故事的连贯性和合理性\n3. 注意人物性格的一致性\n4. 可以引入新的人物和情节，但要与已有内容相呼应\n\n特殊规则：\n{{添加针对该故事主题的特殊规则，例如：\n- 故事必须包含的场景或情节\n- 特定的叙事视角要求\n- 故事发展的限制条件\n- 人物互动的特殊要求}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 200,
+            "max": 1000
+          },
+          "allowQuoting": true,
+          "requireResponse": true,
+          "allowStanceChange": true,
+          "requireEvidence": false
+        }
+      },
+      "judging": {
+        "description": "故事评判标准：\n\n1. 创意性（25分）\n- 故事情节是否具有独特性和新颖性\n- 人物设定是否富有特色和创新\n- 故事主题是否有新的诠释角度\n\n2. 结构完整性（25分）\n- 故事是否具有完整的起承转合\n- 情节发展是否流畅自然\n- 各个部分是否衔接紧密\n\n3. 人物塑造（25分）\n- 人物性格是否鲜明立体\n- 人物行为是否符合其设定\n- 人物发展是否合理自然\n\n4. 文字表现（25分）\n- 场景描写是否生动形象\n- 情感表达是否真挚动人\n- 语言风格是否优美流畅\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "创意性",
+            "weight": 25,
+            "description": "故事的原创性和创新程度",
+            "criteria": [
+              "情节独特",
+              "创意新颖",
+              "角色特色"
+            ]
+          },
+          {
+            "name": "结构完整性",
+            "weight": 25,
+            "description": "故事结构的完整性和连贯性",
+            "criteria": [
+              "情节连贯",
+              "结构完整",
+              "起承转合"
+            ]
+          },
+          {
+            "name": "人物塑造",
+            "weight": 25,
+            "description": "人物形象的丰满度和可信度",
+            "criteria": [
+              "性格鲜明",
+              "形象立体",
+              "发展合理"
+            ]
+          },
+          {
+            "name": "文字表现",
+            "weight": 25,
+            "description": "语言表达的生动性和感染力",
+            "criteria": [
+              "描写生动",
+              "语言优美",
+              "情感真挚"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    },
+    {
+      "id": "preset_free_debate",
+      "name": "自由辩论模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1001,
+      "topic": {
+        "title": "{{辩论主题}}",
+        "description": "这是一个自由辩论模板，参与者可以围绕核心话题展开多角度的讨论和辩论。\n\n辩题背景：{{描述辩题产生的背景和现实意义}}\n\n核心争议：{{阐述辩题中的主要争议点和分歧所在}}\n\n讨论范围：{{界定讨论的具体范围，例如：经济层面、社会层面、技术层面等}}\n\n预期目标：{{通过辩论希望达成的目标，例如：达成共识、提出解决方案等}}",
+        "rounds": 4
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "自由辩论规则指南：\n1. 参与者可以自由选择立场\n2. 需要对其他参与者的观点做出回应\n3. 论据需要具有说服力和可信度\n4. 保持理性和客观的讨论态度\n\n特殊规则：\n{{添加针对该辩题的特殊规则，例如：\n- 必须引用的数据或研究\n- 特定领域的限制条件\n- 论证方式的要求\n- 回应机制的规定}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 150,
+            "max": 800
+          },
+          "allowQuoting": true,
+          "requireResponse": true,
+          "allowStanceChange": true,
+          "requireEvidence": true
+        }
+      },
+      "judging": {
+        "description": "自由辩论评判标准：\n\n1. 论证质量（30分）\n- 论点是否明确，论据是否充分\n- 推理过程是否严密，逻辑是否清晰\n- 论证方法是否恰当，说服力是否强\n\n2. 回应质量（25分）\n- 是否准确理解对方观点\n- 反驳是否有力，切中要害\n- 互动是否积极，对话是否充分\n\n3. 创新思维（25分）\n- 观点是否具有新颖性\n- 论证角度是否独特\n- 思维方式是否开阔\n\n4. 表达能力（20分）\n- 语言是否清晰准确\n- 表达是否流畅自然\n- 论述是否条理分明\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "论证质量",
+            "weight": 30,
+            "description": "论证的逻辑性和说服力",
+            "criteria": [
+              "逻辑严密",
+              "论据充分",
+              "论证有力"
+            ]
+          },
+          {
+            "name": "回应质量",
+            "weight": 25,
+            "description": "对其他观点的回应质量",
+            "criteria": [
+              "回应准确",
+              "反驳有力",
+              "互动充分"
+            ]
+          },
+          {
+            "name": "创新思维",
+            "weight": 25,
+            "description": "观点的创新性和独特性",
+            "criteria": [
+              "视角新颖",
+              "思路开阔",
+              "见解独到"
+            ]
+          },
+          {
+            "name": "表达能力",
+            "weight": 20,
+            "description": "表达的清晰度和说服力",
+            "criteria": [
+              "表达清晰",
+              "语言准确",
+              "论述流畅"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    },
+    {
+      "id": "preset_brainstorming",
+      "name": "头脑风暴模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1002,
+      "topic": {
+        "title": "{{头脑风暴主题}}",
+        "description": "这是一个头脑风暴模板，用于集体产生创意和解决方案。\n\n问题描述：{{详细描述需要解决的问题或需要探讨的主题}}\n\n现状分析：{{描述当前面临的困境或挑战}}\n\n目标期望：{{明确头脑风暴需要达到的具体目标}}\n\n限制条件：{{列出在解决方案中需要考虑的现实限制，如技术条件、资源限制等}}\n\n期望产出：{{说明期望获得的具体成果形式，如解决方案、创新点子等}}",
+        "rounds": 3
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "头脑风暴规则指南：\n1. 数量优先，不预设限制\n2. 不评判他人想法\n3. 鼓励天马行空\n4. 允许并鼓励结合他人想法\n\n特殊规则：\n{{添加针对该主题的特殊规则，例如：\n- 特定思维方法的运用要求\n- 创意提出的方式规定\n- 互动和反馈的机制\n- 成果整合的方式}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 50,
+            "max": 500
+          },
+          "allowQuoting": true,
+          "requireResponse": false,
+          "allowStanceChange": true,
+          "requireEvidence": false
+        }
+      },
+      "judging": {
+        "description": "头脑风暴评估标准：\n\n1. 创新度（35分）\n- 想法是否具有突破性和原创性\n- 解决方案是否跳出常规思维\n- 创意是否具有独特价值\n\n2. 可行性（25分）\n- 方案是否具有技术可行性\n- 资源需求是否合理\n- 实施难度是否适中\n\n3. 发展性（25分）\n- 想法是否具有扩展空间\n- 是否能激发更多创意\n- 是否具有组合创新潜力\n\n4. 参与度（15分）\n- 贡献想法的数量和质量\n- 与他人互动的积极性\n- 对团队创意的建设性作用\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "创新度",
+            "weight": 35,
+            "description": "想法的新颖性和独特性",
+            "criteria": [
+              "想法独特",
+              "视角新颖",
+              "突破常规"
+            ]
+          },
+          {
+            "name": "可行性",
+            "weight": 25,
+            "description": "想法的实际可行程度",
+            "criteria": [
+              "技术可行",
+              "资源合理",
+              "实施可能"
+            ]
+          },
+          {
+            "name": "发展性",
+            "weight": 25,
+            "description": "想法的延展性和启发性",
+            "criteria": [
+              "可扩展性",
+              "启发价值",
+              "组合潜力"
+            ]
+          },
+          {
+            "name": "参与度",
+            "weight": 15,
+            "description": "参与互动的积极程度",
+            "criteria": [
+              "贡献数量",
+              "互动程度",
+              "建设性"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    },
+    {
+      "id": "preset_script_writing",
+      "name": "剧本编写模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1003,
+      "topic": {
+        "title": "{{剧本标题}}",
+        "description": "这是一个剧本编写模板，用于集体创作一个完整的剧本。\n\n故事梗概：{{简述剧本的核心故事情节}}\n\n创作背景：{{描述创作这个剧本的背景和意义}}\n\n主要人物：{{列出主要人物及其基本设定}}\n\n核心冲突：{{描述剧本中的主要冲突和矛盾}}\n\n风格定位：{{确定剧本的风格，如悲剧、喜剧、悬疑等}}\n\n目标受众：{{明确剧本针对的目标观众群体}}",
+        "rounds": 5
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "剧本编写规则指南：\n1. 遵循标准剧本格式\n2. 注重人物对话的真实性\n3. 场景描写要简洁有力\n4. 保持情节的连贯性和张力\n\n特殊规则：\n{{添加针对该剧本的特殊规则，例如：\n- 特定的叙事结构要求\n- 场景转换的规定\n- 对话风格的要求\n- 特殊表现手法的运用}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 100,
+            "max": 1000
+          },
+          "allowQuoting": true,
+          "requireResponse": true,
+          "allowStanceChange": true,
+          "requireEvidence": false
+        }
+      },
+      "judging": {
+        "description": "剧本评判标准：\n\n1. 结构完整性（25分）\n- 故事结构是否完整合理\n- 情节发展是否层次分明\n- 节奏把控是否恰到好处\n\n2. 对话质量（25分）\n- 对话是否自然流畅\n- 人物台词是否符合性格\n- 是否具有戏剧张力\n\n3. 场景描写（25分）\n- 场景描写是否清晰具体\n- 氛围营造是否到位\n- 细节处理是否精准\n\n4. 创意性（25分）\n- 故事创意是否独特\n- 情节设计是否新颖\n- 是否具有吸引力\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "结构完整性",
+            "weight": 25,
+            "description": "剧本结构的完整性和合理性",
+            "criteria": [
+              "结构清晰",
+              "情节完整",
+              "节奏把控"
+            ]
+          },
+          {
+            "name": "对话质量",
+            "weight": 25,
+            "description": "对话的自然度和戏剧性",
+            "criteria": [
+              "对话自然",
+              "个性鲜明",
+              "戏剧张力"
+            ]
+          },
+          {
+            "name": "场景描写",
+            "weight": 25,
+            "description": "场景描写的生动性和细节",
+            "criteria": [
+              "场景清晰",
+              "氛围营造",
+              "细节把控"
+            ]
+          },
+          {
+            "name": "创意性",
+            "weight": 25,
+            "description": "剧本的创新性和吸引力",
+            "criteria": [
+              "创意独特",
+              "情节新颖",
+              "引人入胜"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    },
+    {
+      "id": "preset_scenario_simulation",
+      "name": "场景模拟模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1004,
+      "topic": {
+        "title": "{{场景模拟主题}}",
+        "description": "这是一个场景模拟模板，用于模拟特定场景下的互动和决策过程。\n\n场景设定：{{详细描述模拟的具体场景和环境}}\n\n背景信息：{{提供相关的背景资料和关键信息}}\n\n角色关系：{{说明场景中各个角色之间的关系网络}}\n\n核心问题：{{描述需要在模拟中解决的核心问题或挑战}}\n\n目标设定：{{明确场景模拟需要达到的具体目标}}\n\n关键节点：{{列出模拟过程中需要经历的关键决策点或转折点}}",
+        "rounds": 4
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "场景模拟规则指南：\n1. 严格遵守角色设定\n2. 保持情境的真实性\n3. 反应要符合逻辑\n4. 考虑决策的后果\n\n特殊规则：\n{{添加针对该场景的特殊规则，例如：\n- 特定的互动机制\n- 决策的限制条件\n- 信息获取的规则\n- 结果评估的标准}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 100,
+            "max": 800
+          },
+          "allowQuoting": true,
+          "requireResponse": true,
+          "allowStanceChange": true,
+          "requireEvidence": true
+        }
+      },
+      "judging": {
+        "description": "场景模拟评判标准：\n\n1. 角色表现（30分）\n- 是否准确把握角色特征\n- 表现是否自然流畅\n- 性格特征是否保持一致\n\n2. 决策质量（25分）\n- 决策是否符合情境\n- 是否考虑各方面因素\n- 解决方案是否可行\n\n3. 互动效果（25分）\n- 对其他角色的反应是否及时\n- 互动是否自然合理\n- 团队配合是否默契\n\n4. 情境把控（20分）\n- 场景还原是否真实\n- 情节发展是否合理\n- 细节处理是否到位\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "角色表现",
+            "weight": 30,
+            "description": "角色扮演的真实性和一致性",
+            "criteria": [
+              "角色准确",
+              "表现自然",
+              "性格一致"
+            ]
+          },
+          {
+            "name": "决策质量",
+            "weight": 25,
+            "description": "决策的合理性和有效性",
+            "criteria": [
+              "决策合理",
+              "考虑周全",
+              "效果可行"
+            ]
+          },
+          {
+            "name": "互动效果",
+            "weight": 25,
+            "description": "参与者之间的互动质量",
+            "criteria": [
+              "反应及时",
+              "互动自然",
+              "配合默契"
+            ]
+          },
+          {
+            "name": "情境把控",
+            "weight": 20,
+            "description": "对模拟情境的控制和发展",
+            "criteria": [
+              "场景真实",
+              "发展合理",
+              "细节丰富"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    },
+    {
+      "id": "preset_role_playing",
+      "name": "角色扮演模板",
+      "type": "preset",
+      "isPreset": true,
+      "order": 1005,
+      "topic": {
+        "title": "{{角色扮演主题}}",
+        "description": "这是一个角色扮演模板，用于深度体验和展现特定角色。\n\n角色背景：{{详细描述每个角色的背景故事、性格特征和行为模式}}\n\n世界观设定：{{描述角色所处的世界背景和基本设定}}\n\n角色关系：{{说明各个角色之间的关系和互动基础}}\n\n情境设定：{{描述角色扮演发生的具体场景和情境}}\n\n剧情走向：{{规划角色扮演的主要剧情发展方向}}\n\n互动目标：{{设定角色之间需要达成的互动目标}}",
+        "rounds": 4
+      },
+      "rules": {
+        "debateFormat": "free",
+        "description": "角色扮演规则指南：\n1. 完全代入角色身份\n2. 保持角色行为一致性\n3. 展现角色独特性格\n4. 与其他角色自然互动\n\n特殊规则：\n{{添加针对该角色扮演的特殊规则，例如：\n- 角色行为的限制条件\n- 特定的互动方式要求\n- 情感表达的规范\n- 剧情发展的框架}}",
+        "advancedRules": {
+          "speechLengthLimit": {
+            "min": 100,
+            "max": 800
+          },
+          "allowQuoting": true,
+          "requireResponse": true,
+          "allowStanceChange": false,
+          "requireEvidence": false
+        }
+      },
+      "judging": {
+        "description": "角色扮演评判标准：\n\n1. 角色还原度（35分）\n- 是否准确理解和表现角色性格\n- 行为举止是否符合角色设定\n- 角色特征是否鲜明突出\n\n2. 互动质量（25分）\n- 与其他角色的互动是否自然\n- 对话交流是否流畅\n- 关系发展是否合理\n\n3. 情感表现（25分）\n- 情感表达是否真实\n- 情感层次是否丰富\n- 情感变化是否合理\n\n4. 创造性（15分）\n- 角色细节刻画是否有创新\n- 表现方式是否独特\n- 角色发展是否有趣\n\n总分：100分",
+        "dimensions": [
+          {
+            "name": "角色还原度",
+            "weight": 35,
+            "description": "对角色的准确理解和表现",
+            "criteria": [
+              "性格准确",
+              "行为合理",
+              "特征鲜明"
+            ]
+          },
+          {
+            "name": "互动质量",
+            "weight": 25,
+            "description": "与其他角色的互动效果",
+            "criteria": [
+              "反应自然",
+              "互动流畅",
+              "关系发展"
+            ]
+          },
+          {
+            "name": "情感表现",
+            "weight": 25,
+            "description": "角色情感的真实性和丰富度",
+            "criteria": [
+              "情感真实",
+              "表现丰富",
+              "变化合理"
+            ]
+          },
+          {
+            "name": "创造性",
+            "weight": 15,
+            "description": "在角色框架内的创新表现",
+            "criteria": [
+              "细节创新",
+              "表现独特",
+              "发展有趣"
+            ]
+          }
+        ],
+        "totalScore": 100,
+        "type": "ai"
+      }
+    }
+  ],
+  "templateManagement": {
+    "sortingRules": {
+      "customFirst": true,
+      "sortBy": [
+        {
+          "field": "isPreset",
+          "order": "asc"
+        },
+        {
+          "field": "updatedAt",
+          "order": "desc"
+        },
+        {
+          "field": "order",
+          "order": "asc"
+        }
+      ]
+    },
+    "presetRules": {
+      "allowEdit": false,
+      "allowDelete": false,
+      "allowDuplicate": true,
+      "minOrder": 1000
+    }
+  }
+} 

@@ -57,7 +57,9 @@ export class DebateRoomAdapter {
         format: config.rules.debateFormat,
         rounds: config.topic.rounds,
         canSkipSpeaker: config.rules.canSkipSpeaker,
-        requireInnerThoughts: config.rules.requireInnerThoughts
+        requireInnerThoughts: config.rules.requireInnerThoughts,
+        description: config.rules.description || '',
+        scoring: config.rules.scoring
       }
     };
 

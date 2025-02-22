@@ -1,0 +1,109 @@
+{
+  "id": "free_debate_template",
+  "name": "自由辩论模板",
+  "topic": {
+    "title": "{{辩论主题}}",
+    "description": "这是一个自由辩论模板，参与者可以围绕核心话题展开多角度的讨论和辩论。\n\n辩题背景：{{描述辩题产生的背景和现实意义}}\n\n核心争议：{{阐述辩题中的主要争议点和分歧所在}}\n\n讨论范围：{{界定讨论的具体范围，例如：经济层面、社会层面、技术层面等}}\n\n预期目标：{{通过辩论希望达成的目标，例如：达成共识、提出解决方案等}}",
+    "type": "debate",
+    "rounds": 4
+  },
+  "rules": {
+    "debateFormat": "free",
+    "description": "自由辩论规则指南：\n1. 参与者可以自由选择立场\n2. 需要对其他参与者的观点做出回应\n3. 论据需要具有说服力和可信度\n4. 保持理性和客观的讨论态度\n\n特殊规则：\n{{添加针对该辩题的特殊规则，例如：\n- 必须引用的数据或研究\n- 特定领域的限制条件\n- 论证方式的要求\n- 回应机制的规定}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 150,
+        "max": 800
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": true,
+      "allowStanceChange": true,
+      "requireEvidence": true,
+      "debateElements": {
+        "requireLogicalArgument": true,
+        "allowCounterArgument": true,
+        "requireEvidenceSupport": true,
+        "allowPerspectiveShift": true
+      }
+    }
+  },
+  "judging": {
+    "description": "自由辩论评判标准",
+    "dimensions": [
+      {
+        "name": "论证质量",
+        "weight": 30,
+        "description": "论证的逻辑性和说服力",
+        "criteria": [
+          "逻辑严密",
+          "论据充分",
+          "论证有力"
+        ]
+      },
+      {
+        "name": "回应质量",
+        "weight": 25,
+        "description": "对其他观点的回应质量",
+        "criteria": [
+          "回应准确",
+          "反驳有力",
+          "互动充分"
+        ]
+      },
+      {
+        "name": "创新思维",
+        "weight": 25,
+        "description": "观点的创新性和独特性",
+        "criteria": [
+          "视角新颖",
+          "思路开阔",
+          "见解独到"
+        ]
+      },
+      {
+        "name": "表达能力",
+        "weight": 20,
+        "description": "表达的清晰度和说服力",
+        "criteria": [
+          "表达清晰",
+          "语言准确",
+          "论述流畅"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "主持人",
+      "role": "moderator",
+      "characterId": "debate_moderator"
+    },
+    {
+      "id": "2",
+      "name": "辩论者A",
+      "role": "debater",
+      "characterId": "debater_a"
+    },
+    {
+      "id": "3",
+      "name": "辩论者B",
+      "role": "debater",
+      "characterId": "debater_b"
+    },
+    {
+      "id": "4",
+      "name": "辩论者C",
+      "role": "debater",
+      "characterId": "debater_c"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

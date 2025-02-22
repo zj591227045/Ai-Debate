@@ -313,10 +313,19 @@ export class LLMService implements ILLMService {
     context: DebateContext,
     options?: Partial<GenerateStreamOptions>
   ): AsyncGenerator<string> {
-    console.log('生成内心独白的玩家信息:', {
-      player,
-      context,
-      options
+    console.group('=== 生成内心独白 ===');
+    console.log('玩家信息:', {
+      id: player.id,
+      name: player.name,
+      characterId: player.characterId
+    });
+    console.log('辩论上下文:', {
+      topic: context.topic,
+      rules: context.rules,
+      currentRound: context.currentRound,
+      totalRounds: context.totalRounds,
+      sceneType: context.sceneType,
+      stance: context.stance
     });
 
     await this.ensureInitialized();
@@ -330,6 +339,7 @@ export class LLMService implements ILLMService {
       systemPrompt,
       humanPrompt
     });
+    console.groupEnd();
 
     try {
       yield* this.generateStream({
@@ -349,7 +359,7 @@ export class LLMService implements ILLMService {
 立场：${context.stance === 'positive' ? '正方' : '反方'}`;
       const fallbackHumanPrompt = `请以第一人称的方式，简要分析当前局势，并思考下一步策略。
 辩题：${context.topic.title}
-${context.topic.background ? `背景：${context.topic.background}` : ''}`;
+${context.topic.description ? `背景：${context.topic.description}` : ''}`;
 
       try {
         yield* this.generateStream({
@@ -372,12 +382,21 @@ ${context.topic.background ? `背景：${context.topic.background}` : ''}`;
     innerThoughts: string,
     options?: Partial<GenerateStreamOptions>
   ): AsyncGenerator<string> {
-    console.log('生成正式发言的玩家信息:', {
-      player,
-      context,
-      innerThoughts,
-      options
+    console.group('=== 生成正式发言 ===');
+    console.log('玩家信息:', {
+      id: player.id,
+      name: player.name,
+      characterId: player.characterId
     });
+    console.log('辩论上下文:', {
+      topic: context.topic,
+      rules: context.rules,
+      currentRound: context.currentRound,
+      totalRounds: context.totalRounds,
+      sceneType: context.sceneType,
+      stance: context.stance
+    });
+    console.log('内心独白:', innerThoughts);
 
     await this.ensureInitialized();
     const characterId = player.characterId || '';
@@ -390,6 +409,7 @@ ${context.topic.background ? `背景：${context.topic.background}` : ''}`;
       systemPrompt,
       humanPrompt
     });
+    console.groupEnd();
 
     try {
       yield* this.generateStream({
@@ -409,7 +429,7 @@ ${context.topic.background ? `背景：${context.topic.background}` : ''}`;
 立场：${context.stance === 'positive' ? '正方' : '反方'}`;
       const fallbackHumanPrompt = `请基于以下信息进行简短有力的论述：
 辩题：${context.topic.title}
-${context.topic.background ? `背景：${context.topic.background}` : ''}
+${context.topic.description ? `背景：${context.topic.description}` : ''}
 我的思考：${innerThoughts}`;
 
       try {
@@ -429,116 +449,20 @@ ${context.topic.background ? `背景：${context.topic.background}` : ''}
 
   async *generateScore(speech: ProcessedSpeech, context: ScoringContext): AsyncGenerator<string> {
     try {
-      const prompt = this.promptService.generateScoringSystemPrompt(context.judge, context.rules);
+      const prompt = this.promptService.generateScoringSystemPrompt(context.judge, context.rules, context);
       const humanPrompt = this.promptService.generateScoringHumanPrompt(speech, context);
 
       const request = {
-        message: humanPrompt,
         systemPrompt: prompt,
-        temperature: 0.7,
-        maxTokens: 2000,
-        topP: 0.95,
-        stream: true
+        humanPrompt,
+        characterId: context.judge.id,
+        type: 'speech' as const
       };
 
-      let content = '';
-      let currentComment = '';
-      let isParsingScores = false;
-      const dimensions: Record<string, number> = {};
-
-      for await (const chunk of this.llmService.stream(request)) {
-        if (chunk.content) {
-          content += chunk.content;
-          yield chunk.content;
-
-          // 如果遇到"总评："，开始收集评语
-          if (chunk.content.includes('总评：')) {
-            isParsingScores = false;
-            continue;
-          }
-
-          // 如果遇到"第三部分：维度评分"，开始解析分数
-          if (chunk.content.includes('第三部分：维度评分')) {
-            isParsingScores = true;
-            continue;
-          }
-
-          // 如果正在解析分数，检查每一行是否包含分数
-          if (isParsingScores) {
-            const lines = chunk.content.split('\n');
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              // 修改正则表达式以更准确地匹配分数行
-              const scoreMatch = trimmedLine.match(/^([^：]+)：\s*(\d+)\s*$/);
-              if (scoreMatch) {
-                const [, dimension, scoreStr] = scoreMatch;
-                const score = parseInt(scoreStr, 10);
-                if (!isNaN(score) && score >= 0 && score <= 100) {
-                  dimensions[dimension.trim()] = score;
-                }
-              }
-            }
-          } else {
-            // 如果不在解析分数，收集评语
-            currentComment += chunk.content;
-          }
-        }
-      }
-
-      // 在所有内容接收完成后，重新解析一次分数
-      const scoreLines = content.split('\n');
-      let foundScoreSection = false;
-      
-      for (const line of scoreLines) {
-        const trimmedLine = line.trim();
-        
-        if (trimmedLine.includes('第三部分：维度评分')) {
-          foundScoreSection = true;
-          continue;
-        }
-        
-        if (foundScoreSection) {
-          const scoreMatch = trimmedLine.match(/^([^：]+)：\s*(\d+)\s*$/);
-          if (scoreMatch) {
-            const [, dimension, scoreStr] = scoreMatch;
-            const score = parseInt(scoreStr, 10);
-            if (!isNaN(score) && score >= 0 && score <= 100) {
-              dimensions[dimension.trim()] = score;
-            }
-          }
-        }
-      }
-
-      // 验证维度完整性
-      const expectedDimensions = context.rules.dimensions.map(d => d.name);
-      const actualDimensions = Object.keys(dimensions);
-      
-      console.log('期望的维度:', expectedDimensions);
-      console.log('实际的维度:', actualDimensions);
-      console.log('解析到的维度分数:', dimensions);
-
-      const missingDimensions = expectedDimensions.filter(dim => !actualDimensions.includes(dim));
-      if (missingDimensions.length > 0) {
-        console.error('评分维度不完整:', {
-          expected: expectedDimensions,
-          actual: actualDimensions,
-          missing: missingDimensions,
-          dimensions,
-          fullContent: content
-        });
-        throw new Error(`评分维度不完整，缺少以下维度：${missingDimensions.join(', ')}`);
-      }
-
-      return {
-        type: 'success',
-        value: {
-          dimensions,
-          comment: currentComment.trim()
-        }
-      };
+      yield* this.generateStream(request);
     } catch (error) {
-      console.error('评分生成失败:', error);
-      throw new LLMError(LLMErrorCode.API_ERROR, '评分生成失败', error instanceof Error ? error : undefined);
+      console.error('生成评分失败:', error);
+      throw error;
     }
   }
 

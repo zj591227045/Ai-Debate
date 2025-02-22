@@ -308,14 +308,16 @@ export class PromptService {
     
     return `当前场景信息：
 - 主题：${topic.title}
-${topic.background ? `- 背景：${topic.background}` : ''}
+- 背景：${topic.description || '无'}
 - 当前轮次：${currentRound}/${totalRounds}
+- 规则：
+${context.rules?.description || '暂无特定规则'}
 
 发言记录：${speechRecords || '暂无'}
 
-请基于你的角色设定，以内心思考的方式分析当前局势并思考下一步策略。注意：
+请基于你的角色设定，以内心思考的方式分析当前背景、规则、局势并思考下一步策略。注意：
 1. 保持你的性格特征和价值观
-2. 分析其他参与者的观点优劣（存在已有发言就分析，不存在就直接跳过，不要分析不存在的发言）
+2. 分析其他参与者的输出内容的优劣（存在已有发言就分析，不存在就直接跳过，不要分析不存在的发言）
 3. 思考可能的回应方向
 4. 规划下一步的表达策略`;
   }
@@ -407,23 +409,24 @@ ${topic.background ? `- 背景：${topic.background}` : ''}
     
     return `当前场景信息：
 - 主题：${topic.title}
-${topic.background ? `- 背景：${topic.background}` : ''}
+- 背景：${topic.description || '无'}
 - 当前轮次：${currentRound}/${totalRounds}
+- 规则：
+${context.rules?.description || '暂无特定规则'}
 
 发言记录：${speechRecords || '暂无'}
 
 你的内心思考：
 ${innerThoughts}
 
-请基于以上信息，进行你的表达。要求：
+请基于以上信息以及要求，进行你的表达。要求：
 1. 保持你的性格特征和价值观
 2. 使用你的说话风格和思维方式
-3. 适当回应其他参与者的观点（已有发言有信息就分析，没有就直接跳过，不要回应不存在的发言）
-4. 展现你的专业背景和知识`;
+3. 展现你的专业背景和知识`;
   }
 
   // 生成评分的系统提示词
-  generateScoringSystemPrompt(judge: JudgeConfig, rules: ScoringRules): string {
+  generateScoringSystemPrompt(judge: JudgeConfig, rules: ScoringRules, context: ScoringContext): string {
     const dimensionsText = rules.dimensions
       .map((d: ScoringDimension) => `- ${d.name}（权重：${d.weight}）：${d.description}\n  评分标准：${d.criteria.join('、')}`)
       .join('\n');
@@ -443,6 +446,14 @@ ${judge.characterConfig ? `
 评判风格：${judge.characterConfig.argumentationStyle || ''}
 ${judgePersona?.customDescription ? `\n${judgePersona.customDescription}` : ''}
 ` : ''}
+
+辩论背景信息：
+- 主题：${context.topic.title}
+- 背景：${context.topic.description || '无'}
+- 当前轮次：${context.currentRound}/${context.totalRounds}
+
+辩论规则：
+${context.debateRules?.description || '暂无特定规则'}
 
 评分维度：
 ${dimensionsText}
@@ -464,7 +475,9 @@ ${rules.dimensions.map((d: ScoringDimension) => `${d.name}：<分数>`).join('\n
 3. 必须包含所有评分维度
 4. 评语要体现你的个性特征和价值观
 5. 评语要针对每个维度的表现进行具体分析
-6. 分数部分必须单独成行，每个维度的分数独占一行`;
+6. 分数部分必须单独成行，每个维度的分数独占一行
+7. 评分时要充分考虑辩论主题和规则要求
+8. 评分标准要严格遵循每个维度的评分标准`;
   }
 
   // 生成评分的人类提示词

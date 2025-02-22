@@ -160,7 +160,13 @@ const ScoringTest: React.FC = () => {
           characterConfig: judge
         },
         rules: scoringRules,
-        previousScores: []
+        previousScores: [],
+        topic: {
+          title: '人工智能的发展应该受到适度监管',
+          description: '人工智能的发展应该受到适度监管'
+        },
+        currentRound: 1,
+        totalRounds: 1
       };
 
       const llmService = new LLMService();

@@ -245,10 +245,10 @@ const StyledButton = styled(Button)`
 
 // 默认的初始AI玩家
 const defaultInitialPlayers: Player[] = [
-  { id: '1', name: '选手1', role: 'free' as DebateRole, isAI: true },
-  { id: '2', name: '选手2', role: 'free' as DebateRole, isAI: true },
-  { id: '3', name: '选手3', role: 'free' as DebateRole, isAI: true },
-  { id: '4', name: '选手4', role: 'free' as DebateRole, isAI: true },
+  { id: '1', name: '选手1', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '2', name: '选手2', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '3', name: '选手3', role: 'unassigned' as DebateRole, isAI: true },
+  { id: '4', name: '选手4', role: 'unassigned' as DebateRole, isAI: true }
 ];
 
 const defaultConfig = {
@@ -256,7 +256,7 @@ const defaultConfig = {
   negativeCount: 2,
   judgeCount: 0,
   timekeeperCount: 0,
-  minPlayers: 4,
+  minPlayers: 2,
   maxPlayers: 6,
   autoAssign: false,
   format: 'free' as 'structured' | 'free',
@@ -323,9 +323,60 @@ const PlayerCard = React.memo<PlayerCardProps>(({ player, onTakeoverPlayer, onRe
     onRemovePlayer(player.id);
   }, [player.id, onRemovePlayer]);
 
+  const handleCharacterChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const characterId = e.target.value;
+    onSelectCharacter(player.id, characterId);
+  }, [player.id, onSelectCharacter]);
+
+  const handleRemoveCharacter = useCallback(() => {
+    onSelectCharacter(player.id, '');
+  }, [player.id, onSelectCharacter]);
+
   return (
     <StyledPlayerCard>
-      {/* ... existing PlayerCard JSX ... */}
+      <PlayerHeader>
+        <PlayerAvatar>
+          {player.name[0]}
+          {player.isAI && <AIBadge>AI</AIBadge>}
+        </PlayerAvatar>
+        <PlayerInfo>
+          <PlayerName>{player.name}</PlayerName>
+          <PlayerRole>{player.role}</PlayerRole>
+        </PlayerInfo>
+      </PlayerHeader>
+
+      {player.isAI && (
+        <div>
+          <CharacterSelect 
+            value={player.characterId || ''} 
+            onChange={handleCharacterChange}
+          >
+            <option value="">选择AI角色</option>
+            {/* 这里添加你的AI角色选项 */}
+          </CharacterSelect>
+          {player.characterId && (
+            <ActionButton 
+              variant="secondary" 
+              onClick={handleRemoveCharacter}
+              style={{ marginTop: '0.5rem' }}
+            >
+              移除AI角色
+            </ActionButton>
+          )}
+        </div>
+      )}
+
+      <PlayerActions>
+        <ActionButton onClick={handleTakeover}>
+          {player.isAI ? '接管' : '设为AI'}
+        </ActionButton>
+        <ActionButton 
+          variant="danger" 
+          onClick={handleRemove}
+        >
+          移除
+        </ActionButton>
+      </PlayerActions>
     </StyledPlayerCard>
   );
 });
@@ -515,7 +566,7 @@ const GameConfigContent: React.FC = () => {
         description: location.state.lastConfig.ruleConfig.description || ''
       };
     }
-    if (location.state?.lastConfig?.debate?.rules) {
+    if (location.state?.lastConfig?.lastConfig?.debate?.rules) {
       return {
         ...defaultRuleConfig,
         ...location.state.lastConfig.debate.rules,
@@ -631,14 +682,28 @@ const GameConfigContent: React.FC = () => {
 
   // 更新辩论配置
   const handleDebateConfigChange = (config: Partial<DebateConfig>) => {
+    console.log('[handleDebateConfigChange] 收到的配置更新:', config);
+    console.log('[handleDebateConfigChange] 当前配置:', debateConfig);
+    
     const newConfig: DebateConfig = {
       ...debateConfig,
       ...config,
       topic: {
         ...debateConfig.topic,
         ...config.topic
+      },
+      rules: {
+        ...debateConfig.rules,
+        ...config.rules,
+        description: config.rules?.description || debateConfig.rules.description,
+        advancedRules: {
+          ...debateConfig.rules.advancedRules,
+          ...config.rules?.advancedRules
+        }
       }
     };
+    
+    console.log('[handleDebateConfigChange] 更新后的配置:', newConfig);
     setDebateConfig(newConfig);
     setGameConfig({
       ...gameConfig,
@@ -772,6 +837,13 @@ const GameConfigContent: React.FC = () => {
 
   // 修改 handleLoadTemplate 函数
   const handleLoadTemplate = (config: DebateConfig) => {
+    console.log('[handleLoadTemplate] 收到的模板配置:', config);
+    console.log('[handleLoadTemplate] 当前配置:', {
+      debateConfig,
+      ruleConfig,
+      gameConfig
+    });
+    
     const newConfig = {
       ...defaultDebateConfig,
       ...config,
@@ -797,6 +869,52 @@ const GameConfigContent: React.FC = () => {
       }
     };
     
+    console.log('[handleLoadTemplate] 处理后的新配置:', newConfig);
+    console.log('[handleLoadTemplate] 新配置中的规则说明:', newConfig.rules.description);
+    
+    // 从 localStorage 读取选手信息
+    const gameConfigFromStorage = JSON.parse(localStorage.getItem('state_gameConfig') || '{}');
+    console.log('[handleLoadTemplate] 从 localStorage 读取的游戏配置:', gameConfigFromStorage);
+    
+    const loadedPlayers = (gameConfigFromStorage.players || []) as Player[];
+    console.log('[handleLoadTemplate] 加载的选手信息:', loadedPlayers);
+
+    // 1. 遍历模板中的选手，更新或添加选手
+    loadedPlayers.forEach((templatePlayer: Player) => {
+      // 在当前选手列表中查找对应ID的选手
+      const existingPlayer = players.find(p => p.id === templatePlayer.id);
+      
+      if (existingPlayer) {
+        // 如果找到了，更新选手信息
+        console.log('更新现有选手:', existingPlayer.id);
+        updatePlayer(existingPlayer.id, {
+          name: templatePlayer.name,
+          role: templatePlayer.role,
+          characterId: templatePlayer.characterId,
+          isAI: templatePlayer.isAI
+        });
+      } else {
+        // 如果没找到，添加新选手
+        console.log('添加新选手:', templatePlayer.id);
+        addPlayer(templatePlayer.name, templatePlayer.isAI);
+        updatePlayer(templatePlayer.id, {
+          role: templatePlayer.role,
+          characterId: templatePlayer.characterId,
+          isAI: templatePlayer.isAI
+        });
+      }
+    });
+
+    // 2. 移除多余的空选手
+    const currentPlayers = [...players];
+    for (const player of currentPlayers) {
+      const templatePlayer = loadedPlayers.find(p => p.id === player.id);
+      if (!templatePlayer && currentPlayers.length > loadedPlayers.length) {
+        console.log('移除多余选手:', player.id);
+        removePlayer(player.id);
+      }
+    }
+    
     setDebateConfig(newConfig);
     setRuleConfig({
       ...defaultRuleConfig,
@@ -808,10 +926,15 @@ const GameConfigContent: React.FC = () => {
       }
     });
     
-    setGameConfig({
+    // 更新全局状态，包括选手信息
+    const updatedGameConfig: GameConfigState = {
       ...gameConfig,
       debate: newConfig,
-    });
+      players: loadedPlayers
+    };
+    
+    console.log('最终更新的游戏配置:', updatedGameConfig);
+    setGameConfig(updatedGameConfig);
     
     message.success('模板加载成功');
   };
@@ -880,6 +1003,22 @@ const GameConfigContent: React.FC = () => {
     });
   };
 
+  const handleRemovePlayer = useCallback((playerId: string) => {
+    // 获取当前选手列表中除了要移除的选手之外的选手数量
+    const remainingPlayers = players.filter(p => p.id !== playerId);
+    
+    // 如果剩余选手数量大于等于最小要求，则允许移除
+    if (remainingPlayers.length >= 2) {
+      removePlayer(playerId);
+      setGameConfig({
+        ...gameConfig,
+        players: remainingPlayers
+      } as GameConfigState);
+    } else {
+      message.warning('至少需要保留2名选手');
+    }
+  }, [players, removePlayer, setGameConfig, gameConfig]);
+
   const renderContent = () => {
     switch (activeTab) {
       case 'roles':
@@ -908,7 +1047,7 @@ const GameConfigContent: React.FC = () => {
                 onAutoAssign={autoAssignRoles}
                 onReset={resetRoles}
                 onTakeoverPlayer={handleTakeoverPlayer}
-                onRemovePlayer={removePlayer}
+                onRemovePlayer={handleRemovePlayer}
                 onAddAIPlayer={players.length < config.maxPlayers ? handleAddAIPlayer : undefined}
                 onStartDebate={handleStartGame}
                 onSelectCharacter={handleSelectCharacter}
@@ -935,7 +1074,8 @@ const GameConfigContent: React.FC = () => {
     handleTakeoverPlayer,
     handleAddAIPlayer,
     handleStartGame,
-    handleSelectCharacter
+    handleSelectCharacter,
+    handleRemovePlayer
   ]);
 
   useEffect(() => {

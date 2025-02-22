@@ -24,6 +24,7 @@ export class DebateFlowController implements IDebateFlowController {
   private readonly scoringSystem: ScoringSystem;
   private readonly llmService: LLMService;
   private state: DebateFlowState;
+  private config!: DebateConfig;
 
   constructor() {
     this.eventEmitter = new EventEmitter();
@@ -51,6 +52,7 @@ export class DebateFlowController implements IDebateFlowController {
   }
 
   async initialize(config: DebateConfig): Promise<void> {
+    this.config = config;
     const speakingOrder = this.speakingOrderManager.initializeOrder(
       config.players,
       config.rules.debateFormat
@@ -334,51 +336,28 @@ export class DebateFlowController implements IDebateFlowController {
       
       console.log('开始生成评分...');
 
+      if (!this.config.judge || !this.config.rules.scoring) {
+        throw new DebateFlowException(
+          DebateFlowError.SCORING_FAILED,
+          '缺少评委或评分规则配置'
+        );
+      }
+
       // 为每个发言生成评分
       const roundScores: Score[] = await Promise.all(
         processedSpeeches.map(speech =>
           this.scoringSystem.generateScore(speech, {
-            judge: {
-              id: 'system_judge',
-              name: '系统评委',
-              characterConfig: {
-                id: 'system_judge_character',
-                personality: '公正严谨',
-                speakingStyle: '专业客观',
-                background: '专业辩论评委',
-                values: ['公平', '客观'],
-                argumentationStyle: '逻辑分析'
-              }
-            },
+            judge: this.config.judge!,
             rules: {
-              dimensions: [
-                {
-                  name: 'logic',
-                  weight: 0.3,
-                  description: '逻辑性',
-                  criteria: ['论证清晰', '结构完整', '推理严谨']
-                },
-                {
-                  name: 'evidence',
-                  weight: 0.3,
-                  description: '论据充分性',
-                  criteria: ['证据充分', '例证恰当', '数据准确']
-                },
-                {
-                  name: 'delivery',
-                  weight: 0.2,
-                  description: '表达效果',
-                  criteria: ['语言流畅', '表达清晰', '感染力强']
-                },
-                {
-                  name: 'rebuttal',
-                  weight: 0.2,
-                  description: '反驳质量',
-                  criteria: ['针对性强', '反驳有力', '立场一致']
-                }
-              ]
+              dimensions: this.config.rules.scoring!.dimensions
             },
-            previousScores: this.state.scores
+            previousScores: this.state.scores,
+            topic: this.config.topic,
+            currentRound: this.state.currentRound,
+            totalRounds: this.state.totalRounds,
+            debateRules: {
+              description: this.config.rules.description
+            }
           })
         )
       );

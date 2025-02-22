@@ -836,7 +836,8 @@ export const DebateRoom: React.FC = () => {
         format: debate.rules.debateFormat as 'structured' | 'free',
         rounds: debate.topic.rounds || 3,
         canSkipSpeaker: Boolean(debate.rules.advancedRules?.allowQuoting),
-        requireInnerThoughts: Boolean(debate.rules.advancedRules?.requireResponse)
+        requireInnerThoughts: Boolean(debate.rules.advancedRules?.requireResponse),
+        description: debate.rules.description || ''
       };
       
       return {

@@ -1,0 +1,109 @@
+{
+  "id": "scenario_simulation_template",
+  "name": "场景模拟模板",
+  "topic": {
+    "title": "{{场景模拟主题}}",
+    "description": "这是一个场景模拟模板，用于模拟特定场景下的互动和决策过程。\n\n场景设定：{{详细描述模拟的具体场景和环境}}\n\n背景信息：{{提供相关的背景资料和关键信息}}\n\n角色关系：{{说明场景中各个角色之间的关系网络}}\n\n核心问题：{{描述需要在模拟中解决的核心问题或挑战}}\n\n目标设定：{{明确场景模拟需要达到的具体目标}}\n\n关键节点：{{列出模拟过程中需要经历的关键决策点或转折点}}",
+    "type": "simulation",
+    "rounds": 4
+  },
+  "rules": {
+    "debateFormat": "simulation",
+    "description": "场景模拟规则指南：\n1. 严格遵守角色设定\n2. 保持情境的真实性\n3. 反应要符合逻辑\n4. 考虑决策的后果\n\n特殊规则：\n{{添加针对该场景的特殊规则，例如：\n- 特定的互动机制\n- 决策的限制条件\n- 信息获取的规则\n- 结果评估的标准}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 100,
+        "max": 800
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": true,
+      "allowStanceChange": true,
+      "requireEvidence": true,
+      "simulationElements": {
+        "maintainRoleConsistency": true,
+        "considerConsequences": true,
+        "allowScenarioEvolution": true,
+        "requireRealisticReactions": true
+      }
+    }
+  },
+  "judging": {
+    "description": "场景模拟评判标准",
+    "dimensions": [
+      {
+        "name": "角色表现",
+        "weight": 30,
+        "description": "角色扮演的真实性和一致性",
+        "criteria": [
+          "角色准确",
+          "表现自然",
+          "性格一致"
+        ]
+      },
+      {
+        "name": "决策质量",
+        "weight": 25,
+        "description": "决策的合理性和有效性",
+        "criteria": [
+          "决策合理",
+          "考虑周全",
+          "效果可行"
+        ]
+      },
+      {
+        "name": "互动效果",
+        "weight": 25,
+        "description": "参与者之间的互动质量",
+        "criteria": [
+          "反应及时",
+          "互动自然",
+          "配合默契"
+        ]
+      },
+      {
+        "name": "情境把控",
+        "weight": 20,
+        "description": "对模拟情境的控制和发展",
+        "criteria": [
+          "场景真实",
+          "发展合理",
+          "细节丰富"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "场景主持人",
+      "role": "facilitator",
+      "characterId": "scenario_facilitator"
+    },
+    {
+      "id": "2",
+      "name": "角色扮演者A",
+      "role": "role_player",
+      "characterId": "role_player_a"
+    },
+    {
+      "id": "3",
+      "name": "角色扮演者B",
+      "role": "role_player",
+      "characterId": "role_player_b"
+    },
+    {
+      "id": "4",
+      "name": "观察记录员",
+      "role": "observer",
+      "characterId": "scenario_observer"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

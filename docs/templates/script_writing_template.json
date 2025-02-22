@@ -1,0 +1,109 @@
+{
+  "id": "script_writing_template",
+  "name": "剧本编写模板",
+  "topic": {
+    "title": "{{剧本标题}}",
+    "description": "这是一个剧本编写模板，用于集体创作一个完整的剧本。\n\n故事梗概：{{简述剧本的核心故事情节}}\n\n创作背景：{{描述创作这个剧本的背景和意义}}\n\n主要人物：{{列出主要人物及其基本设定}}\n\n核心冲突：{{描述剧本中的主要冲突和矛盾}}\n\n风格定位：{{确定剧本的风格，如悲剧、喜剧、悬疑等}}\n\n目标受众：{{明确剧本针对的目标观众群体}}",
+    "type": "script",
+    "rounds": 5
+  },
+  "rules": {
+    "debateFormat": "script",
+    "description": "剧本编写规则指南：\n1. 遵循标准剧本格式\n2. 注重人物对话的真实性\n3. 场景描写要简洁有力\n4. 保持情节的连贯性和张力\n\n特殊规则：\n{{添加针对该剧本的特殊规则，例如：\n- 特定的叙事结构要求\n- 场景转换的规定\n- 对话风格的要求\n- 特殊表现手法的运用}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 100,
+        "max": 1000
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": true,
+      "allowStanceChange": true,
+      "requireEvidence": false,
+      "scriptElements": {
+        "requireSceneDescription": true,
+        "requireDialogue": true,
+        "allowCharacterDevelopment": true,
+        "maintainConsistency": true
+      }
+    }
+  },
+  "judging": {
+    "description": "剧本评判标准",
+    "dimensions": [
+      {
+        "name": "结构完整性",
+        "weight": 25,
+        "description": "剧本结构的完整性和合理性",
+        "criteria": [
+          "结构清晰",
+          "情节完整",
+          "节奏把控"
+        ]
+      },
+      {
+        "name": "对话质量",
+        "weight": 25,
+        "description": "对话的自然度和戏剧性",
+        "criteria": [
+          "对话自然",
+          "个性鲜明",
+          "戏剧张力"
+        ]
+      },
+      {
+        "name": "场景描写",
+        "weight": 25,
+        "description": "场景描写的生动性和细节",
+        "criteria": [
+          "场景清晰",
+          "氛围营造",
+          "细节把控"
+        ]
+      },
+      {
+        "name": "创意性",
+        "weight": 25,
+        "description": "剧本的创新性和吸引力",
+        "criteria": [
+          "创意独特",
+          "情节新颖",
+          "引人入胜"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "编剧主创",
+      "role": "lead_writer",
+      "characterId": "lead_scriptwriter"
+    },
+    {
+      "id": "2",
+      "name": "对话设计师",
+      "role": "dialogue_writer",
+      "characterId": "dialogue_designer"
+    },
+    {
+      "id": "3",
+      "name": "场景描写师",
+      "role": "scene_writer",
+      "characterId": "scene_writer"
+    },
+    {
+      "id": "4",
+      "name": "人物设计师",
+      "role": "character_designer",
+      "characterId": "character_designer"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

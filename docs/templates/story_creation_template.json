@@ -1,0 +1,109 @@
+{
+  "id": "story_creation_template",
+  "name": "故事创作模板",
+  "topic": {
+    "title": "{{故事标题}}",
+    "description": "这是一个故事创作模板，用于集体创作一个完整的故事。\n\n故事背景：{{设定故事发生的时代、地点和基本背景}}\n\n故事主题：{{故事想要表达的核心主题或情感}}\n\n创作目标：{{故事需要达到的具体目标，例如：展现人性的复杂性、探讨科技发展带来的影响等}}\n\n关键元素：{{需要包含的关键情节点或必要元素}}",
+    "type": "story",
+    "rounds": 5
+  },
+  "rules": {
+    "debateFormat": "story",
+    "description": "故事创作规则指南：\n1. 每位参与者需要在前一个情节的基础上继续发展故事\n2. 保持故事的连贯性和合理性\n3. 注意人物性格的一致性\n4. 可以引入新的人物和情节，但要与已有内容相呼应\n\n特殊规则：\n{{添加针对该故事主题的特殊规则，例如：\n- 故事必须包含的场景或情节\n- 特定的叙事视角要求\n- 故事发展的限制条件\n- 人物互动的特殊要求}}",
+    "basicRules": {
+      "speechLengthLimit": {
+        "min": 200,
+        "max": 1000
+      },
+      "allowEmptySpeech": false,
+      "allowRepeatSpeech": false
+    },
+    "advancedRules": {
+      "allowQuoting": true,
+      "requireResponse": true,
+      "allowStanceChange": true,
+      "requireEvidence": false,
+      "storyElements": {
+        "requireCharacterDevelopment": true,
+        "requirePlotProgression": true,
+        "allowFlashbacks": true,
+        "allowMultipleTimelines": true
+      }
+    }
+  },
+  "judging": {
+    "description": "故事评判标准",
+    "dimensions": [
+      {
+        "name": "创意性",
+        "weight": 25,
+        "description": "故事的原创性和创新程度",
+        "criteria": [
+          "情节独特",
+          "创意新颖",
+          "角色特色"
+        ]
+      },
+      {
+        "name": "结构完整性",
+        "weight": 25,
+        "description": "故事结构的完整性和连贯性",
+        "criteria": [
+          "情节连贯",
+          "结构完整",
+          "起承转合"
+        ]
+      },
+      {
+        "name": "人物塑造",
+        "weight": 25,
+        "description": "人物形象的丰满度和可信度",
+        "criteria": [
+          "性格鲜明",
+          "形象立体",
+          "发展合理"
+        ]
+      },
+      {
+        "name": "文字表现",
+        "weight": 25,
+        "description": "语言表达的生动性和感染力",
+        "criteria": [
+          "描写生动",
+          "语言优美",
+          "情感真挚"
+        ]
+      }
+    ],
+    "totalScore": 100,
+    "type": "ai"
+  },
+  "players": [
+    {
+      "id": "1",
+      "name": "故事引导者",
+      "role": "leader",
+      "characterId": "story_leader"
+    },
+    {
+      "id": "2",
+      "name": "情节发展者",
+      "role": "developer",
+      "characterId": "plot_developer"
+    },
+    {
+      "id": "3",
+      "name": "人物塑造者",
+      "role": "character_builder",
+      "characterId": "character_creator"
+    },
+    {
+      "id": "4",
+      "name": "场景描写者",
+      "role": "scene_writer",
+      "characterId": "scene_designer"
+    }
+  ],
+  "createdAt": "2024-02-22T02:40:48.932Z",
+  "updatedAt": "2024-02-22T02:40:48.932Z"
+} 

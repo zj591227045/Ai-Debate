@@ -55,6 +55,12 @@ const testSpeech: ProcessedSpeech = {
 
 // 测试用的评分上下文
 const testContext: ScoringContext = {
+  topic: {
+    title: "",
+    description: ""
+  },
+  currentRound: 1,
+  totalRounds: 1,
   judge: {
     id: "judge_1",
     name: "评委A",

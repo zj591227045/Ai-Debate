@@ -25,6 +25,15 @@ export interface DebateConfig {
     canSkipSpeaker: boolean;
     requireInnerThoughts: boolean;
     debateFormat: 'structured' | 'free';
+    description?: string;
+    scoring?: {
+      dimensions: Array<{
+        name: string;
+        weight: number;
+        description: string;
+        criteria: string[];
+      }>;
+    };
   };
   judge?: {
     id: string;

@@ -72,6 +72,15 @@ export interface DebateRules {
   timeLimit?: number;
   canSkipSpeaker: boolean;
   requireInnerThoughts: boolean;
+  description?: string;
+  scoring?: {
+    dimensions: Array<{
+      name: string;
+      weight: number;
+      description: string;
+      criteria: string[];
+    }>;
+  };
 }
 
 // 状态相关接口
@@ -173,13 +182,16 @@ export enum DebateSceneType {
 export interface DebateContext {
   topic: {
     title: string;
-    background?: string;
+    description?: string;
   };
   currentRound: number;
   totalRounds: number;
   previousSpeeches: Speech[];
   sceneType?: DebateSceneType;
   stance?: 'positive' | 'negative';
+  rules?: {
+    description?: string;
+  };
 }
 
 // 服务接口
@@ -240,6 +252,16 @@ export interface ScoringContext {
   judge: JudgeConfig;
   rules: ScoringRules;
   previousScores: Score[];
+  topic: {
+    title: string;
+    description?: string;
+    background?: string;
+  };
+  currentRound: number;
+  totalRounds: number;
+  debateRules?: {
+    description?: string;
+  };
 }
 
 export interface ScoringDimension {

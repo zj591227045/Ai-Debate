@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
-import { Checkbox, Input, Select, Slider, InputNumber } from 'antd';
+import { Checkbox, Input, Select, Slider, InputNumber, Radio } from 'antd';
 import { DownOutlined, UpOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import type { RuleConfig } from '../../types/rules';
 import type { DebateConfig } from '../../types/debate';
+import { TextArea as HighlightTextArea } from '../../modules/common/components/TextArea';
 
 const { TextArea } = Input;
 
@@ -125,7 +126,7 @@ const StyledInput = styled(Input)`
   }
 `;
 
-const StyledTextArea = styled(TextArea)`
+const StyledHighlightTextArea = styled(HighlightTextArea)`
   background: rgba(65, 87, 255, 0.1) !important;
   border: 1px solid rgba(65, 87, 255, 0.2) !important;
   color: #E8F0FF !important;
@@ -550,7 +551,7 @@ export const TopicConfigPanel: React.FC<{
         </FormGroup>
         <FormGroup>
           <Label>主题背景</Label>
-          <StyledTextArea
+          <StyledHighlightTextArea
             className="topic-textarea"
             value={debateConfig.topic.description}
             onChange={(e) => onDebateConfigChange({
@@ -645,7 +646,7 @@ export const RuleConfigPanel: React.FC<{
         </FormGroup>
         <FormGroup>
           <Label>规则说明</Label>
-          <StyledTextArea
+          <StyledHighlightTextArea
             className="rules-textarea"
             value={ruleConfig.description}
             onChange={(e) => onRuleConfigChange({
@@ -826,7 +827,7 @@ export const ScoringConfigPanel: React.FC<{
         </FormGroup>
         <FormGroup>
           <Label>评分规则</Label>
-          <StyledTextArea
+          <StyledHighlightTextArea
             className="scoring-textarea"
             value={debateConfig.judging?.description}
             onChange={(e) => onJudgeConfigChange({

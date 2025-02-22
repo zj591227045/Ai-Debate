@@ -24,6 +24,7 @@ import { SpeechProcessor } from './SpeechProcessor';
 import { ScoringSystem } from './ScoringSystem';
 import { DebateFlowEvent } from '../types/events';
 import { StoreManager } from '../../state/core/StoreManager';
+import type { DebateConfig } from '@game-config/types';
 
 export class DebateFlowService implements IDebateFlow {
   private readonly eventEmitter: EventEmitter;
@@ -35,6 +36,7 @@ export class DebateFlowService implements IDebateFlow {
   private debateContext: DebateContext;
   private previousState: DebateFlowState | null = null;
   private readonly storeManager: StoreManager;
+  private config!: DebateConfig;
 
   constructor(
     llmService: LLMService,
@@ -72,7 +74,7 @@ export class DebateFlowService implements IDebateFlow {
     this.debateContext = {
       topic: {
         title: '',
-        background: ''
+        description: ''
       },
       currentRound: 1,
       totalRounds: 1,
@@ -83,96 +85,101 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   async initialize(config: DebateFlowConfig): Promise<void> {
-    console.log('初始化辩论流程:', config);
+    console.log('【规则说明传递】原始配置中的规则说明:', {
+      rulesDescription: config.rules.description,
+      rulesConfig: config.rules
+    });
     
-    // 将 PlayerConfig 转换为 Player
-    const players: Player[] = config.players.map(player => ({
-      id: player.id,
-      name: player.name,
-      isAI: player.isAI,
-      role: player.role,
-      team: player.team,
-      characterId: player.characterConfig?.id,
-      personality: player.characterConfig?.personality,
-      speakingStyle: player.characterConfig?.speakingStyle,
-      background: player.characterConfig?.background,
-      values: player.characterConfig?.values?.join(','),
-      argumentationStyle: player.characterConfig?.argumentationStyle
-    }));
-    
-    const speakingOrder = this.speakingOrderManager.initializeOrder(
-      players,
-      config.rules.format
-    );
+    // 将配置转换为内部使用的格式
+    this.config = {
+      topic: {
+        title: config.topic.title,
+        description: config.topic.description || '',
+        rounds: config.topic.rounds
+      },
+      players: config.players.map(player => ({
+        id: player.id,
+        name: player.name,
+        isAI: player.isAI,
+        role: player.role,
+        team: player.team,
+        characterId: player.characterConfig?.id,
+        personality: player.characterConfig?.personality,
+        speakingStyle: player.characterConfig?.speakingStyle,
+        background: player.characterConfig?.background,
+        values: player.characterConfig?.values?.join(','),
+        argumentationStyle: player.characterConfig?.argumentationStyle
+      })),
+      rules: {
+        canSkipSpeaker: config.rules.canSkipSpeaker,
+        requireInnerThoughts: config.rules.requireInnerThoughts,
+        debateFormat: config.rules.format,
+        description: config.rules.description || '',
+        scoring: config.rules.scoring
+      },
+      judge: config.judge ? {
+        id: config.judge.id,
+        name: config.judge.name,
+        characterId: config.judge.characterConfig?.id || config.judge.id
+      } : undefined
+    };
 
-    console.log('生成发言顺序:', {
-      format: speakingOrder.format,
-      speakers: speakingOrder.speakers.map(s => ({
-        id: s.player.id,
-        name: s.player.name,
-        characterId: s.player.characterId,
-        status: s.status
-      }))
+    console.log('【规则说明传递】转换后的配置中的规则说明:', {
+      rulesDescription: this.config.rules.description,
+      rulesConfig: this.config.rules
     });
 
-    // 确保有发言者
-    if (!speakingOrder.speakers || speakingOrder.speakers.length === 0) {
-      throw new Error('没有可用的发言者');
-    }
-
-    // 更新LLM服务的玩家列表
-    this.llmService.setPlayers(players);
+    // 初始化发言顺序
+    const speakingOrder = this.speakingOrderManager.initializeOrder(
+      this.config.players,
+      this.config.rules.debateFormat
+    );
 
     // 设置初始状态
     this.state = {
-      status: DebateStatus.PREPARING,
-      currentRound: 1,
+      ...this.state,
       totalRounds: config.topic.rounds,
-      currentSpeaker: null,
-      nextSpeaker: speakingOrder.speakers[0] ? { ...speakingOrder.speakers[0].player } : null,
-      speakingOrder: {
-        ...speakingOrder,
-        totalRounds: config.topic.rounds,
-        // 确保每个发言者对象都完整复制
-        speakers: speakingOrder.speakers.map(s => ({
-          ...s,
-          player: { ...s.player }
-        }))
-      },
-      currentSpeech: null,
-      speeches: [],
-      scores: []
+      speakingOrder: speakingOrder,
+      nextSpeaker: speakingOrder.speakers[0]?.player || null
     };
 
-    // 更新辩论上下文
+    // 初始化辩论上下文
     this.debateContext = {
       topic: {
         title: config.topic.title,
-        background: config.topic.background
+        description: config.topic.description || ''
       },
       currentRound: 1,
       totalRounds: config.topic.rounds,
       previousSpeeches: [],
       sceneType: DebateSceneType.OPENING,
-      stance: 'positive'
+      stance: 'positive',
+      rules: {
+        description: config.rules.description || ''
+      }
     };
 
-    console.log('初始化状态:', {
-      status: this.state.status,
-      currentSpeaker: this.state.currentSpeaker,
-      nextSpeaker: this.state.nextSpeaker,
-      speakersCount: this.state.speakingOrder.speakers.length,
-      players: players.map(p => ({
-        id: p.id,
-        name: p.name,
-        characterId: p.characterId
-      }))
+    console.log('【规则说明传递】初始化的辩论上下文中的规则说明:', {
+      rulesDescription: this.debateContext.rules?.description,
+      fullContext: this.debateContext
     });
+
     this.emitStateChange();
   }
 
   async startDebate(): Promise<void> {
-    console.log('开始辩论，当前状态:', this.state.status);
+    console.log('开始辩论，当前状态:', {
+      status: this.state.status,
+      speakingOrder: {
+        format: this.state.speakingOrder.format,
+        speakers: this.state.speakingOrder.speakers.map(s => ({
+          id: s.player.id,
+          name: s.player.name,
+          status: s.status
+        }))
+      },
+      nextSpeaker: this.state.nextSpeaker
+    });
     
     // 保存之前的状态
     this.previousState = { ...this.state };
@@ -182,13 +189,39 @@ export class DebateFlowService implements IDebateFlow {
         throw new Error('辩论已经开始');
       }
 
+      // 检查发言者列表
+      if (!this.state.speakingOrder.speakers || this.state.speakingOrder.speakers.length === 0) {
+        console.error('发言者列表为空:', {
+          speakers: this.state.speakingOrder.speakers,
+          config: this.config
+        });
+        throw new Error('没有可用的发言者');
+      }
+
       // 设置第一个发言者
       const firstSpeaker = this.state.speakingOrder.speakers[0]?.player;
       const secondSpeaker = this.state.speakingOrder.speakers[1]?.player;
 
       if (!firstSpeaker) {
+        console.error('无法获取第一个发言者:', {
+          speakers: this.state.speakingOrder.speakers,
+          firstSpeakerIndex: 0
+        });
         throw new Error('没有可用的发言者');
       }
+
+      console.log('设置发言者:', {
+        first: {
+          id: firstSpeaker.id,
+          name: firstSpeaker.name,
+          team: firstSpeaker.team
+        },
+        second: secondSpeaker ? {
+          id: secondSpeaker.id,
+          name: secondSpeaker.name,
+          team: secondSpeaker.team
+        } : null
+      });
 
       // 更新状态
       this.state = {
@@ -203,7 +236,17 @@ export class DebateFlowService implements IDebateFlow {
       // 触发状态更新
       this.emitStateChange();
       
-      console.log('辩论开始成功，当前状态:', this.state.status);
+      console.log('辩论开始成功，当前状态:', {
+        status: this.state.status,
+        currentSpeaker: this.state.currentSpeaker,
+        nextSpeaker: this.state.nextSpeaker,
+        currentRound: this.state.currentRound
+      });
+
+      // 如果第一个发言者是AI，自动开始其发言
+      if (firstSpeaker.isAI) {
+        await this.handleAISpeech(firstSpeaker);
+      }
     } catch (error) {
       // 发生错误时恢复之前的状态
       if (this.previousState) {
@@ -417,10 +460,14 @@ export class DebateFlowService implements IDebateFlow {
 
   private async handleAISpeech(speaker: SpeakerInfo): Promise<void> {
     try {
-      console.log('【发言记录调试】handleAISpeech - speaker信息:', {
-        speakerId: speaker.id,
-        characterId: speaker.characterId,
-        name: speaker.name
+      console.log('【规则说明传递】AI发言前的规则说明:', {
+        contextRules: this.debateContext.rules?.description
+      });
+      
+      this.updateDebateContext(speaker);
+      
+      console.log('【规则说明传递】更新上下文后的规则说明:', {
+        contextRules: this.debateContext.rules?.description
       });
       
       this.updateDebateContext(speaker);
@@ -605,6 +652,11 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private updateDebateContext(speaker: SpeakerInfo): void {
+    console.log('【规则说明传递】更新上下文前的规则说明:', {
+      configRules: this.config.rules.description,
+      contextRules: this.debateContext.rules?.description
+    });
+
     // 更新场景类型
     if (this.state.currentRound === 1) {
       this.debateContext.sceneType = DebateSceneType.OPENING;
@@ -619,8 +671,34 @@ export class DebateFlowService implements IDebateFlow {
     this.debateContext.stance = speaker.team === 'affirmative' ? 'positive' : 'negative';
 
     // 更新其他上下文信息
-    this.debateContext.currentRound = this.state.currentRound;
-    this.debateContext.previousSpeeches = this.state.speeches;
+    const updatedContext = {
+      ...this.debateContext,
+      topic: {
+        title: this.config.topic.title,
+        description: this.config.topic.description || ''
+      },
+      currentRound: this.state.currentRound,
+      totalRounds: this.state.totalRounds,
+      previousSpeeches: this.state.speeches,
+      rules: {
+        description: this.config.rules.description || ''
+      }
+    };
+
+    // 确保规则描述被正确设置
+    if (!updatedContext.rules.description && this.config.rules.description) {
+      console.log('【规则说明传递】检测到规则说明为空，尝试从配置中获取:', {
+        configRules: this.config.rules.description
+      });
+      updatedContext.rules.description = this.config.rules.description;
+    }
+
+    this.debateContext = updatedContext;
+
+    console.log('【规则说明传递】更新后的规则说明:', {
+      rulesDescription: this.debateContext.rules?.description,
+      fullContext: this.debateContext
+    });
   }
 
   private emitStateChange(): void {
@@ -761,6 +839,12 @@ export class DebateFlowService implements IDebateFlow {
           };
 
           const scoringContext: ScoringContext = {
+            topic: {
+              title: this.config.topic.title,
+              description: this.config.topic.description
+            },
+            currentRound: this.state.currentRound,
+            totalRounds: this.state.totalRounds,
             judge: {
               id: judge.id,
               name: judge.name,

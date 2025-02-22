@@ -1,5 +1,6 @@
 import { ModelConfig } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { PROVIDERS } from '../../llm/types/providers';
 
 const MODEL_CONFIGS_KEY = 'model_configs';
 
@@ -8,6 +9,7 @@ export class ModelStorageService {
 
   private constructor() {
     console.log('ModelStorageService 实例化');
+    this.initializeDefaultConfigs();
   }
 
   public static getInstance(): ModelStorageService {
@@ -16,6 +18,58 @@ export class ModelStorageService {
       this.instance = new ModelStorageService();
     }
     return this.instance;
+  }
+
+  private async initializeDefaultConfigs() {
+    const configs = await this.getAll();
+    if (configs.length === 0) {
+      console.log('初始化默认模型配置');
+      const now = Date.now();
+      
+      const defaultConfigs: ModelConfig[] = [
+        {
+          id: uuidv4(),
+          name: 'Qwen 2.5',
+          provider: PROVIDERS.OLLAMA,
+          model: 'qwen2.5',
+          parameters: {
+            temperature: 0.7,
+            maxTokens: 2048,
+            topP: 0.9
+          },
+          auth: {
+            baseUrl: 'http://localhost:11434',
+            apiKey: '',
+            organizationId: ''
+          },
+          isEnabled: true,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: uuidv4(),
+          name: 'Deepseek',
+          provider: PROVIDERS.DEEPSEEK,
+          model: 'deepseek-chat',
+          parameters: {
+            temperature: 0.7,
+            maxTokens: 2048,
+            topP: 0.9
+          },
+          auth: {
+            baseUrl: 'https://api.deepseek.com',
+            apiKey: '',
+            organizationId: ''
+          },
+          isEnabled: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      ];
+
+      await this.saveConfigs(defaultConfigs);
+      console.log('默认模型配置已初始化:', defaultConfigs);
+    }
   }
 
   // 获取所有模型配置

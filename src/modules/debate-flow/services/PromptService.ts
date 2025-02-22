@@ -249,7 +249,7 @@ export class PromptService {
       return '逻辑、真理';
     };
 
-    const prompt = `你现在扮演的角色是：
+    const prompt = `你现在的身份是：
 - 姓名：${characterName}
 - 性格：${this.formatPersonalityOrStyle(persona?.personality || '理性客观')}
 - 说话风格：${persona?.speakingStyle || '严谨专业'}
@@ -357,7 +357,7 @@ ${context.rules?.description || '暂无特定规则'}
       return '逻辑、真理';
     };
 
-    const prompt = `你现在扮演的角色是：
+    const prompt = `你现在的身份是：
 - 姓名：${characterName}
 - 性格：${this.formatPersonalityOrStyle(persona?.personality || '理性客观')}
 - 说话风格：${persona?.speakingStyle || '严谨专业'}

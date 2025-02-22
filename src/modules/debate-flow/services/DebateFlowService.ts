@@ -230,7 +230,14 @@ export class DebateFlowService implements IDebateFlow {
         currentSpeaker: firstSpeaker,
         nextSpeaker: secondSpeaker,
         currentRound: 1,
-        currentSpeech: null
+        currentSpeech: null,
+        speakingOrder: {
+          ...this.state.speakingOrder,
+          speakers: this.state.speakingOrder.speakers.map((s, index) => ({
+            ...s,
+            status: index === 0 ? 'speaking' : 'waiting'
+          }))
+        }
       };
 
       // 触发状态更新
@@ -240,13 +247,27 @@ export class DebateFlowService implements IDebateFlow {
         status: this.state.status,
         currentSpeaker: this.state.currentSpeaker,
         nextSpeaker: this.state.nextSpeaker,
-        currentRound: this.state.currentRound
+        currentRound: this.state.currentRound,
+        speakingOrder: this.state.speakingOrder.speakers.map(s => ({
+          id: s.player.id,
+          status: s.status
+        }))
       });
 
-      // 如果第一个发言者是AI，自动开始其发言
-      if (firstSpeaker.isAI) {
-        await this.handleAISpeech(firstSpeaker);
-      }
+      // 添加系统消息提示用户点击"下一位发言者"按钮开始发言
+      this.state.speeches.push({
+        id: `system-${Date.now()}`,
+        playerId: 'system',
+        content: '辩论已开始，请点击"下一位发言者"按钮开始第一位选手的发言。',
+        type: 'system',
+        timestamp: Date.now(),
+        round: this.state.currentRound,
+        role: 'system',
+        characterId: 'system',
+        characterName: 'System'
+      });
+      this.emitStateChange();
+
     } catch (error) {
       // 发生错误时恢复之前的状态
       if (this.previousState) {

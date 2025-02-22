@@ -38,11 +38,27 @@ export class OpenAIProvider extends LLMProvider {
     }
   }
 
+  private normalizeBaseUrl(baseUrl: string, endpoint: string): string {
+    // 移除末尾的斜杠
+    const normalizedBase = baseUrl.replace(/\/*$/, '');
+    
+    // 检查是否已经包含 v1 路径
+    const hasV1 = normalizedBase.includes('/v1/');
+    
+    // 如果已经包含 v1，直接拼接 endpoint
+    if (hasV1) {
+      // 移除 endpoint 开头可能的 v1
+      const cleanEndpoint = endpoint.replace(/^\/?(v1\/)?/, '');
+      return `${normalizedBase}/${cleanEndpoint}`;
+    }
+    
+    // 如果不包含 v1，添加 v1 路径
+    return `${normalizedBase}/v1/${endpoint}`;
+  }
+
   async listModels(): Promise<string[]> {
     try {
-      // 确保 baseUrl 格式正确
-      const baseUrl = this.config.auth.baseUrl.replace(/\/*$/, ''); // 移除末尾的斜杠
-      const apiUrl = baseUrl.includes('/v1/') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
+      const apiUrl = this.normalizeBaseUrl(this.config.auth.baseUrl, 'models');
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -99,9 +115,7 @@ export class OpenAIProvider extends LLMProvider {
         model: this.config.model
       });
 
-      // 确保 baseUrl 格式正确
-      const baseUrl = this.config.auth.baseUrl.replace(/\/*$/, '');
-      const apiUrl = baseUrl.includes('/v1/') ? `${baseUrl}/chat/completions` : `${baseUrl}/v1/chat/completions`;
+      const apiUrl = this.normalizeBaseUrl(this.config.auth.baseUrl, 'chat/completions');
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -143,9 +157,7 @@ export class OpenAIProvider extends LLMProvider {
         stream: true
       });
 
-      // 确保 baseUrl 格式正确
-      const baseUrl = this.config.auth.baseUrl.replace(/\/*$/, '');
-      const apiUrl = baseUrl.includes('/v1/') ? `${baseUrl}/chat/completions` : `${baseUrl}/v1/chat/completions`;
+      const apiUrl = this.normalizeBaseUrl(this.config.auth.baseUrl, 'chat/completions');
 
       const response = await fetch(apiUrl, {
         method: 'POST',

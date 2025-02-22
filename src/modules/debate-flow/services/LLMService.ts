@@ -14,6 +14,7 @@ import { StoreManager } from '../../state/core/StoreManager';
 import { LLMError, LLMErrorCode } from '../../llm/types/error';
 
 import { CharacterConfigService } from '../../storage/services/CharacterConfigService';
+import { EventEmitter } from 'events';
 
 
 interface ExtendedGenerateStreamOptions {
@@ -30,6 +31,7 @@ interface ExtendedGenerateStreamOptions {
 }
 
 export class LLMService implements ILLMService {
+  private readonly eventEmitter: EventEmitter;
   private readonly llmService: UnifiedLLMService;
   private readonly promptService: PromptService;
   private readonly maxRetries: number = 3;
@@ -40,8 +42,10 @@ export class LLMService implements ILLMService {
   private lastModelUpdateTime: number = 0;
   private readonly MODEL_UPDATE_INTERVAL: number = 1000; // 1秒的更新间隔
   private players: Player[] = [];
+  private currentCharacterId: string | null = null;
 
   constructor() {
+    this.eventEmitter = new EventEmitter();
     this.llmService = UnifiedLLMService.getInstance();
     this.promptService = new PromptService();
     this.storeManager = StoreManager.getInstance();
@@ -178,11 +182,58 @@ export class LLMService implements ILLMService {
   }
 
   // 私有初始化检查方法
-  private async ensureInitialized(): Promise<void> {
+  private async ensureInitialized(characterId?: string): Promise<void> {
     try {
-      if (!this.initialized) {
-        console.log('LLM服务未初始化，开始初始化...');
-        await this.initialize();
+      if (characterId) {
+        this.currentCharacterId = characterId;
+      }
+      
+      if (!this.initialized || (this.currentCharacterId !== characterId && characterId)) {
+        console.log('LLM服务需要初始化:', {
+          isInitialized: this.initialized,
+          currentCharacterId: this.currentCharacterId,
+          newCharacterId: characterId
+        });
+        
+        // 获取角色配置
+        if (characterId) {
+          const character = await this.characterService.getById(characterId);
+          if (!character) {
+            console.error('未找到角色配置:', characterId);
+            throw new Error(`未找到角色配置: ${characterId}`);
+          }
+          
+          if (!character.callConfig?.direct?.modelId) {
+            console.error('角色未配置模型:', character);
+            throw new Error(`角色 ${character.name} 未配置模型`);
+          }
+          
+          console.log('找到角色配置:', {
+            characterId,
+            modelId: character.callConfig.direct.modelId,
+            characterName: character.name
+          });
+          
+          // 设置模型配置
+          const modelStore = this.storeManager.getModelStore();
+          const modelConfig = await modelStore.getConfigById(character.callConfig.direct.modelId);
+          
+          if (!modelConfig) {
+            console.error('未找到模型配置:', character.callConfig.direct.modelId);
+            throw new Error(`未找到模型配置: ${character.callConfig.direct.modelId}`);
+          }
+          
+          console.log('设置模型配置:', {
+            modelId: modelConfig.id,
+            modelName: modelConfig.name,
+            provider: modelConfig.provider
+          });
+          
+          await this.llmService.setModelConfig(modelConfig);
+        }
+        
+        this.initialized = true;
+        console.log('LLM服务初始化完成');
       } else {
         console.log('LLM服务已初始化');
       }
@@ -195,9 +246,55 @@ export class LLMService implements ILLMService {
 
   // 私有更新模型方法
   private async updateModelIfNeeded(characterId: string): Promise<void> {
+    console.log('检查是否需要更新模型配置:', {
+      characterId,
+      currentTime: Date.now(),
+      lastUpdateTime: this.lastModelUpdateTime
+    });
+    
     const currentTime = Date.now();
     if (currentTime - this.lastModelUpdateTime >= this.MODEL_UPDATE_INTERVAL) {
-      await this.initialize(characterId);
+      console.log('需要更新模型配置，开始初始化...');
+      // 获取角色配置
+      const characterService = new CharacterConfigService();
+      const character = await characterService.getById(characterId);
+      
+      if (!character) {
+        console.error('未找到角色配置:', characterId);
+        throw new Error(`未找到角色配置: ${characterId}`);
+      }
+      
+      if (!character.callConfig?.direct?.modelId) {
+        console.error('角色未配置模型:', character);
+        throw new Error(`角色 ${character.name} 未配置模型`);
+      }
+      
+      console.log('找到角色配置:', {
+        characterId,
+        modelId: character.callConfig.direct.modelId,
+        characterName: character.name
+      });
+      
+      // 设置模型配置
+      const modelStore = this.storeManager.getModelStore();
+      const modelConfig = await modelStore.getConfigById(character.callConfig.direct.modelId);
+      
+      if (!modelConfig) {
+        console.error('未找到模型配置:', character.callConfig.direct.modelId);
+        throw new Error(`未找到模型配置: ${character.callConfig.direct.modelId}`);
+      }
+      
+      console.log('设置模型配置:', {
+        modelId: modelConfig.id,
+        modelName: modelConfig.name,
+        provider: modelConfig.provider
+      });
+      
+      await this.llmService.setModelConfig(modelConfig);
+      this.lastModelUpdateTime = currentTime;
+      console.log('模型配置更新完成');
+    } else {
+      console.log('模型配置在更新间隔内，跳过更新');
     }
   }
 

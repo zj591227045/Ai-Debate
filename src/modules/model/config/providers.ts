@@ -115,5 +115,45 @@ export const PROVIDER_CONFIGS: Record<ProviderType, IProviderConfig> = {
       maxTokens: { min: 1, max: 4096, default: 2048 },
       topP: { min: 0, max: 1, default: 0.9 }
     }
+  },
+  [ProviderType.OPENAI]: {
+    name: 'OpenAI',
+    code: ProviderType.OPENAI,
+    description: 'OpenAI API兼容服务',
+    website: 'https://openai.com',
+    requiresApiKey: true,
+    requiresBaseUrl: true,
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    models: [
+      {
+        name: 'GPT-3.5 Turbo',
+        code: 'gpt-3.5-turbo',
+        description: 'OpenAI GPT-3.5 Turbo模型',
+        contextWindow: 4096,
+        maxTokens: 4096,
+        features: ['对话', '代码生成', '文本补全']
+      },
+      {
+        name: 'GPT-4',
+        code: 'gpt-4',
+        description: 'OpenAI GPT-4模型',
+        contextWindow: 8192,
+        maxTokens: 4096,
+        features: ['对话', '代码生成', '文本补全', '高级推理']
+      },
+      {
+        name: 'GPT-4 Turbo',
+        code: 'gpt-4-turbo-preview',
+        description: 'OpenAI GPT-4 Turbo预览版',
+        contextWindow: 128000,
+        maxTokens: 4096,
+        features: ['对话', '代码生成', '文本补全', '高级推理', '知识更新']
+      }
+    ],
+    parameterRanges: {
+      temperature: { min: 0, max: 2, default: 0.7 },
+      maxTokens: { min: 1, max: 4096, default: 2048 },
+      topP: { min: 0, max: 1, default: 0.9 }
+    }
   }
 }; 

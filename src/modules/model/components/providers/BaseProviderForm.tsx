@@ -24,18 +24,19 @@ export const BaseProviderForm: React.FC<ProviderFormProps> = ({
   children
 }) => {
   // 使用工厂创建对应的供应商表单实现
-  const providerForm = ProviderFormFactory.createForm(providerConfig.code as ProviderType, {
-    formData,
-    providerConfig,
-    isLoading,
-    onChange,
-    onTest,
-    onRefresh
-  });
+  const providerForm = ProviderFormFactory.createForm(providerConfig.code as ProviderType);
+  const ProviderFormComponent = providerForm.Component;
 
   return (
     <div className="provider-form">
-      {providerForm.render()}
+      <ProviderFormComponent
+        formData={formData}
+        providerConfig={providerConfig}
+        isLoading={isLoading}
+        onChange={onChange}
+        onTest={onTest}
+        onRefresh={onRefresh}
+      />
       {children}
     </div>
   );

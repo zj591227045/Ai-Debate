@@ -96,9 +96,10 @@ export class ModelService {
       throw new LLMError(LLMErrorCode.PROVIDER_NOT_FOUND, `不支持的供应商: ${config.provider}`);
     }
 
-    // 对于 Ollama 和硅基流动供应商，跳过模型验证
-    // Ollama 的模型列表是动态的，硅基流动通过 API 获取
-    if (config.provider !== ProviderType.OLLAMA && config.provider !== ProviderType.SILICONFLOW) {
+    // 对于 Ollama、硅基流动和 OpenAI 供应商，跳过模型验证
+    if (config.provider !== ProviderType.OLLAMA && 
+        config.provider !== ProviderType.SILICONFLOW && 
+        config.provider !== ProviderType.OPENAI) {
       const modelInfo = providerConfig.models.find(m => m.code === config.model);
       if (!modelInfo) {
         throw new LLMError(LLMErrorCode.MODEL_NOT_FOUND, `供应商 ${providerConfig.name} 不支持模型 ${config.model}`);
@@ -177,9 +178,11 @@ export class ModelService {
         throw new LLMError(LLMErrorCode.PROVIDER_NOT_FOUND, `不支持的供应商: ${updates.provider}`);
       }
 
-      // 对于 Ollama 和硅基流动供应商，跳过模型验证
+      // 对于 Ollama、硅基流动和 OpenAI 供应商，跳过模型验证
       const provider = updates.provider || existing.provider;
-      if (provider !== ProviderType.OLLAMA && provider !== ProviderType.SILICONFLOW) {
+      if (provider !== ProviderType.OLLAMA && 
+          provider !== ProviderType.SILICONFLOW && 
+          provider !== ProviderType.OPENAI) {
         const modelCode = updates.model || existing.model;
         const modelInfo = providerConfig.models.find(m => m.code === modelCode);
         if (!modelInfo) {

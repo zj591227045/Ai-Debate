@@ -1,16 +1,18 @@
 import type { ModelConfig } from '../../types/config';
-import type { LLMProvider } from '../../types/providers';
+import { LLMProvider } from './base';
 import { OllamaProvider } from './ollama';
 import { DeepseekProvider } from './deepseek';
 import { SiliconFlowProvider } from './siliconflow';
+import { OpenAIProvider } from './openai';
 import { LLMError, LLMErrorCode } from '../../types/error';
 import { PROVIDERS } from '../../types/providers';
 
 export class ProviderFactory {
-  private static readonly providers = new Map<string, new (config: ModelConfig) => LLMProvider>([
+  private static providers = new Map<string, new (config: ModelConfig) => LLMProvider>([
     [PROVIDERS.OLLAMA, OllamaProvider],
     [PROVIDERS.DEEPSEEK, DeepseekProvider],
-    [PROVIDERS.SILICONFLOW, SiliconFlowProvider]
+    [PROVIDERS.SILICONFLOW, SiliconFlowProvider],
+    [PROVIDERS.OPENAI, OpenAIProvider]
   ]);
 
   static createProvider(config: ModelConfig): LLMProvider {

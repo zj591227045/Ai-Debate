@@ -24,6 +24,7 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.0",
     "lucide-react": "^0.475.0",
+    "openai": "^4.85.3",
     "re-resizable": "^6.10.3",
     "react": "^18.2.0",
     "react-beautiful-dnd": "^13.1.1",

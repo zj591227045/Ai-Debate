@@ -43,12 +43,24 @@ export interface SiliconFlowConfig extends BaseProviderConfig {
 }
 
 /**
+ * OpenAI供应商配置
+ */
+export interface OpenAIConfig extends BaseProviderConfig {
+  options?: {
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+  };
+}
+
+/**
  * 供应商类型枚举
  */
 export enum ProviderType {
   OLLAMA = 'ollama',
   DEEPSEEK = 'deepseek',
-  SILICONFLOW = 'siliconflow'
+  SILICONFLOW = 'siliconflow',
+  OPENAI = 'openai'
 }
 
 export const PROVIDERS = ProviderType;
@@ -67,7 +79,8 @@ export interface ProviderFactory {
 export type ProviderSpecificConfig = 
   | OllamaConfig
   | DeepseekConfig
-  | SiliconFlowConfig;
+  | SiliconFlowConfig
+  | OpenAIConfig;
 
 export interface ModelProvider {
   initialize(skipModelValidation?: boolean): Promise<void>;

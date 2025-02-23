@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import router from './routes';
 import { initializeContainer } from './modules/llm/services/container';
@@ -41,6 +42,7 @@ const App: React.FC = () => {
       <ConfigProvider locale={zhCN}>
         <RouterProvider router={router} />
         <SpeedInsights />
+        <Analytics />
       </ConfigProvider>
     </ThemeProvider>
   );

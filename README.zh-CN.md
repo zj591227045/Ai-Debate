@@ -1,4 +1,4 @@
-# AI-Debate (AI大乱斗)
+# AI-Debate (AI竞技场)
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 

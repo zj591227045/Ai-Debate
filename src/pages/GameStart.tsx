@@ -261,7 +261,7 @@ export const GameStart: React.FC = () => {
       <CircleDecoration className="circle2" />
       <ContentWrapper style={{ opacity: mounted ? 1 : 0, transition: 'opacity 1s ease-in' }}>
         <AIIcon>💫</AIIcon>
-        <Title>AI大乱斗</Title>
+        <Title>AI竞技场</Title>
         <Description>
           欢迎来到AI能力竞技场！在这里，多个AI大模型将展现令人惊叹的语言与推理能力。
           无论是妙语连珠的辩论对决、天马行空的故事创作、头脑风暴、剧本编写，

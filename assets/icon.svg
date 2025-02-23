@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a237e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0d47a1;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- 发光效果 -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 背景圆形 -->
+  <circle cx="512" cy="512" r="460" fill="url(#bgGradient)"/>
+
+  <!-- 外部六边形框架 - 竞技场 -->
+  <path d="M512 52
+           L852 232
+           L852 792
+           L512 972
+           L172 792
+           L172 232 Z"
+        fill="none"
+        stroke="#4FC3F7"
+        stroke-width="4"
+        opacity="0.6"/>
+
+  <!-- 内部连接线 - 思维导图 -->
+  <g filter="url(#glow)" opacity="0.8">
+    <!-- 中心到各节点的连接线 -->
+    <path d="M512 512 L712 312" stroke="#64B5F6" stroke-width="3"/>
+    <path d="M512 512 L712 712" stroke="#64B5F6" stroke-width="3"/>
+    <path d="M512 512 L312 712" stroke="#64B5F6" stroke-width="3"/>
+    <path d="M512 512 L312 312" stroke="#64B5F6" stroke-width="3"/>
+    
+    <!-- 节点之间的连接线 -->
+    <path d="M712 312 A400 400 0 0 1 712 712" stroke="#2196F3" stroke-width="2" fill="none"/>
+    <path d="M312 312 A400 400 0 0 0 312 712" stroke="#2196F3" stroke-width="2" fill="none"/>
+  </g>
+
+  <!-- 节点 -->
+  <g filter="url(#glow)">
+    <!-- 中心节点 -->
+    <circle cx="512" cy="512" r="40" fill="#E3F2FD" stroke="#90CAF9" stroke-width="4"/>
+    
+    <!-- 四个主要节点 -->
+    <circle cx="712" cy="312" r="30" fill="#BBDEFB" stroke="#64B5F6" stroke-width="3"/>
+    <circle cx="712" cy="712" r="30" fill="#BBDEFB" stroke="#64B5F6" stroke-width="3"/>
+    <circle cx="312" cy="712" r="30" fill="#BBDEFB" stroke="#64B5F6" stroke-width="3"/>
+    <circle cx="312" cy="312" r="30" fill="#BBDEFB" stroke="#64B5F6" stroke-width="3"/>
+    
+    <!-- 装饰性小节点 -->
+    <circle cx="612" cy="412" r="15" fill="#90CAF9" stroke="#64B5F6" stroke-width="2"/>
+    <circle cx="612" cy="612" r="15" fill="#90CAF9" stroke="#64B5F6" stroke-width="2"/>
+    <circle cx="412" cy="612" r="15" fill="#90CAF9" stroke="#64B5F6" stroke-width="2"/>
+    <circle cx="412" cy="412" r="15" fill="#90CAF9" stroke="#64B5F6" stroke-width="2"/>
+  </g>
+
+  <!-- 装饰性光效 -->
+  <g opacity="0.3">
+    <circle cx="512" cy="512" r="200" fill="none" stroke="#E3F2FD" stroke-width="1">
+      <animate attributeName="r" values="200;220;200" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.3;0.1;0.3" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="512" cy="512" r="300" fill="none" stroke="#E3F2FD" stroke-width="1">
+      <animate attributeName="r" values="300;320;300" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.2;0.05;0.2" dur="3s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg> 

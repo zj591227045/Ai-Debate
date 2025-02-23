@@ -19,7 +19,9 @@ const logger = StateLogger.getInstance();
 const Container = styled.div`
   ${({ theme }) => theme.mixins.glassmorphism}
   border-radius: ${({ theme }) => theme.radius.lg};
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 `;
 
 const Header = styled.div`
@@ -30,7 +32,6 @@ const Header = styled.div`
   background: ${({ theme }) => theme.colors.background.secondary};
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.primary};
   ${({ theme }) => theme.mixins.glassmorphism}
-  height: 3.5rem;
 `;
 
 const Title = styled.h2`
@@ -64,6 +65,7 @@ const PlayerGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   padding: 1.5rem;
+  width: 100%;
 `;
 
 const PlayerCard = styled.div`
@@ -77,6 +79,7 @@ const PlayerCard = styled.div`
   background: ${({ theme }) => theme.colors.background.container};
   border: 1px solid ${({ theme }) => theme.colors.border.primary};
   text-align: center;
+  height: fit-content;
 
   &:hover {
     transform: translateY(-2px);
@@ -133,6 +136,10 @@ const AIBadge = styled.div`
   font-size: ${({ theme }) => theme.typography.fontSize.xs};
   font-weight: ${({ theme }) => theme.typography.fontWeight.bold};
   ${({ theme }) => theme.mixins.textGlow}
+`;
+
+const HumanBadge = styled(AIBadge)`
+  background: ${({ theme }) => theme.colors.success};
 `;
 
 const PlayerInfo = styled.div`
@@ -224,9 +231,10 @@ const StyledSelect = styled(Select)`
     background: rgba(255, 255, 255, 0.9) !important;
     border: 1px solid ${({ theme }) => theme.colors.border.primary} !important;
     border-radius: ${({ theme }) => theme.radius.md} !important;
-    height: auto !important;
     padding: 0.5rem !important;
     transition: all ${({ theme }) => theme.transitions.normal};
+    height: auto !important;
+    min-height: 40px;
 
     &:hover {
       border-color: ${({ theme }) => theme.colors.border.secondary} !important;
@@ -255,6 +263,8 @@ const StyledSelect = styled(Select)`
     border: 1px solid ${({ theme }) => theme.colors.border.primary};
     border-radius: ${({ theme }) => theme.radius.md};
     max-width: calc(100vw - 2rem);
+    max-height: 400px;
+    overflow-y: auto;
   }
 
   // 下拉选项样式
@@ -378,13 +388,15 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   }, []);
 
   useEffect(() => {
-    // 从 LocalStorage 加载角色配置，只获取非模板角色
+    // 从 LocalStorage 加载角色配置，排除模板角色和人类角色
     try {
       const characterConfigs = JSON.parse(localStorage.getItem('character_configs') || '[]');
-      const nonTemplateCharacters = characterConfigs.filter((char: any) => !char.isTemplate);
-      setCharacters(nonTemplateCharacters);
+      const filteredCharacters = characterConfigs.filter((char: any) => 
+        !char.isTemplate && !char.isHuman
+      );
+      setCharacters(filteredCharacters);
     } catch (error) {
-      console.error('Failed to load character configs:', error);
+      console.error('加载角色配置失败:', error);
       setCharacters([]);
     }
   }, []);
@@ -397,6 +409,19 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   // 检查是否已有人类玩家
   const hasHumanPlayer = players.some(p => !p.isAI);
 
+  // 生成随机颜色的函数
+  const getRandomColor = () => {
+    const colors = ['#f56a00', '#7265e6', '#ffbf00', '#00a2ae', '#f56a00'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
+  // 生成随机头像的函数
+  const generateAvatarUrl = (name: string) => {
+    const backgroundColor = getRandomColor();
+    const size = 100;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=${backgroundColor.replace('#', '')}&color=fff&size=${size}`;
+  };
+
   const handleTakeoverClick = (playerId: string) => {
     if (hasHumanPlayer) {
       Modal.warning({
@@ -405,14 +430,82 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
       });
       return;
     }
-    setTakeoverPlayerId(playerId);
-    setTakeoverModalVisible(true);
-    setPlayerName('');
+    const player = players.find(p => p.id === playerId);
+    if (player?.isAI) {
+      setTakeoverPlayerId(playerId);
+      setTakeoverModalVisible(true);
+      setPlayerName('');
+    } else {
+      handleCancelTakeover(playerId);
+    }
   };
 
   const handleTakeoverConfirm = () => {
     if (takeoverPlayerId && playerName.trim()) {
+      const avatarUrl = generateAvatarUrl(playerName.trim());
+      
+      // 创建人类玩家的角色配置
+      const humanCharacterId = `human_${takeoverPlayerId}`;
+      const humanCharacterConfig = {
+        id: humanCharacterId,
+        name: playerName.trim(),
+        description: '该选手由你来控制',
+        avatar: avatarUrl,
+        isTemplate: false,
+        isHuman: true,
+        personality: '由真实玩家控制',
+        speakingStyle: '自然真实',
+        background: '人类玩家',
+        values: ['真实性', '参与性'],
+        argumentationStyle: '个人风格'
+      };
+
+      // 保存人类玩家的角色配置到 localStorage
+      try {
+        const existingConfigs = JSON.parse(localStorage.getItem('character_configs') || '[]');
+        const newConfigs = existingConfigs.filter((c: any) => c.id !== humanCharacterId);
+        newConfigs.push(humanCharacterConfig);
+        localStorage.setItem('character_configs', JSON.stringify(newConfigs));
+        
+        // 更新本地 characters 状态，这样UI会立即更新
+        setCharacters(newConfigs);
+      } catch (error) {
+        console.error('保存人类玩家角色配置失败:', error);
+      }
+      
+      // 更新玩家信息
+      const updatedPlayers = players.map(p => 
+        p.id === takeoverPlayerId ? {
+          ...p,
+          name: playerName.trim(),
+          isAI: false,
+          avatar: avatarUrl,
+          characterId: humanCharacterId // 设置人类玩家的角色ID
+        } : p
+      );
+      
+      // 更新 gameConfig 中的 players
+      const updatedGameConfig = {
+        ...gameConfig,
+        players: updatedPlayers,
+        debate: gameConfig.debate ? {
+          ...gameConfig.debate,
+          players: updatedPlayers
+        } : undefined
+      };
+      
+      setGameConfig(updatedGameConfig);
+      
+      // 保存到 localStorage
+      try {
+        localStorage.setItem('state_gameConfig', JSON.stringify(updatedGameConfig));
+      } catch (error) {
+        console.error('保存游戏配置失败:', error);
+      }
+
+      // 调用接管回调
       onTakeoverPlayer(takeoverPlayerId, playerName.trim(), true);
+      
       setTakeoverModalVisible(false);
       setTakeoverPlayerId(null);
       setPlayerName('');
@@ -422,7 +515,38 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
   const handleCancelTakeover = (playerId: string) => {
     const player = players.find(p => p.id === playerId);
     if (player) {
+      // 直接执行移交AI的操作
       onTakeoverPlayer(playerId, `AI选手${player.name.match(/\d+/)?.[0] || ''}`, false);
+      
+      // 更新玩家信息
+      const updatedPlayers = players.map(p => 
+        p.id === playerId ? {
+          ...p,
+          name: `AI选手${p.name.match(/\d+/)?.[0] || ''}`,
+          isAI: true,
+          avatar: undefined,
+          characterId: '' // 清除之前的角色配置
+        } : p
+      );
+      
+      // 更新gameConfig
+      const updatedGameConfig = {
+        ...gameConfig,
+        players: updatedPlayers,
+        debate: gameConfig.debate ? {
+          ...gameConfig.debate,
+          players: updatedPlayers
+        } : undefined
+      };
+      
+      setGameConfig(updatedGameConfig);
+      
+      // 保存到localStorage
+      try {
+        localStorage.setItem('state_gameConfig', JSON.stringify(updatedGameConfig));
+      } catch (error) {
+        console.error('保存游戏配置失败:', error);
+      }
     }
   };
 
@@ -458,10 +582,11 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
     }
   };
 
-  const handleSelectCharacter = (playerId: string, characterId: string) => {
-    onSelectCharacter(playerId, characterId);
+  const handleSelectCharacter = (playerId: string, characterId: string | null) => {
+    console.log('选择角色:', { playerId, characterId });
+    onSelectCharacter(playerId, characterId || '');
     const updatedPlayers = players.map(p => 
-      p.id === playerId ? { ...p, characterId } : p
+      p.id === playerId ? { ...p, characterId: characterId || '' } : p
     );
     setGameConfig({
       ...gameConfig,
@@ -526,19 +651,35 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
             : undefined;
 
           const availableCharacters = characters.filter(
-            character => !selectedCharacterIds.includes(character.id) || character.id === player.characterId
+            character => 
+              // 排除已选择的角色、人类角色和模板角色
+              (!selectedCharacterIds.includes(character.id) || character.id === player.characterId) &&
+              !character.isHuman &&
+              !character.isTemplate
           );
 
           return (
             <PlayerCard key={player.id}>
               <PlayerHeader>
                 <PlayerAvatar>
-                  {selectedCharacter?.avatar ? (
-                    <img src={selectedCharacter.avatar} alt={selectedCharacter.name} />
+                  {player.isAI ? (
+                    selectedCharacter?.avatar ? (
+                      <img src={selectedCharacter.avatar} alt={selectedCharacter.name} />
+                    ) : (
+                      <RobotOutlined />
+                    )
                   ) : (
-                    player.isAI ? <RobotOutlined /> : <UserOutlined />
+                    player.avatar ? (
+                      <img src={player.avatar} alt={player.name} />
+                    ) : (
+                      <UserOutlined />
+                    )
                   )}
-                  {player.isAI && <AIBadge>AI</AIBadge>}
+                  {player.isAI ? (
+                    <AIBadge>AI</AIBadge>
+                  ) : (
+                    <HumanBadge>人类</HumanBadge>
+                  )}
                 </PlayerAvatar>
                 <PlayerInfo>
                   <PlayerName>{player.name}</PlayerName>
@@ -552,12 +693,13 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
                 <StyledSelect
                   value={player.characterId || undefined}
                   onChange={(value) => {
-                    if (typeof value === 'string') {
-                      handleSelectCharacter(player.id, value);
-                    }
+                    // 处理清空和选择的情况
+                    const characterId = value === undefined ? null : String(value || '');
+                    handleSelectCharacter(player.id, characterId);
                   }}
                   placeholder="选择AI角色"
                   optionLabelProp="label"
+                  allowClear
                 >
                   {availableCharacters.map(character => (
                     <Select.Option 
@@ -589,12 +731,21 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
               )}
 
               <PlayerActions>
-                <ActionButton
-                  variant="primary"
-                  onClick={() => onTakeoverPlayer(player.id, player.name, !player.isAI)}
-                >
-                  {player.isAI ? '接管' : '移交AI'}
-                </ActionButton>
+                {player.isAI ? (
+                  <ActionButton
+                    variant="primary"
+                    onClick={() => handleTakeoverClick(player.id)}
+                  >
+                    接管
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    variant="primary"
+                    onClick={() => handleCancelTakeover(player.id)}
+                  >
+                    移交AI
+                  </ActionButton>
+                )}
                 <ActionButton
                   variant="danger"
                   onClick={() => onRemovePlayer(player.id)}
@@ -613,14 +764,22 @@ export const RoleAssignmentPanel: React.FC<RoleAssignmentPanelProps> = ({
         onOk={handleTakeoverConfirm}
         onCancel={() => setTakeoverModalVisible(false)}
         okButtonProps={{ disabled: !playerName.trim() }}
+        okText="确认"
+        cancelText="取消"
+        destroyOnClose
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space direction="vertical" style={{ width: '100%', marginTop: '16px' }}>
           <div>请输入您的名字：</div>
           <Input
             placeholder="请输入玩家名称"
             value={playerName}
             onChange={e => setPlayerName(e.target.value)}
-            onPressEnter={handleTakeoverConfirm}
+            onPressEnter={() => {
+              if (playerName.trim()) {
+                handleTakeoverConfirm();
+              }
+            }}
+            autoFocus
           />
         </Space>
       </Modal>

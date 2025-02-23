@@ -69,37 +69,54 @@ export const SpeechList: React.FC<SpeechListProps> = ({
     const player = players.find(p => p.id === playerId);
     if (!player) {
       return {
-        name: playerId,
+        name: '未知玩家',
         avatar: undefined,
         characterName: undefined,
         modelInfo: undefined
       };
     }
 
+    // 获取角色配置
+    const character = player.characterId && characterConfigs ? characterConfigs[player.characterId] : undefined;
+
     // 处理AI角色信息
-    if (player.isAI && player.characterId && characterConfigs) {
-      // 获取角色配置
-      const character = characterConfigs[player.characterId];
-      
+    if (player.isAI && character) {
+      const modelInfo = character.callConfig?.direct?.model || 'AI助手';
+      return {
+        name: player.name,
+        avatar: player.avatar || character.avatar,
+        characterName: character.name || player.name,
+        modelInfo
+      };
+    }
+    
+    // 处理人类玩家信息
+    if (!player.isAI) {
+      // 尝试获取人类玩家的角色配置
       if (character) {
-        // 获取模型信息
-        const modelInfo = character.callConfig?.direct?.model || 'AI助手';
-        
         return {
           name: player.name,
           avatar: player.avatar || character.avatar,
-          characterName: character.name || player.name,
-          modelInfo
+          characterName: character.name,
+          modelInfo: '人类玩家'
         };
       }
+      
+      // 如果没有角色配置，使用玩家基本信息
+      return {
+        name: player.name,
+        avatar: player.avatar,
+        characterName: player.name,
+        modelInfo: '人类玩家'
+      };
     }
     
-    // 处理人类玩家信息或没有角色配置的AI玩家
+    // 处理没有角色配置的AI玩家
     return {
-      name: player.name,
+      name: player.name || '未知玩家',
       avatar: player.avatar,
-      characterName: undefined,
-      modelInfo: player.isAI ? 'AI助手' : undefined
+      characterName: player.name,
+      modelInfo: 'AI助手'
     };
   };
 

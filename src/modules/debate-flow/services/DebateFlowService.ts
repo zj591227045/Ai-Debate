@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type { Player } from '../../game-config/types';
-import type { Speech } from '@debate/types';
+import type { Speech as BaseSpeech } from '@debate/types';
 import {
   IDebateFlow,
   DebateFlowConfig,
@@ -16,7 +16,8 @@ import {
   DebateStatus,
   PlayerConfig,
   ScoringContext,
-  ScoringDimension
+  ScoringDimension,
+  Speech
 } from '../types/interfaces';
 import { LLMService } from './LLMService';
 import { SpeakingOrderManager } from './SpeakingOrderManager';
@@ -87,7 +88,13 @@ export class DebateFlowService implements IDebateFlow {
   async initialize(config: DebateFlowConfig): Promise<void> {
     console.log('【规则说明传递】原始配置中的规则说明:', {
       rulesDescription: config.rules.description,
-      rulesConfig: config.rules
+      rulesConfig: config.rules,
+      players: config.players.map(p => ({
+        id: p.id,
+        name: p.name,
+        team: p.team,
+        role: p.role
+      }))
     });
     
     // 将配置转换为内部使用的格式
@@ -124,23 +131,34 @@ export class DebateFlowService implements IDebateFlow {
       } : undefined
     };
 
-    console.log('【规则说明传递】转换后的配置中的规则说明:', {
-      rulesDescription: this.config.rules.description,
-      rulesConfig: this.config.rules
-    });
-
     // 初始化发言顺序
     const speakingOrder = this.speakingOrderManager.initializeOrder(
       this.config.players,
       this.config.rules.debateFormat
     );
 
+    console.log('初始化发言顺序:', {
+      format: speakingOrder.format,
+      speakers: speakingOrder.speakers.map(s => ({
+        id: s.player.id,
+        name: s.player.name,
+        sequence: s.sequence,
+        status: s.status
+      }))
+    });
+
     // 设置初始状态
     this.state = {
       ...this.state,
       totalRounds: config.topic.rounds,
       speakingOrder: speakingOrder,
-      nextSpeaker: speakingOrder.speakers[0]?.player || null
+      nextSpeaker: speakingOrder.speakers[0]?.player || null,
+      status: DebateStatus.PREPARING,
+      currentRound: 1,
+      currentSpeaker: null,
+      currentSpeech: null,
+      speeches: [],
+      scores: []
     };
 
     // 初始化辩论上下文
@@ -159,9 +177,16 @@ export class DebateFlowService implements IDebateFlow {
       }
     };
 
-    console.log('【规则说明传递】初始化的辩论上下文中的规则说明:', {
-      rulesDescription: this.debateContext.rules?.description,
-      fullContext: this.debateContext
+    console.log('初始化完成，当前状态:', {
+      status: this.state.status,
+      currentRound: this.state.currentRound,
+      nextSpeaker: this.state.nextSpeaker?.name,
+      speakingOrder: this.state.speakingOrder.speakers.map(s => ({
+        id: s.player.id,
+        name: s.player.name,
+        sequence: s.sequence,
+        status: s.status
+      }))
     });
 
     this.emitStateChange();
@@ -254,19 +279,26 @@ export class DebateFlowService implements IDebateFlow {
         }))
       });
 
-      // 添加系统消息提示用户点击"下一位发言者"按钮开始发言
-      this.state.speeches.push({
+      // 添加系统消息提示用户点击"下一位发言者"按钮开始发言，但不影响发言顺序
+      const systemMessage: Speech = {
         id: `system-${Date.now()}`,
         playerId: 'system',
         content: '辩论已开始，请点击"下一位发言者"按钮开始第一位选手的发言。',
         type: 'system',
         timestamp: Date.now(),
         round: this.state.currentRound,
-        role: 'system',
-        characterId: 'system',
-        characterName: 'System'
-      });
+        role: 'system'
+      };
+      
+      // 将系统消息单独存储，不影响发言顺序
+      this.state.speeches = [systemMessage];
+      
       this.emitStateChange();
+
+      // 如果第一个发言者是AI，自动开始其发言
+      if (firstSpeaker.isAI) {
+        await this.handleAISpeech(firstSpeaker);
+      }
 
     } catch (error) {
       // 发生错误时恢复之前的状态
@@ -325,18 +357,19 @@ export class DebateFlowService implements IDebateFlow {
     // 处理系统消息
     if (speech.type === 'system' || speech.playerId === 'system') {
       console.log('处理系统消息:', speech);
-      // 保存系统消息到历史记录
-      this.state.speeches.push({
+      // 保存系统消息到历史记录，但不影响发言顺序
+      const systemMessage: Speech = {
         id: `system-${Date.now()}`,
         playerId: 'system',
         content: speech.content,
         type: 'system',
         timestamp: Date.now(),
         round: this.state.currentRound,
-        role: 'system',
-        characterId: 'system',
-        characterName: 'System'
-      });
+        role: 'system'
+      };
+      
+      // 将系统消息添加到speeches数组，但不影响发言顺序
+      this.state.speeches.push(systemMessage);
       
       this.emitStateChange();
       
@@ -364,23 +397,30 @@ export class DebateFlowService implements IDebateFlow {
     };
 
     // 保存发言到历史记录
-    this.state.speeches.push({
+    const speechRecord: Speech = {
       id: `${speech.playerId}-${speech.type}-${Date.now()}`,
       playerId: speech.playerId,
       content: speech.content,
       type: speech.type,
       timestamp: Date.now(),
       round: this.state.currentRound,
-      role: speech.type === 'innerThoughts' ? 'assistant' : 'user',
-      characterId: this.state.currentSpeaker?.characterId,
-      characterName: this.state.currentSpeaker?.name
-    });
+      role: speech.type === 'innerThoughts' ? 'assistant' : 'user'
+    };
+    
+    // 将发言添加到speeches数组
+    this.state.speeches.push(speechRecord);
     
     console.log('【发言记录调试】submitSpeech - 保存的speech对象:', {
       playerId: speech.playerId,
       characterId: this.state.currentSpeaker?.characterId,
       characterName: this.state.currentSpeaker?.name,
-      type: speech.type
+      type: speech.type,
+      speakingOrder: this.state.speakingOrder.speakers.map(s => ({
+        id: s.player.id,
+        name: s.player.name,
+        status: s.status,
+        sequence: s.sequence
+      }))
     });
     
     this.emitStateChange();
@@ -401,81 +441,142 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private async moveToNextSpeaker(): Promise<void> {
-    console.log('【发言记录调试】moveToNextSpeaker - 开始切换下一个发言者:', {
-      currentSpeakerId: this.state.currentSpeaker?.id,
-      currentSpeakerCharacterId: this.state.currentSpeaker?.characterId,
-      nextSpeakerId: this.state.nextSpeaker?.id,
-      nextSpeakerCharacterId: this.state.nextSpeaker?.characterId
+    console.log('【调试】开始切换发言者:', {
+      currentState: this.state,
+      eventEmitter: this.eventEmitter.listenerCount(DebateFlowEvent.SPEECH_STARTED)
     });
     
-    // 如果没有下一个发言者，检查是否需要进入下一轮
-    if (!this.state.nextSpeaker) {
+    // 如果当前有发言者，将其状态更新为已完成
+    if (this.state.currentSpeaker) {
+      const currentSpeakerIndex = this.state.speakingOrder.speakers.findIndex(
+        s => s.player.id === this.state.currentSpeaker?.id
+      );
+      if (currentSpeakerIndex !== -1) {
+        this.state.speakingOrder.speakers[currentSpeakerIndex].status = 'finished';
+        console.log('更新当前发言者状态为已完成:', {
+          speakerId: this.state.currentSpeaker.id,
+          speakerName: this.state.currentSpeaker.name,
+          isAI: this.state.currentSpeaker.isAI
+        });
+      }
+    }
+
+    // 检查是否所有发言者都已完成
+    const allFinished = this.state.speakingOrder.speakers.every(
+      s => s.status === 'finished'
+    );
+
+    if (allFinished) {
       console.log('当前轮次所有发言者已完成');
-      
-      // 更新状态为等待评分
       this.state = {
         ...this.state,
         status: DebateStatus.ROUND_COMPLETE,
         currentSpeaker: null,
-        nextSpeaker: null
+        nextSpeaker: null,
+        currentSpeech: null
       };
-      
       this.emitStateChange();
+      return;
+    }
+
+    // 获取下一个发言者（按sequence排序）
+    const waitingSpeakers = this.state.speakingOrder.speakers
+      .filter(s => s.status === 'waiting')
+      .sort((a, b) => a.sequence - b.sequence);
+    
+    console.log('待发言选手列表:', waitingSpeakers.map(s => ({
+      id: s.player.id,
+      name: s.player.name,
+      sequence: s.sequence,
+      isAI: s.player.isAI
+    })));
+    
+    const nextSpeaker = waitingSpeakers[0]?.player;
+    
+    if (!nextSpeaker) {
+      console.log('没有找到下一个发言者');
       return;
     }
 
     // 更新当前发言者和下一个发言者
     const prevSpeaker = this.state.currentSpeaker;
+    this.state.currentSpeaker = nextSpeaker;
     
-    // 从原始玩家列表中获取完整的玩家信息
-    const currentSpeakerInfo = this.state.speakingOrder.speakers.find(
-      s => s.player.id === this.state.nextSpeaker?.id
+    // 更新下一个待发言者
+    const remainingWaitingSpeakers = waitingSpeakers
+      .slice(1)
+      .map(s => s.player);
+    
+    this.state.nextSpeaker = remainingWaitingSpeakers[0] || null;
+
+    // 更新发言者状态
+    const nextSpeakerIndex = this.state.speakingOrder.speakers.findIndex(
+      s => s.player.id === nextSpeaker.id
     );
-    
-    console.log('【发言记录调试】moveToNextSpeaker - 找到的currentSpeakerInfo:', {
-      found: !!currentSpeakerInfo,
-      speakerId: currentSpeakerInfo?.player.id,
-      characterId: currentSpeakerInfo?.player.characterId,
-      name: currentSpeakerInfo?.player.name
-    });
-    
-    if (!currentSpeakerInfo) {
-      throw new Error(`找不到发言者信息: ${this.state.nextSpeaker?.id}`);
+    if (nextSpeakerIndex !== -1) {
+      this.state.speakingOrder.speakers[nextSpeakerIndex].status = 'speaking';
     }
     
-    // 确保保留所有玩家属性
-    this.state.currentSpeaker = { ...currentSpeakerInfo.player };
-    
-    // 更新发言顺序中的状态
-    const currentSpeakerIndex = this.state.speakingOrder.speakers.findIndex(
-      s => s.player.id === this.state.currentSpeaker?.id
-    );
-    
-    if (currentSpeakerIndex !== -1) {
-      // 将当前发言者标记为已完成
-      this.state.speakingOrder.speakers[currentSpeakerIndex].status = 'finished';
-      
-      // 找到下一个待发言的人
-      const nextSpeakerInfo = this.state.speakingOrder.speakers.find(s => s.status === 'waiting');
-      // 同样确保保留所有玩家属性
-      this.state.nextSpeaker = nextSpeakerInfo ? { ...nextSpeakerInfo.player } : null;
-    }
-    
-    console.log('发言者更新:', {
+    console.log('发言者更新完成:', {
       prevSpeaker: prevSpeaker?.id,
-      currentSpeaker: this.state.currentSpeaker,
-      nextSpeaker: this.state.nextSpeaker,
-      currentSpeakerCharacterId: this.state.currentSpeaker.characterId
+      currentSpeaker: {
+        id: this.state.currentSpeaker.id,
+        name: this.state.currentSpeaker.name,
+        isAI: this.state.currentSpeaker.isAI
+      },
+      nextSpeaker: this.state.nextSpeaker ? {
+        id: this.state.nextSpeaker.id,
+        name: this.state.nextSpeaker.name
+      } : null,
+      remainingWaitingSpeakers: remainingWaitingSpeakers.map(s => ({
+        id: s.id,
+        name: s.name,
+        sequence: this.state.speakingOrder.speakers.find(sp => sp.player.id === s.id)?.sequence
+      }))
     });
 
-    // 只有当发言者真正改变时才触发状态更新
+    // 只有当发言者真正改变时才触发状态更新和相关事件
     if (!prevSpeaker || prevSpeaker.id !== this.state.currentSpeaker.id) {
-      this.emitStateChange();
-    }
+      console.log('发言者已改变，处理状态更新和事件触发:', {
+        isHuman: !this.state.currentSpeaker.isAI,
+        currentSpeakerId: this.state.currentSpeaker.id,
+        currentSpeakerName: this.state.currentSpeaker.name
+      });
 
-    // 如果是AI发言者，处理AI发言
-    if (this.state.currentSpeaker.isAI) {
-      await this.handleAISpeech(this.state.currentSpeaker);
+      // 如果是人类玩家，触发SPEECH_STARTED事件并设置等待输入状态
+      if (!this.state.currentSpeaker.isAI) {
+        console.log('【调试】准备触发人类发言事件:', {
+          currentSpeech: this.state.currentSpeech,
+          eventListeners: this.eventEmitter.listenerCount(DebateFlowEvent.SPEECH_STARTED)
+        });
+        
+        // 先设置状态为等待输入
+        this.state.currentSpeech = {
+          type: 'speech',
+          content: '',
+          status: 'streaming'
+        };
+        console.log('已设置 currentSpeech 状态:', this.state.currentSpeech);
+        
+        // 发出状态变更
+        this.emitStateChange();
+        
+        // 触发SPEECH_STARTED事件
+        this.eventEmitter.emit(DebateFlowEvent.SPEECH_STARTED, {
+          player: this.state.currentSpeaker,
+          type: 'speech',
+          state: this.state
+        });
+      } else {
+        // AI玩家，直接触发状态更新
+        console.log('当前是AI玩家，直接更新状态');
+        this.emitStateChange();
+        
+        // 处理AI发言
+        await this.handleAISpeech(this.state.currentSpeaker);
+      }
+    } else {
+      console.log('发言者未改变，跳过状态更新和事件触发');
     }
   }
 
@@ -723,6 +824,13 @@ export class DebateFlowService implements IDebateFlow {
   }
 
   private emitStateChange(): void {
+    console.log('【状态变更】准备发出状态变更事件:', {
+      status: this.state.status,
+      currentSpeakerId: this.state.currentSpeaker?.id,
+      currentSpeechStatus: this.state.currentSpeech?.status,
+      timestamp: Date.now()
+    });
+
     // 创建一个新的状态对象
     const newState = {
       ...this.state,
@@ -731,16 +839,19 @@ export class DebateFlowService implements IDebateFlow {
             type: this.state.currentSpeech.type,
             content: this.state.currentSpeech.content,
             status: this.state.currentSpeech.status,
-            // 添加时间戳到currentSpeech对象
             _timestamp: Date.now()
           } 
         : null,
-      // 移除全局时间戳，改为只在currentSpeech中使用
       _lastUpdate: Date.now()
     };
     
     // 使用Promise.resolve().then确保在微任务队列中执行
     Promise.resolve().then(() => {
+      console.log('【状态变更】发出状态变更事件:', {
+        hasCurrentSpeech: !!newState.currentSpeech,
+        currentSpeechStatus: newState.currentSpeech?.status,
+        timestamp: newState._lastUpdate
+      });
       this.eventEmitter.emit('stateChange', newState);
     });
   }

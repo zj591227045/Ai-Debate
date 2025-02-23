@@ -721,7 +721,7 @@ export const ScoringConfigPanel: React.FC<{
       try {
         const characterConfigs = JSON.parse(localStorage.getItem('character_configs') || '[]');
         const filteredCharacters = characterConfigs
-          .filter((char: any) => !char.isTemplate)
+          .filter((char: any) => !char.isTemplate && !char.id.startsWith('human_'))
           .map((char: any) => ({
             value: char.id,
             label: char.name

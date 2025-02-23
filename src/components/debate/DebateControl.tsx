@@ -311,6 +311,7 @@ export const DebateControl: React.FC<DebateControlProps> = ({
         onClose={handleModalClose}
         players={players}
         currentRound={currentRound}
+        totalRounds={totalRounds}
         judge={judge ? {
           id: judge.characterConfig?.id || judge.id,
           name: judge.name,

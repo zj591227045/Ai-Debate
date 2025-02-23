@@ -141,8 +141,8 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
   onClearReferences
 }) => {
   const [content, setContent] = useState('');
-  const [type, setType] = useState<Speech['type']>('speech');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
 
   const handleSubmit = useCallback(async () => {
     if (disabled || isSubmitting) return;
@@ -151,17 +151,17 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
     setIsSubmitting(true);
     try {
       const references = referencedSpeeches?.map(s => s.id);
-      const success = await onSubmit(content, type, references);
+      const success = await onSubmit(content, 'speech', references);
       if (success) {
         setContent('');
         onClearReferences?.();
+        setIsVisible(false);
       }
     } finally {
       setIsSubmitting(false);
     }
   }, [
     content,
-    type,
     disabled,
     isSubmitting,
     maxLength,
@@ -180,6 +180,8 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
   const isOverLimit = content.length > maxLength;
   const isBelowLimit = content.length < minLength;
   const canSubmit = !disabled && !isSubmitting && !isOverLimit && !isBelowLimit;
+
+  if (!isVisible) return null;
 
   return (
     <Container>
@@ -212,17 +214,10 @@ export const SpeechInput: React.FC<SpeechInputProps> = ({
 
         <ButtonGroup>
           <Button
-            variant="secondary"
-            onClick={() => setType(type === 'speech' ? 'innerThoughts' : 'speech')}
-            disabled={disabled || isSubmitting}
-          >
-            {type === 'speech' ? '切换到内心OS' : '切换到发言'}
-          </Button>
-          <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
           >
-            发送{type === 'innerThoughts' ? '内心OS' : '发言'}
+            发送发言
           </Button>
         </ButtonGroup>
       </Controls>

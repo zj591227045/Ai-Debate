@@ -49,6 +49,8 @@ import type { ScoringDimension } from '../modules/debate-flow/types/interfaces';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ExportService } from '../modules/debate/services/ExportService';
+import { DebateFlowController } from '../modules/debate-flow/services/DebateFlowController';
+import { SpeechInput as SpeechInputComponent } from '../components/debate/SpeechInput';
 
 // 主容器
 const Container = styled.div<{ isDarkMode?: boolean }>`
@@ -619,6 +621,78 @@ const ThemeControls = styled.div<{ isDarkMode?: boolean }>`
   align-items: center;
 `;
 
+// 添加新的样式组件
+const JudgeTooltipSection = styled.div<{ isDarkMode?: boolean }>`
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid ${props => props.isDarkMode ? 'rgba(255, 255, 255, 0.1)' : '#f0f0f0'};
+`;
+
+const JudgePersonaTag = styled.span<{ isDarkMode?: boolean }>`
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 4px 4px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.1)' : 'rgba(65, 87, 255, 0.05)'};
+  color: ${props => props.isDarkMode ? '#87a9ff' : '#4157ff'};
+  border: 1px solid ${props => props.isDarkMode ? 'rgba(135, 169, 255, 0.2)' : 'rgba(65, 87, 255, 0.1)'};
+`;
+
+const JudgeModelInfo = styled.div<{ isDarkMode?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: ${props => props.isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)'};
+`;
+
+const ScoringDimension = styled.div<{ isDarkMode?: boolean }>`
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: ${props => props.isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)'};
+
+  .dimension-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .dimension-name {
+    font-weight: 500;
+    color: ${props => props.isDarkMode ? '#ffffff' : '#1f1f1f'};
+  }
+
+  .dimension-weight {
+    font-size: 12px;
+    color: ${props => props.isDarkMode ? '#87a9ff' : '#4157ff'};
+  }
+
+  .dimension-desc {
+    font-size: 13px;
+    color: ${props => props.isDarkMode ? '#a6a6a6' : '#666'};
+    margin-bottom: 8px;
+  }
+
+  .criteria-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .criterion-tag {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: ${props => props.isDarkMode ? 'rgba(65, 87, 255, 0.1)' : 'rgba(65, 87, 255, 0.05)'};
+    color: ${props => props.isDarkMode ? '#87a9ff' : '#4157ff'};
+  }
+`;
+
 // 状态映射函数
 const mapToDebateStatus = (status: string): DebateStatus => {
   switch (status.toLowerCase()) {
@@ -787,6 +861,10 @@ export const DebateRoom: React.FC = () => {
   
   // 将 useRef 移到组件内部
   const currentStateRef = useRef<UIState>(initialUIState);
+
+  // 使用useState声明characterConfigs
+  const [characterConfigs, setCharacterConfigs] = useState<Record<string, CharacterConfig>>({});
+  const characterService = useMemo(() => new CharacterConfigService(), []);
   
   // 获取裁判信息
   const getJudgeInfo = useCallback(() => {
@@ -801,17 +879,32 @@ export const DebateRoom: React.FC = () => {
       return {
         id: 'system_judge',
         name: '系统评委',
-        description: '由AI驱动的智能评分系统'
+        description: '由AI驱动的智能评分系统',
+        provider: 'AI',
+        model: 'GPT-4',
+        background: '专业评分系统',
+        speakingStyle: '客观公正',
+        avatar: '/images/system-judge.png' // 系统裁判默认头像
       };
     }
 
+    // 获取选定裁判的角色配置
+    const judge = characterConfigs[judging.selectedJudge.id];
+    
+    // 确保使用角色配置中的头像
+    const avatar = judge?.avatar || judging.selectedJudge.avatar;
+    
     return {
       id: judging.selectedJudge.id,
-      name: judging.selectedJudge.name,
-      avatar: judging.selectedJudge.avatar,
-      description: judging.description
+      name: judge?.name || judging.selectedJudge.name,
+      avatar: avatar,
+      description: judge?.description || judging.description,
+      background: judge?.persona?.background || '专业评委',
+      speakingStyle: judge?.persona?.speakingStyle || '客观专业',
+      provider: judge?.callConfig?.direct?.provider || 'AI',
+      model: judge?.callConfig?.direct?.model || 'GPT-4'
     };
-  }, [gameConfig?.debate?.judging]);
+  }, [gameConfig?.debate?.judging, characterConfigs]);
 
   // 使用 useMemo 缓存 judgeInfo
   const judgeInfo = useMemo(() => getJudgeInfo(), [getJudgeInfo]);
@@ -942,10 +1035,10 @@ export const DebateRoom: React.FC = () => {
           })),
           scores: convertedScores
         },
-        streamingSpeech: hasStreamingContent && debateFlowState.currentSpeech ? {
+        streamingSpeech: hasStreamingContent || (!debateFlowState.currentSpeaker?.isAI && debateFlowState.currentSpeech?.status === 'streaming') ? {
           playerId: debateFlowState.currentSpeaker?.id || '',
-          content: debateFlowState.currentSpeech.content,
-          type: debateFlowState.currentSpeech.type || 'innerThoughts'
+          content: debateFlowState.currentSpeech?.content || '',
+          type: debateFlowState.currentSpeech?.type || 'speech'
         } : null,
         players: (gameConfig.players || []).map(player => ({
           id: player.id,
@@ -976,10 +1069,6 @@ export const DebateRoom: React.FC = () => {
 
   // 获取当前玩家列表
   // const currentPlayers = useMemo(() => gameConfig?.players || [], [gameConfig]);
-
-  // 添加角色配置服务和状态
-  const [characterConfigs, setCharacterConfigs] = useState<Record<string, CharacterConfig>>({});
-  const characterService = useMemo(() => new CharacterConfigService(), []);
 
   // 修改加载角色配置的 effect
   useEffect(() => {
@@ -1083,7 +1172,7 @@ export const DebateRoom: React.FC = () => {
               content: ''
             };
             console.log('准备提交AI发言:', speech);
-            await handleSpeechSubmit(speech);
+            await handleSystemSpeechSubmit(speech.playerId, speech.content, speech.type, speech.references);
     } catch (error) {
             console.error('AI发言生成失败:', error);
             message.error('AI发言生成失败，请重试');
@@ -1207,51 +1296,48 @@ export const DebateRoom: React.FC = () => {
     );
   };
 
-  // 处理发言提交
-  const handleSpeechSubmit = async (speech: SpeechInput) => {
+  // 处理人类玩家的发言提交
+  const handleHumanSpeechSubmit = async (
+    content: string, 
+    type: 'speech' | 'innerThoughts', 
+    references?: string[]
+  ): Promise<boolean> => {
+    if (!uiState.currentSpeaker) return false;
+    
     try {
-      console.log('提交发言，详细信息:', {
-        speech,
-        currentSpeaker: uiState.currentSpeaker,
-        currentState: {
-          players: uiState.players.map(p => `${p.id}:${p.name}`),
-          status: uiState.status,
-          round: uiState.currentRound
-        }
+      await debateActions.submitSpeech({
+        playerId: uiState.currentSpeaker.id,
+        type,
+        content,
+        references
       });
-
-      // 检查发言权限
-      if (!uiState.currentSpeaker) {
-        console.error('当前没有发言者');
-        throw new Error('当前没有发言者');
-      }
-
-      if (speech.playerId !== uiState.currentSpeaker.id) {
-        console.error('发言权限检查失败:', {
-          attemptingSpeakerId: speech.playerId,
-          currentSpeakerId: uiState.currentSpeaker.id,
-          currentSpeakerName: uiState.currentSpeaker.name
-        });
-        throw new Error(`不是当前发言者 (当前发言者: ${uiState.currentSpeaker.name})`);
-      }
-
-      console.log('发言权限检查通过，提交发言');
-      await debateActions.submitSpeech(speech);
-      console.log('发言提交成功');
+      return true;
     } catch (error) {
-      console.error('发言提交失败:', error);
-      message.error(`发言提交失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      throw error;
+      console.error('提交发言失败:', error);
+      message.error('提交发言失败');
+      return false;
     }
   };
 
-  // 处理跳过发言者
-  const handleSkipSpeaker = async () => {
+  // 处理系统消息和AI发言
+  const handleSystemSpeechSubmit = async (
+    playerId: string,
+    content: string,
+    type: 'speech' | 'innerThoughts' | 'system',
+    references?: string[]
+  ) => {
     try {
-      await debateActions.skipCurrentSpeaker();
+      await debateActions.submitSpeech({
+        playerId,
+        type,
+        content,
+        references
+      });
+      return true;
     } catch (error) {
-      console.error('跳过发言者失败:', error);
-      message.error(`跳过发言者失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      console.error('提交系统消息失败:', error);
+      message.error('提交系统消息失败');
+      return false;
     }
   };
 
@@ -1312,11 +1398,7 @@ export const DebateRoom: React.FC = () => {
 
       // 如果下一个发言者是AI，自动开始生成发言
       if (nextSpeaker.isAI) {
-        await handleSpeechSubmit({
-          playerId: nextSpeaker.id,
-          type: 'speech',
-          content: ''
-        });
+        await handleSystemSpeechSubmit(nextSpeaker.id, '', 'speech');
       }
     } catch (error) {
       console.error('处理演讲完成时出错:', error);
@@ -1367,11 +1449,26 @@ export const DebateRoom: React.FC = () => {
       state: {
         lastConfig: {
           ...gameConfig,
+          ruleConfig: {
+            debateFormat: gameConfig.debate.rules.debateFormat || 'structured',
+            description: gameConfig.debate.rules.description || '',
+            advancedRules: {
+              ...gameConfig.debate.rules.advancedRules
+            }
+          },
           debate: {
             ...gameConfig.debate,
             topic: {
               ...gameConfig.debate.topic,
               rounds: gameConfig.debate.topic.rounds || 3
+            },
+            rules: {
+              ...gameConfig.debate.rules,
+              description: gameConfig.debate.rules.description || '',
+              debateFormat: gameConfig.debate.rules.debateFormat || 'structured',
+              advancedRules: {
+                ...gameConfig.debate.rules.advancedRules
+              }
             }
           }
         }
@@ -1409,6 +1506,18 @@ export const DebateRoom: React.FC = () => {
       console.error('导出错误:', error);
     }
   };
+
+  const debateFlowController = useRef<DebateFlowController | null>(null);
+
+  useEffect(() => {
+    const controller = debateFlowController.current;
+    if (controller) {
+      console.log('【调试】注册事件监听器');
+      controller.subscribeToStateChange((state: DebateFlowState) => {
+        console.log('【调试】收到状态更新:', state);
+      });
+    }
+  }, [debateFlowController]);
 
   // 如果 uiState 未定义，显示加载状态
   if (!uiState) {
@@ -1510,60 +1619,102 @@ export const DebateRoom: React.FC = () => {
               <JudgeSection isDarkMode={uiState.isDarkMode}>
               <JudgeAvatar>
                 <img 
-                  src={judgeInfo.avatar} 
+                  src={judgeInfo.avatar || `/images/avatars/${judgeInfo.id}.png`} 
                   alt={judgeInfo.name}
+                  onError={(e) => {
+                    // 如果头像加载失败，使用备用头像
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null; // 防止无限循环
+                    target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${judgeInfo.id}`; // 使用机器人风格的头像
+                  }}
                 />
                   <JudgeTooltip isDarkMode={uiState.isDarkMode} className="judge-tooltip">
                   <div className="judge-header">
-                    <img src={judgeInfo.avatar} alt={judgeInfo.name} />
+                    <img 
+                      src={judgeInfo.avatar || `/images/avatars/${judgeInfo.id}.png`}
+                      alt={judgeInfo.name}
+                      className="judge-avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${judgeInfo.id}`;
+                      }}
+                    />
                     <div className="judge-basic-info">
                       <div className="judge-name">{judgeInfo.name}</div>
                       <div className="judge-description">{judgeInfo.description}</div>
                     </div>
                   </div>
 
-                  {/* AI模型信息 */}
-                  <div style={{ 
-                    marginTop: '12px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid #f0f0f0'
-                  }}>
-                    <div className="section-title">AI模型</div>
+                  <JudgeTooltipSection isDarkMode={uiState.isDarkMode}>
+                    <div className="section-title">专业背景</div>
                     <div className="section-content">
-                      {renderAIInfo()}
+                      {judgeInfo.background && (
+                        <JudgePersonaTag isDarkMode={uiState.isDarkMode}>
+                          {judgeInfo.background}
+                        </JudgePersonaTag>
+                      )}
                     </div>
-                  </div>
+                  </JudgeTooltipSection>
 
-                  {/* 评分规则 */}
-                  <div style={{ 
-                    marginTop: '12px',
-                    paddingTop: '12px',
-                    borderTop: '1px solid #f0f0f0'
-                  }}>
+                  <JudgeTooltipSection isDarkMode={uiState.isDarkMode}>
+                    <div className="section-title">说话风格</div>
+                    <div className="section-content">
+                      {judgeInfo.speakingStyle && (
+                        <JudgePersonaTag isDarkMode={uiState.isDarkMode}>
+                          {judgeInfo.speakingStyle}
+                        </JudgePersonaTag>
+                      )}
+                    </div>
+                  </JudgeTooltipSection>
+
+                  <JudgeTooltipSection isDarkMode={uiState.isDarkMode}>
+                    <div className="section-title">AI模型</div>
+                    <JudgeModelInfo isDarkMode={uiState.isDarkMode}>
+                      <ModelBadge provider={judgeInfo.provider || 'AI'}>
+                        {judgeInfo.provider || 'AI评委'}
+                      </ModelBadge>
+                      {judgeInfo.model && (
+                        <ModelName>
+                          {judgeInfo.model}
+                        </ModelName>
+                      )}
+                    </JudgeModelInfo>
+                  </JudgeTooltipSection>
+
+                  <JudgeTooltipSection isDarkMode={uiState.isDarkMode}>
                     <div className="section-title">评分规则</div>
                     <div className="section-content">
                       {gameConfig?.debate?.judging?.description || '暂无评分规则说明'}
                     </div>
-                  </div>
+                  </JudgeTooltipSection>
 
-                  {/* 评分标准 */}
                   {gameConfig?.debate?.judging?.dimensions && (
-                    <div style={{ 
-                      marginTop: '12px',
-                      paddingTop: '12px',
-                      borderTop: '1px solid #f0f0f0'
-                    }}>
-                      <div className="section-title">评分标准</div>
+                    <JudgeTooltipSection isDarkMode={uiState.isDarkMode}>
+                      <div className="section-title">评分维度</div>
                       <div className="section-content">
-                          {renderScores()}
+                        {gameConfig.debate.judging.dimensions.map((dimension: any, index: number) => (
+                          <ScoringDimension key={index} isDarkMode={uiState.isDarkMode}>
+                            <div className="dimension-header">
+                              <span className="dimension-name">{dimension.name}</span>
+                              <span className="dimension-weight">{dimension.weight}分</span>
+                            </div>
+                            <div className="dimension-desc">{dimension.description}</div>
+                            <div className="criteria-list">
+                              {dimension.criteria.map((criterion: string, idx: number) => (
+                                <span key={idx} className="criterion-tag">{criterion}</span>
+                              ))}
+                            </div>
+                          </ScoringDimension>
+                        ))}
                       </div>
-                    </div>
+                    </JudgeTooltipSection>
                   )}
                 </JudgeTooltip>
               </JudgeAvatar>
               <JudgeInfo>
                 <JudgeName>{judgeInfo.name}</JudgeName>
-                <div style={{ fontSize: '12px', color: '#666' }}>裁判</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>AI裁判</div>
               </JudgeInfo>
             </JudgeSection>
           )}
@@ -1678,6 +1829,20 @@ export const DebateRoom: React.FC = () => {
               characterConfigs={characterConfigs}
             />
             
+            {uiState.currentSpeaker && !uiState.currentSpeaker.isAI && (
+              <SpeechInputComponent
+                playerId={uiState.currentSpeaker.id}
+                onSubmit={async (content, type, references) => {
+                  // 类型转换：确保只传入 'speech' 或 'innerThoughts' 类型
+                  if (type === 'speech' || type === 'innerThoughts') {
+                    return handleHumanSpeechSubmit(content, type, references);
+                  }
+                  return false;
+                }}
+                disabled={uiState.status !== DebateStatus.ONGOING}
+              />
+            )}
+            
             {/* 评分统计(辩论结束) */}
               {uiState.status === DebateStatus.COMPLETED && (() => {
                 console.log('评分历史数据:', uiState.history.scores);
@@ -1686,7 +1851,7 @@ export const DebateRoom: React.FC = () => {
                 
                 return (
                   <div style={{ margin: '20px 0', padding: '20px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '8px', backdropFilter: 'blur(10px)', border: '1px solid rgba(167,187,255,0.2)' }}>
-                    <h3 style={{ marginBottom: '16px', color: '#E8F0FF' }}>辩论总评</h3>
+                    <h3 style={{ marginBottom: '16px', color: '#E8F0FF' }}>辩论总评（未开发完成）</h3>
                 <ScoreStatisticsDisplay
                       statistics={scoringSystem.calculateStatistics(uiState.history.scores || [])}
                       rankings={scoringSystem.calculateRankings(uiState.history.scores || [], uiState.players)}

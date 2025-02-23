@@ -488,7 +488,9 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               placeholder="选择裁判"
               value={debateConfig.judging.selectedJudge?.id}
               onChange={(value: string) => {
-                const selectedJudge = characterState.characters.find(
+                const selectedJudge = characterState.characters.filter(
+                  (c: CharacterConfig) => !c.isTemplate && !c.id.startsWith('human_')
+                ).find(
                   (c: CharacterConfig) => c.id === value
                 );
                 if (selectedJudge) {
@@ -502,7 +504,9 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
                 }
               }}
             >
-              {characterState.characters.map((character: CharacterConfig) => (
+              {characterState.characters.filter((character: CharacterConfig) => 
+                !character.isTemplate && !character.id.startsWith('human_')
+              ).map((character: CharacterConfig) => (
                 <Select.Option 
                   key={character.id} 
                   value={character.id}

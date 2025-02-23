@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type { Player, DebateConfig } from '@game-config/types';
-import type { Speech } from '@debate/types';
+import type { Speech } from '../types/interfaces';
 import { DebateFlowController as IDebateFlowController } from '../types/controller';
 import type {
   DebateFlowState,
@@ -148,6 +148,11 @@ export class DebateFlowController implements IDebateFlowController {
   }
 
   async submitHumanSpeech(playerId: string, content: string): Promise<void> {
+    console.log('提交人类发言:', {
+      playerId,
+      contentLength: content.length
+    });
+
     const currentSpeaker = this.state.currentSpeaker;
     if (!currentSpeaker || currentSpeaker.id !== playerId) {
       throw new DebateFlowException(
@@ -169,6 +174,28 @@ export class DebateFlowController implements IDebateFlowController {
       content,
       status: 'completed'
     };
+
+    // 添加到发言历史
+    const speech: Speech = {
+      id: `speech_${Date.now()}`,
+      playerId: currentSpeaker.id,
+      content,
+      type: 'speech',
+      timestamp: Math.floor(Date.now() / 1000),  // 转换为秒级时间戳
+      round: this.state.currentRound,
+      role: 'user'  // 人类选手使用'user'角色
+    };
+
+    console.log('添加发言到历史:', speech);
+    this.state.speeches.push(speech);
+
+    // 触发发言完成事件
+    this.eventEmitter.emit(DebateFlowEvent.SPEECH_ENDED, {
+      player: currentSpeaker,
+      type: 'speech' as const,
+      content,
+      state: this.state
+    });
 
     // 移动到下一个发言者
     await this.moveToNextSpeaker();
@@ -261,6 +288,12 @@ export class DebateFlowController implements IDebateFlowController {
     const currentSpeaker = this.state.currentSpeaker;
     if (!currentSpeaker) return;
 
+    console.log('开始当前发言:', {
+      speaker: currentSpeaker.name,
+      isAI: currentSpeaker.isAI
+    });
+
+    // 如果是AI选手，需要生成内心OS和正式发言
     if (currentSpeaker.isAI) {
       // AI选手先生成内心OS
       const innerThoughtsResponse = await this.roundController.startInnerThoughts(
@@ -271,6 +304,7 @@ export class DebateFlowController implements IDebateFlowController {
         content: '',
         status: 'streaming'
       };
+      this.emitStateChange();
 
       // 等待内心OS完成后开始正式发言
       await this.waitForStreamComplete(innerThoughtsResponse.content);
@@ -282,15 +316,25 @@ export class DebateFlowController implements IDebateFlowController {
         content: '',
         status: 'streaming'
       };
+      this.emitStateChange();
 
       await this.waitForStreamComplete(speechResponse.content);
     } else {
-      // 人类选手直接进入发言状态
+      // 人类选手直接进入正式发言阶段
+      console.log('准备人类选手发言输入框');
       this.state.currentSpeech = {
         type: 'speech',
         content: '',
-        status: 'streaming'
+        status: 'streaming'  // 使用streaming状态表示等待人类输入
       };
+      this.emitStateChange();
+
+      // 触发人类发言事件
+      this.eventEmitter.emit(DebateFlowEvent.SPEECH_STARTED, {
+        player: currentSpeaker,
+        type: 'speech' as const,
+        state: this.state
+      });
     }
   }
 

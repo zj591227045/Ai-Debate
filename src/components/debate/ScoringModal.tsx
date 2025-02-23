@@ -152,6 +152,7 @@ interface ScoringModalProps {
   onClose: () => void;
   players: UnifiedPlayer[];
   currentRound: number;
+  totalRounds: number;
   judge: {
     id: string;
     name: string;
@@ -209,6 +210,7 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
   onClose,
   players,
   currentRound,
+  totalRounds,
   judge,
   scoringRules,
   speeches,
@@ -471,10 +473,13 @@ export const ScoringModal: React.FC<ScoringModalProps> = ({
       // 关闭评分面板
       onClose();
 
-      // 延迟一小段时间后触发进入下一轮
-      setTimeout(() => {
+      // 等待状态更新完成
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 触发进入下一轮
+      if (currentRound < totalRounds) {
         onNextRound();
-      }, 1000);
+      }
     }
   };
 

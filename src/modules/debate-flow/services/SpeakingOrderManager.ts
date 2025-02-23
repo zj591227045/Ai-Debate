@@ -36,11 +36,56 @@ export class SpeakingOrderManager {
   }
 
   getNextSpeaker(order: SpeakingOrderInfo): SpeakerInfo | null {
-    const waitingSpeakers = order.speakers.filter(s => s.status === 'waiting');
-    if (!waitingSpeakers.length) {
+    console.log('获取下一个发言者，当前发言顺序:', {
+      speakers: order.speakers.map(s => ({
+        id: s.player.id,
+        name: s.player.name,
+        status: s.status,
+        sequence: s.sequence
+      }))
+    });
+
+    // 按照sequence顺序排序，找到第一个等待发言的人
+    const waitingSpeakers = order.speakers
+      .filter(s => s.status === 'waiting')
+      .sort((a, b) => a.sequence - b.sequence);
+
+    if (waitingSpeakers.length === 0) {
+      console.log('没有等待发言的选手');
       return null;
     }
-    return waitingSpeakers[0].player;
+
+    const nextSpeaker = waitingSpeakers[0];
+    console.log('找到下一个发言者:', {
+      id: nextSpeaker.player.id,
+      name: nextSpeaker.player.name,
+      sequence: nextSpeaker.sequence
+    });
+    
+    // 更新发言者状态
+    const speakerIndex = order.speakers.findIndex(s => s.player.id === nextSpeaker.player.id);
+    if (speakerIndex !== -1) {
+      // 更新状态为speaking
+      order.speakers[speakerIndex].status = 'speaking';
+      
+      // 记录到历史
+      order.history.push({
+        round: order.currentRound,
+        speakerId: nextSpeaker.player.id
+      });
+
+      console.log('更新发言者状态后的顺序:', {
+        speakers: order.speakers.map(s => ({
+          id: s.player.id,
+          name: s.player.name,
+          status: s.status,
+          sequence: s.sequence
+        })),
+        history: order.history
+      });
+    }
+
+    return nextSpeaker.player;
   }
 
   handlePlayerExit(order: SpeakingOrderInfo, playerId: string): SpeakingOrderInfo {

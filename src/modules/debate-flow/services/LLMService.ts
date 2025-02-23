@@ -110,7 +110,7 @@ export class LLMService implements ILLMService {
       console.log('获取到活跃角色列表:', characters.map(c => ({ id: c.id, name: c.name })));
       
       // 根据角色ID获取对应的角色配置
-      let currentCharacter = null;
+      let currentCharacter: typeof characters[0] | undefined = undefined;
       if (characterId) {
         currentCharacter = characters.find((c) => c.id === characterId);
         console.log('查找指定角色:', { characterId, found: !!currentCharacter });

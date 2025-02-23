@@ -260,13 +260,47 @@ export class OllamaProvider extends LLMProvider {
 
   async listModels(): Promise<string[]> {
     try {
+      console.log('Fetching models from Ollama server:', `${this.config.auth.baseUrl}/api/tags`);
+      
       const response = await fetch(`${this.config.auth.baseUrl}/api/tags`);
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Ollama API error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
+      
       const data = await response.json();
-      return data.models.map((model: any) => model.name);
+      console.log('Raw Ollama API response:', data);
+      
+      // Ollama API返回的是一个包含models数组的对象
+      // 每个model对象包含name属性
+      if (data && Array.isArray(data.models)) {
+        const modelNames = data.models.map((model: any) => model.name);
+        console.log('Extracted model names:', modelNames);
+        return modelNames;
+      }
+      
+      // 如果返回格式不是预期的，尝试其他可能的格式
+      if (Array.isArray(data)) {
+        const modelNames = data.map((model: any) => {
+          if (typeof model === 'string') return model;
+          return model.name || model.id || model;
+        }).filter(Boolean);
+        console.log('Extracted model names from array:', modelNames);
+        return modelNames;
+      }
+      
+      // 如果是简单对象格式
+      if (data && typeof data === 'object') {
+        const modelNames = Object.keys(data);
+        console.log('Extracted model names from object:', modelNames);
+        return modelNames;
+      }
+      
+      console.warn('Unexpected Ollama API response format:', data);
+      return [];
     } catch (error) {
+      console.error('Failed to list Ollama models:', error);
       throw new LLMError(
         LLMErrorCode.API_ERROR,
         this.name,

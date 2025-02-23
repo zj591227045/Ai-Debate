@@ -5,7 +5,7 @@ import { PROVIDERS } from '../types/providers';
 interface OllamaRequest {
   model: string;
   messages: Array<{
-    role: string;
+    role: 'user' | 'assistant' | 'system';
     content: string;
   }>;
   stream?: boolean;
@@ -28,7 +28,7 @@ interface OllamaResponse {
 
 export class OllamaAdapter extends BaseProviderAdapter<OllamaRequest, OllamaResponse> {
   adaptRequest(request: ChatRequest): OllamaRequest {
-    const messages = [];
+    const messages: OllamaRequest['messages'] = [];
     
     if (request.systemPrompt) {
       messages.push({

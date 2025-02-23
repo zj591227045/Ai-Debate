@@ -14,7 +14,7 @@ export class TemplateValidator {
    * @param config 辩论配置
    */
   static validateBasicConfig(config: DebateConfig): ValidationResult {
-    const errors = [];
+    const errors: ValidationResult['errors'] = [];
 
     // 验证主题配置
     if (!config.topic?.title) {
@@ -82,7 +82,7 @@ export class TemplateValidator {
    * @param config 辩论配置
    */
   static validateDynamicConfig(config: DebateConfig): ValidationResult {
-    const errors = [];
+    const errors: ValidationResult['errors'] = [];
 
     // 验证规则配置
     if (!config.rules) {
@@ -119,7 +119,7 @@ export class TemplateValidator {
    * @param config 辩论配置
    */
   static validateDataIntegrity(config: DebateConfig): ValidationResult {
-    const errors = [];
+    const errors: ValidationResult['errors'] = [];
 
     // 验证必要字段是否存在
     if (!config.topic) {

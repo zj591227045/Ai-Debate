@@ -59,11 +59,34 @@ const OllamaFormComponent: React.FC<ProviderFormProps> = ({
     try {
       const response = await fetch(`${formData.auth.baseUrl}/api/tags`);
       if (!response.ok) {
-        throw new Error(`获取模型列表失败: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`获取模型列表失败: ${response.statusText}, ${errorText}`);
       }
 
-      const data: OllamaModel[] = await response.json();
-      const models: ModelInfo[] = data.map(model => ({
+      const data = await response.json();
+      console.log('Ollama API response:', data);
+
+      let modelList: OllamaModel[] = [];
+
+      if (data && Array.isArray(data.models)) {
+        modelList = data.models;
+      } else if (Array.isArray(data)) {
+        modelList = data.map(item => {
+          if (typeof item === 'string') {
+            return { name: item, size: 0, digest: '', modified_at: '' };
+          }
+          return item;
+        });
+      } else if (data && typeof data === 'object') {
+        modelList = Object.keys(data).map(key => ({
+          name: key,
+          size: 0,
+          digest: '',
+          modified_at: ''
+        }));
+      }
+
+      const models: ModelInfo[] = modelList.map(model => ({
         name: model.name,
         code: model.name,
         description: `Ollama ${model.name} 模型`,
@@ -72,8 +95,10 @@ const OllamaFormComponent: React.FC<ProviderFormProps> = ({
         features: ['对话', '代码生成', '文本补全']
       }));
 
+      console.log('Processed models:', models);
       setAvailableModels(models);
     } catch (error) {
+      console.error('获取模型列表失败:', error);
       setModelError(error instanceof Error ? error.message : '获取模型列表失败');
       message.error('获取模型列表失败');
     } finally {

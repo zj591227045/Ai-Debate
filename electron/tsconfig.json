@@ -9,6 +9,10 @@
     "noEmitOnError": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": [
+      "node",
+      "electron"
+    ],
     "typeRoots": [
       "../node_modules/@types"
     ]

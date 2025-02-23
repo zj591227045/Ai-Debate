@@ -2,7 +2,11 @@
   "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "target": "es2015",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -29,7 +33,36 @@
       "@game-config/*": ["modules/game-config/*"],
       "@debate/*": ["modules/debate/*"],
       "@debate-flow/*": ["modules/debate-flow/*"]
-    }
+    },
+    "types": [
+      "node",
+      "jest",
+      "react",
+      "react-dom"
+    ],
+    "skipDefaultLibCheck": true,
+    "ignoreDeprecations": "5.0",
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false
   },
-  "include": ["src", "docs/archive"]
+  "include": [
+    "src/**/*",
+    "electron/**/*",
+    "src/types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    "scripts",
+    "acceptance-tests",
+    "webpack",
+    "jest",
+    "src/setupTests.ts",
+    "**/node_modules/*"
+  ]
 } 

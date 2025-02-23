@@ -101,6 +101,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "antd": "^5.23.3",
     "date-fns": "^4.1.0",
+    "events": "^3.3.0",
     "framer-motion": "^12.0.6",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.0",

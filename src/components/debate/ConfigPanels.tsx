@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
-import { Checkbox, Input, Select, Slider, InputNumber, Radio } from 'antd';
+import { Checkbox, Input, Select, Slider, InputNumber, Radio, Tooltip } from 'antd';
 import { DownOutlined, UpOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import type { RuleConfig } from '../../types/rules';
 import type { DebateConfig } from '../../types/debate';
@@ -624,24 +624,22 @@ export const RuleConfigPanel: React.FC<{
             >
               自由模式
             </RadioButton>
-            <RadioButton
-              active={ruleConfig.debateFormat === 'structured'}
-              onClick={() => onRuleConfigChange({
-                ...ruleConfig,
-                debateFormat: 'structured'
-              })}
-            >
-              阵营模式
-            </RadioButton>
-            <RadioButton
-              active={ruleConfig.debateFormat === 'tournament'}
-              onClick={() => onRuleConfigChange({
-                ...ruleConfig,
-                debateFormat: 'tournament'
-              })}
-            >
-              淘汰模式
-            </RadioButton>
+            <Tooltip title="功能正在开发中">
+              <RadioButton
+                active={ruleConfig.debateFormat === 'structured'}
+                disabled
+              >
+                阵营模式
+              </RadioButton>
+            </Tooltip>
+            <Tooltip title="功能正在开发中">
+              <RadioButton
+                active={ruleConfig.debateFormat === 'tournament'}
+                disabled
+              >
+                淘汰模式
+              </RadioButton>
+            </Tooltip>
           </RadioGroup>
         </FormGroup>
         <FormGroup>

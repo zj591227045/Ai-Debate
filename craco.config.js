@@ -15,7 +15,8 @@ module.exports = {
         "buffer": require.resolve("buffer/"),
         "crypto": require.resolve("crypto-browserify"),
         "process": require.resolve("process/browser"),
-        "vm": require.resolve("vm-browserify")
+        "vm": require.resolve("vm-browserify"),
+        "events": require.resolve("events/")
       };
       
       webpackConfig.module.rules.push({

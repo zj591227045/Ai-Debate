@@ -10,15 +10,16 @@ import {
   valueOptions,
   argumentationStyleOptions,
 } from '../../types';
+import type { SelectProps } from 'antd';
 
 const { TextArea } = Input;
 
 const ConfigSection = styled.div`
-  margin-bottom: 10px;
+  margin-bottom: 16px;
   background: #fff;
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  border: 1px solid #e6e8ff;
 `;
 
 const SectionTitle = styled.div`
@@ -32,7 +33,6 @@ const SectionTitle = styled.div`
   
   .anticon {
     color: #4157ff;
-    font-size: 18px;
   }
 `;
 
@@ -44,14 +44,8 @@ const OptionGroup = styled.div`
 `;
 
 const StyledCheckbox = styled(Checkbox)`
-  .ant-checkbox-wrapper {
-    margin-right: 8px;
-  }
-  
-  &:hover {
-    .ant-checkbox-inner {
-      border-color: #4157ff;
-    }
+  &:hover .ant-checkbox-inner {
+    border-color: #4157ff;
   }
   
   .ant-checkbox-checked .ant-checkbox-inner {
@@ -64,16 +58,16 @@ const StyledSelect = styled(Select)`
   width: 100%;
   
   .ant-select-selector {
-    border-radius: 6px !important;
+    border-radius: 6px;
   }
   
   &:hover .ant-select-selector {
-    border-color: #4157ff !important;
+    border-color: #4157ff;
   }
   
   &.ant-select-focused .ant-select-selector {
-    border-color: #4157ff !important;
-    box-shadow: 0 0 0 2px rgba(65, 87, 255, 0.1) !important;
+    border-color: #4157ff;
+    box-shadow: 0 0 0 2px rgba(65, 87, 255, 0.1);
   }
 `;
 
@@ -117,11 +111,6 @@ const AddButton = styled(Button)`
   &:hover {
     color: #6677ff;
     border-color: #6677ff;
-  }
-  
-  &:active {
-    color: #3344ff;
-    border-color: #3344ff;
   }
 `;
 
@@ -235,6 +224,81 @@ const MultiSelectSection: React.FC<MultiSelectSectionProps> = ({
   );
 };
 
+interface SingleSelectWithCustomSectionProps {
+  title: string;
+  icon: React.ReactNode;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  customPlaceholder: string;
+}
+
+const SingleSelectWithCustomSection: React.FC<SingleSelectWithCustomSectionProps> = ({
+  title,
+  icon,
+  options,
+  value,
+  onChange,
+  placeholder,
+  customPlaceholder,
+}) => {
+  const [customInput, setCustomInput] = useState('');
+  const isCustomValue = value && !options.includes(value);
+
+  const handleAdd = () => {
+    if (customInput && customInput !== value) {
+      onChange(customInput);
+      setCustomInput('');
+    }
+  };
+
+  const handleRemove = () => {
+    onChange('');
+  };
+
+  const handleSelectChange: SelectProps['onChange'] = (newValue) => {
+    onChange(newValue as string);
+  };
+
+  return (
+    <ConfigSection>
+      <SectionTitle>
+        {icon}
+        {title}
+      </SectionTitle>
+      <StyledSelect
+        placeholder={placeholder}
+        value={isCustomValue ? undefined : value}
+        onChange={handleSelectChange}
+        options={options.map(option => ({ label: option, value: option }))}
+      />
+      {isCustomValue && (
+        <SelectedItemsSection>
+          <SelectedItem>
+            {value}
+            <CloseOutlined onClick={handleRemove} />
+          </SelectedItem>
+        </SelectedItemsSection>
+      )}
+      <CustomInputSection>
+        <StyledInput
+          placeholder={customPlaceholder}
+          value={customInput}
+          onChange={e => setCustomInput(e.target.value)}
+          onPressEnter={handleAdd}
+        />
+        <AddButton 
+          icon={<PlusOutlined />}
+          onClick={handleAdd}
+        >
+          添加
+        </AddButton>
+      </CustomInputSection>
+    </ConfigSection>
+  );
+};
+
 interface PersonaConfigProps {
   data: Partial<CharacterConfig>;
   onChange: (data: Partial<CharacterConfig>) => void;
@@ -267,37 +331,31 @@ export default function PersonaConfig({ data, onChange }: PersonaConfigProps) {
       <MultiSelectSection
         title="性格特征（可多选）"
         icon={<UserOutlined />}
-        options={personalityOpts}
+        options={[...personalityOpts]}
         value={data.persona?.personality || []}
         onChange={value => handlePersonaChange('personality', value)}
         customPlaceholder="输入自定义性格特征"
       />
 
-      <ConfigSection>
-        <SectionTitle>
-          <BulbOutlined />
-          说话风格
-        </SectionTitle>
-        <StyledSelect
-          placeholder="请选择说话风格"
-          value={data.persona?.speakingStyle}
-          onChange={value => handlePersonaChange('speakingStyle', value)}
-          options={speakingStyleOptions.map(style => ({ label: style, value: style }))}
-        />
-      </ConfigSection>
+      <SingleSelectWithCustomSection
+        title="说话风格"
+        icon={<BulbOutlined />}
+        options={[...speakingStyleOptions]}
+        value={data.persona?.speakingStyle || ''}
+        onChange={value => handlePersonaChange('speakingStyle', value)}
+        placeholder="请选择说话风格"
+        customPlaceholder="输入自定义说话风格"
+      />
 
-      <ConfigSection>
-        <SectionTitle>
-          <BookOutlined />
-          专业背景
-        </SectionTitle>
-        <StyledSelect
-          placeholder="请选择专业背景"
-          value={data.persona?.background}
-          onChange={value => handlePersonaChange('background', value)}
-          options={backgroundOptions.map(bg => ({ label: bg, value: bg }))}
-        />
-      </ConfigSection>
+      <SingleSelectWithCustomSection
+        title="专业背景"
+        icon={<BookOutlined />}
+        options={[...backgroundOptions]}
+        value={data.persona?.background || ''}
+        onChange={value => handlePersonaChange('background', value)}
+        placeholder="请选择专业背景"
+        customPlaceholder="输入自定义专业背景"
+      />
 
       <MultiSelectSection
         title="价值观（可多选）"

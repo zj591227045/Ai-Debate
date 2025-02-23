@@ -355,8 +355,8 @@ const TopicRuleConfig: React.FC<TopicRuleConfigProps> = ({
               onChange={e => handleRuleChange({ debateFormat: e.target.value as 'free' | 'structured' })}
             >
               <Radio.Button value="free">自由模式</Radio.Button>
-              <Radio.Button value="structured">阵营模式</Radio.Button>
-              <Radio.Button value="elimination">淘汰模式</Radio.Button>
+              <Radio.Button value="structured" disabled title="功能正在开发中">阵营模式</Radio.Button>
+              <Radio.Button value="elimination" disabled title="功能正在开发中">淘汰模式</Radio.Button>
             </Radio.Group>
           </FormItem>
           <FormItem>

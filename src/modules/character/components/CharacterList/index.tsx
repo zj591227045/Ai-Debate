@@ -15,14 +15,10 @@ const { TabPane } = Tabs;
 
 // 修改基础容器样式
 const GlassContainer = styled.div`
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  border: 1px solid rgba(167,187,255,0.2);
-  padding: 2rem;
-  box-shadow: 
-    0 8px 32px 0 rgba(31, 38, 135, 0.37),
-    inset 0 0 30px rgba(167,187,255,0.1);
+  background: rgba(59, 60, 152, 0.2);
+  border-radius: 16px;
+  border: 1px solid rgba(65, 87, 255, 0.1);
+  padding: 24px;
   width: 100%;
   min-height: calc(100vh - 4rem);
   box-sizing: border-box;
@@ -32,83 +28,60 @@ const GlassContainer = styled.div`
 const CharacterGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 1.5rem;
+  gap: 24px;
   width: 100%;
-  margin-top: 1.5rem;
+  margin-top: 24px;
 `;
 
 // 修改角色卡片样式
 const CharacterCard = styled(GlassContainer)<{ $type?: 'affirmative' | 'negative' | 'human' }>`
   margin: 0;
-  padding: 1.5rem;
+  padding: 20px;
   min-height: auto;
   width: 100%;
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
   position: relative;
-  overflow: hidden;
+  background: rgba(59, 60, 152, 0.3);
   
   ${props => props.$type === 'affirmative' && `
     border-left: 4px solid #4157ff;
-    background: linear-gradient(to right, rgba(65, 87, 255, 0.05), rgba(255, 255, 255, 0.05));
+    background: rgba(65, 87, 255, 0.15);
   `}
   
   ${props => props.$type === 'negative' && `
     border-left: 4px solid #ff4157;
-    background: linear-gradient(to right, rgba(255, 65, 87, 0.05), rgba(255, 255, 255, 0.05));
+    background: rgba(255, 65, 87, 0.15);
   `}
   
   ${props => props.$type === 'human' && `
     border-left: 4px solid #ff9041;
-    background: linear-gradient(to right, rgba(255, 144, 65, 0.05), rgba(255, 255, 255, 0.05));
+    background: rgba(255, 144, 65, 0.15);
   `}
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 
-      0 12px 32px 0 rgba(31, 38, 135, 0.47),
-      inset 0 0 30px rgba(167,187,255,0.2);
-  }
-
-  &:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      120deg,
-      transparent,
-      rgba(167,187,255,0.3),
-      transparent
-    );
-    transition: 0.5s;
-  }
-
-  &:hover:before {
-    left: 100%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const CardHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: 20px;
+  margin-bottom: 20px;
 `;
 
 const AvatarWrapper = styled.div`
   position: relative;
   
   .ant-avatar {
-    border: 2px solid rgba(167,187,255,0.3);
+    border: 2px solid rgba(65, 87, 255, 0.5);
     transition: all 0.3s ease;
     
     &:hover {
-      border-color: rgba(167,187,255,0.6);
-      box-shadow: 0 0 15px rgba(167,187,255,0.3);
+      border-color: #4157ff;
     }
   }
 `;
@@ -117,13 +90,12 @@ const AIBadge = styled.div`
   position: absolute;
   bottom: -2px;
   right: -2px;
-  background: linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9));
-  color: #E8F0FF;
-  border-radius: 6px;
-  padding: 4px 8px;
+  background: #4157ff;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
   font-size: 12px;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(31, 38, 135, 0.3);
 `;
 
 const CharacterInfo = styled.div`
@@ -132,90 +104,83 @@ const CharacterInfo = styled.div`
 
 const CharacterName = styled.h3`
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 18px;
   font-weight: 600;
-  color: #E8F0FF;
-  text-shadow: 
-    0 0 10px rgba(167,187,255,0.5),
-    0 0 20px rgba(167,187,255,0.3);
+  color: #fff;
 `;
 
 const CharacterDescription = styled.p`
-  color: rgba(232,240,255,0.9);
-  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
   line-height: 1.6;
-  margin: 0.5rem 0;
-  text-shadow: 0 0 10px rgba(167,187,255,0.3);
+  margin: 8px 0;
 `;
 
 const RoleSelector = styled.div`
   display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(167,187,255,0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(167,187,255,0.1);
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(65, 87, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(65, 87, 255, 0.2);
 `;
 
 const RoleOption = styled.div<{ $active?: boolean; $type: 'affirmative' | 'negative' }>`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
-  color: ${props => props.$active ? '#E8F0FF' : 'rgba(232,240,255,0.7)'};
+  color: ${props => props.$active ? '#fff' : 'rgba(255, 255, 255, 0.6)'};
   
   ${props => props.$active && props.$type === 'affirmative' && `
-    background: linear-gradient(45deg, rgba(65, 87, 255, 0.2), rgba(65, 87, 255, 0.1));
-    box-shadow: 0 4px 12px rgba(65, 87, 255, 0.2);
+    background: rgba(65, 87, 255, 0.2);
+    border: 1px solid rgba(65, 87, 255, 0.3);
   `}
   
   ${props => props.$active && props.$type === 'negative' && `
-    background: linear-gradient(45deg, rgba(255, 65, 87, 0.2), rgba(255, 65, 87, 0.1));
-    box-shadow: 0 4px 12px rgba(255, 65, 87, 0.2);
+    background: rgba(255, 65, 87, 0.2);
+    border: 1px solid rgba(255, 65, 87, 0.3);
   `}
   
   &:hover {
     background: ${props => props.$type === 'affirmative' 
-      ? 'rgba(65, 87, 255, 0.15)' 
-      : 'rgba(255, 65, 87, 0.15)'};
-    transform: translateY(-1px);
+      ? 'rgba(65, 87, 255, 0.2)' 
+      : 'rgba(255, 65, 87, 0.2)'};
   }
 `;
 
 const DebateOrder = styled.span`
-  font-size: 0.8rem;
-  opacity: 0.8;
-  background: rgba(167,187,255,0.1);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
 `;
 
 const CharacterSelect = styled.div`
-  margin-top: 1rem;
+  margin-top: 16px;
 
   .ant-radio-group {
     width: 100%;
   }
 
   .ant-radio-button-wrapper {
-    background: rgba(167,187,255,0.05);
-    border-color: rgba(167,187,255,0.2);
-    color: rgba(232,240,255,0.9);
-    transition: all 0.3s ease;
+    background: rgba(59, 60, 152, 0.3);
+    border-color: rgba(65, 87, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
 
     &:hover {
-      background: rgba(167,187,255,0.1);
-      color: #E8F0FF;
+      color: #4157ff;
     }
 
     &.ant-radio-button-wrapper-checked {
-      background: linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9));
-      border-color: rgba(167,187,255,0.3);
-      box-shadow: 0 4px 12px rgba(31, 38, 135, 0.3);
+      background: rgba(65, 87, 255, 0.2);
+      border-color: #4157ff;
+      color: #fff;
     }
   }
 `;
@@ -223,8 +188,8 @@ const CharacterSelect = styled.div`
 // 添加删除按钮样式
 const DeleteButton = styled.div`
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 16px;
+  right: 16px;
   width: 32px;
   height: 32px;
   display: flex;
@@ -233,13 +198,11 @@ const DeleteButton = styled.div`
   border-radius: 50%;
   background: rgba(255, 65, 87, 0.1);
   border: 1px solid rgba(255, 65, 87, 0.2);
-  color: rgba(255, 65, 87, 0.9);
+  color: #ff4d4f;
   cursor: pointer;
   transition: all 0.3s ease;
-  opacity: 0.6;
 
   &:hover {
-    opacity: 1;
     background: rgba(255, 65, 87, 0.2);
     border-color: rgba(255, 65, 87, 0.3);
     transform: scale(1.1);
@@ -253,21 +216,22 @@ const DeleteButton = styled.div`
 // 修改按钮组样式
 const ActionButtons = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 16px;
   margin-top: auto;
-  padding-top: 1.5rem;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 
   .ant-btn {
     flex: 1;
     height: 36px;
-    background: rgba(167,187,255,0.1);
-    border-color: rgba(167,187,255,0.2);
-    color: rgba(232,240,255,0.9);
+    background: rgba(59, 60, 152, 0.3);
+    border-color: rgba(65, 87, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.9rem;
+    font-size: 14px;
 
     .anticon {
       font-size: 14px;
@@ -275,85 +239,87 @@ const ActionButtons = styled.div`
     }
 
     &:hover {
-      background: rgba(167,187,255,0.2);
-      border-color: rgba(167,187,255,0.3);
-      color: #E8F0FF;
+      background: rgba(65, 87, 255, 0.2);
+      border-color: #4157ff;
+      color: #fff;
       transform: translateY(-1px);
+    }
+
+    &:disabled {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.3);
     }
   }
 `;
 
 const ModelInfo = styled.div`
-  margin-top: 0.75rem;
-  font-size: 0.8rem;
-  color: rgba(232,240,255,0.7);
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 `;
 
 const ModelTag = styled.span`
-  background: rgba(167,187,255,0.1);
+  background: rgba(65, 87, 255, 0.1);
   padding: 2px 8px;
   border-radius: 4px;
-  color: rgba(232,240,255,0.9);
+  color: #4157ff;
   font-weight: 500;
 `;
 
 const TabsContainer = styled(Tabs)`
   .ant-tabs-nav {
-    margin-bottom: 2rem;
+    margin-bottom: 24px;
   }
 
   .ant-tabs-tab {
-    color: rgba(232,240,255,0.7);
-    transition: all 0.3s ease;
+    color: rgba(255, 255, 255, 0.6);
 
     &:hover {
-      color: rgba(232,240,255,0.9);
+      color: #4157ff;
     }
   }
 
-  .ant-tabs-tab-active {
-    .ant-tabs-tab-btn {
-      color: #E8F0FF !important;
-      text-shadow: 0 0 10px rgba(167,187,255,0.5);
-    }
+  .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #4157ff;
   }
 
   .ant-tabs-ink-bar {
-    background: linear-gradient(90deg, #4157ff, #0057ff);
+    background: #4157ff;
   }
 `;
 
 const AddCharacterButton = styled(Button)`
-  background: linear-gradient(45deg, rgba(9,9,121,0.9), rgba(0,57,89,0.9));
-  border: 1px solid rgba(167,187,255,0.3);
-  color: #E8F0FF;
+  background: #4157ff;
+  border: 1px solid #4157ff;
+  color: #fff;
   height: 40px;
-  padding: 0 1.5rem;
+  padding: 0 24px;
   font-weight: 500;
   transition: all 0.3s ease;
 
   &:hover {
+    background: #6677ff;
+    border-color: #6677ff;
+    color: #fff;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(31, 38, 135, 0.3);
-    border-color: rgba(167,187,255,0.4);
-    color: #E8F0FF;
   }
 `;
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: 3rem;
-  color: rgba(232,240,255,0.7);
-  background: rgba(167,187,255,0.05);
-  border-radius: 12px;
-  border: 1px dashed rgba(167,187,255,0.2);
+  padding: 48px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(65, 87, 255, 0.1);
+  border-radius: 8px;
+  border: 1px dashed rgba(65, 87, 255, 0.2);
 
   p {
-    margin: 1rem 0;
-    font-size: 1rem;
+    margin: 16px 0;
+    font-size: 16px;
     line-height: 1.6;
   }
 `;
@@ -363,33 +329,31 @@ const ListHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 24px;
   width: 100%;
 `;
 
 // 添加StyledModal组件
 const StyledModal = styled(Modal)`
   .ant-modal-content {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(167,187,255,0.2);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    background: rgba(59, 60, 152, 0.95);
+    border: 1px solid rgba(65, 87, 255, 0.1);
   }
 
   .ant-modal-header {
     background: transparent;
-    border-bottom: 1px solid rgba(167,187,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .ant-modal-title {
-    color: #E8F0FF;
+    color: #fff;
   }
 
   .ant-modal-close {
-    color: rgba(232,240,255,0.7);
+    color: rgba(255, 255, 255, 0.6);
     
     &:hover {
-      color: #E8F0FF;
+      color: #fff;
     }
   }
 
